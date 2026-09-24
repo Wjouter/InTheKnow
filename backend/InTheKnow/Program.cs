@@ -13,6 +13,7 @@ builder.Services.AddSingleton<HostBudget>();
 builder.Services.AddSingleton<Checker>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Checker>());
 // subscriptions (T049)
+builder.Services.AddSingleton<Subscriptions>();
 // api (T058)
 
 var app = builder.Build();

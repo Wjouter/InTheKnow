@@ -42,6 +42,8 @@ sealed class Harness : IAsyncDisposable
 
     public Fetcher Fetcher => field ??= new Fetcher(Http, FakeHttp.Resolve);
 
+    public Subscriptions Subscriptions => new(Db.DataSource, Fetcher, Budget, Settings, Time);
+
     public DateTimeOffset Now => Time.GetUtcNow();
 
     public Task RunAsync() => Checker.RunDueChecksAsync(Now).WaitAsync(TimeSpan.FromSeconds(30));

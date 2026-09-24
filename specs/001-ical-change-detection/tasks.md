@@ -471,7 +471,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T045 [P] [US2] Write `backend/InTheKnow.Tests/LinkIdentityTests.cs`. Add a helper that builds synthetic MyTimetables links as `https://<host>/ical?<hex>&timetable=<base64("Xedule!<kind>!<base32(id)>")>&eu=<base64(userId)>&h=<token>`. Test:
+- [X] T045 [P] [US2] Write `backend/InTheKnow.Tests/LinkIdentityTests.cs`. Add a helper that builds synthetic MyTimetables links as `https://<host>/ical?<hex>&timetable=<base64("Xedule!<kind>!<base32(id)>")>&eu=<base64(userId)>&h=<token>`. Test:
   - `Normalise` lower-cases scheme and host, drops `:443`/`:80`, and sorts query parameters (FR-004, US2-6).
   - Links differing only in the hex marker get equal keys (US2-1, FR-005).
   - Two users' `xedule_studentgroup` links for the same id and host get the key `mt|<host>|<decoded timetable>` (US2-2, FR-006).
@@ -481,7 +481,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - A listed host whose link lacks `/ical`, `timetable`, `eu` or `h` falls back to the normalised URL.
   - With `ClassGroupSharing=false`, the classmates' keys differ. With `DuplicateLinkMerging=false`, the hex variants differ.
   - `Hash` is 32 bytes.
-- [ ] T046 [P] [US2] Write `backend/InTheKnow.Tests/SubscriptionsTests.cs` with a `TestDb`, `FakeHttp` and `FakeTimeProvider`. Test:
+- [X] T046 [P] [US2] Write `backend/InTheKnow.Tests/SubscriptionsTests.cs` with a `TestDb`, `FakeHttp` and `FakeTimeProvider`. Test:
   - **Duplicates and classmates**: a hex-variant link and a classmate link (both serving `mt-nl.ics`) attach to the first calendar, with `calendarIsNew=false` (US2-1, US2-2).
   - **Separate calendars**: a different group and a personal timetable each create a new calendar (US2-3, US2-4).
   - **Forged link**: a classmate-shaped link serving `mt-empty.ics` returns `validation_failed:empty_feed` and nothing is inserted (US2-5, research R11).
@@ -495,7 +495,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Implementation for User Story 2
 
-- [ ] T047 [P] [US2] Implement `backend/InTheKnow/LinkIdentity.cs` (research R12, investigation.md §1).
+- [X] T047 [P] [US2] Implement `backend/InTheKnow/LinkIdentity.cs` (research R12, investigation.md §1).
   - **`Normalise`**: lower-case the scheme and host, drop the default port, keep the path unchanged, and sort the query parameters ordinally by name and then value, keeping valueless parameters as bare names.
   - **MyTimetables structure**:
     - the host is listed in `settings`;
@@ -509,7 +509,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     3. `DuplicateLinkMerging` on: the normalised URL without the hex marker parameter, with `MyTimetablesDerived=true`;
     4. otherwise rule 1.
   - **`Hash(key)`**: `SHA256.HashData(Encoding.UTF8.GetBytes(key))`. The key is never stored or logged, because rules 1 and 3 contain the token.
-- [ ] T048 [US2] Implement `AddLinkAsync` in `backend/InTheKnow/Subscriptions.cs` (FR-001, FR-003 to FR-007, research R11).
+- [X] T048 [US2] Implement `AddLinkAsync` in `backend/InTheKnow/Subscriptions.cs` (FR-001, FR-003 to FR-007, research R11).
   1. When `subscriber` does not match `^[A-Za-z0-9._@-]{1,100}$`, return `invalid_subscriber`.
   2. Run `Fetcher.CheckUrlAsync`, returning its reason on failure. Store the URL as `uri.AbsoluteUri`.
   3. Compute `LinkIdentity.KeyFor` and its `Hash`, and look up `calendar.id` by `identity_hash`.
@@ -523,7 +523,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
      - `INSERT INTO calendar_link (calendar_id, subscriber, url) … ON CONFLICT (calendar_id, subscriber, url) DO NOTHING RETURNING id`;
      - only when this call created the calendar: set `calendar.last_link_id` and the link's `last_used_at = @now`, and write the states with `Checker.CopySnapshotAsync` (research R11: a new calendar is baselined from its validation fetch; a joining link stores nothing).
   10. Never log the URL.
-- [ ] T049 [US2] In `backend/InTheKnow/Program.cs`, at `// subscriptions (T049)`, register `builder.Services.AddSingleton<Subscriptions>()`.
+- [X] T049 [US2] In `backend/InTheKnow/Program.cs`, at `// subscriptions (T049)`, register `builder.Services.AddSingleton<Subscriptions>()`.
 
 **Checkpoint**: US1 and US2 tests pass. Links are grouped correctly and each calendar is fetched once per interval.
 
