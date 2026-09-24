@@ -124,6 +124,10 @@ public class ApiTests
                 Assert.Equal("", await response.Content.ReadAsStringAsync(Ct));
             }
         }
+        // Also before any body or route-value binding.
+        var broken = await bare.PostAsync("/api/subscribers/s1/links", new StringContent("{not json", System.Text.Encoding.UTF8, "application/json"), Ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, broken.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await bare.DeleteAsync("/api/subscribers/s1/calendars/abc", Ct)).StatusCode);
         Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
         Assert.Equal(0, h.Http.Count(new Uri(url).AbsoluteUri));
     }

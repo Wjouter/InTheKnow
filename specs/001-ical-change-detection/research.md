@@ -468,8 +468,9 @@ synthetic generic feed.
 
 - **Decision**:
   - ASP.NET Core minimal APIs, with the endpoints in [contracts/api.md](./contracts/api.md).
-  - All routes are in one `/api` route group with an endpoint filter that checks
-    `Authorization: Bearer <operator key>`. The comparison is constant-time: `FixedTimeEquals` on SHA-256
+  - All routes are in one `/api` route group behind a middleware, scoped to `/api`, that checks
+    `Authorization: Bearer <operator key>`. (Changed from an endpoint filter during implementation: minimal APIs
+    bind parameters before filters run, so a request without the key could get a 400 for its body instead of 401.) The comparison is constant-time: `FixedTimeEquals` on SHA-256
     digests, both BCL.
   - Errors use the built-in Problem Details, with a `reason` code.
   - Subscribers are addressed as `{subscriber}` in the path. The login feature will later bind that to the

@@ -656,7 +656,8 @@ public class CheckerTests
         h.Time.Advance(TimeSpan.FromMinutes(10));
         var run = h.Checker.RunDueChecksAsync(h.Now, Ct);
         await Harness.UntilAsync(() => h.Http.Count(new Uri(urls[2]).AbsoluteUri) == 2);
-        await Harness.UntilAsync(async () => await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE lease_id IS NULL") == 4);
+        // The other four must have finished this pass (not merely be unclaimed) before fake time jumps 2 minutes.
+        await Harness.UntilAsync(async () => await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE lease_id IS NULL AND last_checked_at = $1", h.Now) == 4);
         h.Time.Advance(TimeSpan.FromMinutes(2));
         await run.WaitAsync(TimeSpan.FromSeconds(20), Ct);
 
