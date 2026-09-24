@@ -399,4 +399,140 @@ public class CheckerTests
         await NextIntervalAsync(h);
         Assert.Equal(KnownEdits.Length, (await h.ChangesAsync(id)).Count);
     }
+
+    // Runs a pass, then moves the fake clock one step, until `span` has passed.
+    static async Task RunForAsync(Harness h, TimeSpan span, TimeSpan step)
+    {
+        for (var end = h.Now + span; h.Now < end; h.Time.Advance(step)) await h.RunAsync();
+    }
+
+    static List<DateTimeOffset> Times(Harness h, string host) => [.. h.Http.Requests.Where(r => r.Host == host).Select(r => r.At)];
+
+    static List<TimeSpan> Gaps(List<DateTimeOffset> times) => [.. times.Zip(times.Skip(1), (a, b) => b - a)];
+
+    [Fact]
+    public async Task ChecksFollowTheInterval()
+    {
+        await using var h = await Harness.CreateAsync(("InTheKnow:CheckInterval", "00:30:00"));
+        await h.SeedAsync("mt-nl.ics");
+        await RunForAsync(h, TimeSpan.FromHours(3), TimeSpan.FromMinutes(5));
+        var times = Times(h, Harness.Mt);
+        Assert.Equal(6, times.Count);
+        Assert.All(Gaps(times), g => Assert.Equal(TimeSpan.FromMinutes(30), g));
+    }
+
+    [Fact]
+    public async Task FailingCalendarsUseTheFailingInterval()
+    {
+        await using var h = await Harness.CreateAsync(("InTheKnow:CheckInterval", "00:30:00"), ("InTheKnow:FailingCheckInterval", "06:00:00"));
+        var (id, url) = await h.SeedAsync("mt-nl.ics");
+        await h.RunAsync();
+        h.Http.Map[url] = "mt-empty.ics";
+        await RunForAsync(h, TimeSpan.FromHours(13), TimeSpan.FromMinutes(5));
+        Assert.Equal("failing", (await h.CalendarAsync(id))[0]);
+        var failing = Times(h, Harness.Mt).Skip(1).ToList(); // after the baseline: 00:30, 06:30, 12:30
+        Assert.Equal(3, failing.Count);
+        Assert.All(Gaps(failing), g => Assert.Equal(TimeSpan.FromHours(6), g));
+
+        h.Http.Map[url] = "mt-nl.ics";
+        var before = Times(h, Harness.Mt).Count;
+        await RunForAsync(h, TimeSpan.FromHours(7), TimeSpan.FromMinutes(5));
+        var recovered = Times(h, Harness.Mt).Skip(before).ToList();
+        Assert.Equal("ok", (await h.CalendarAsync(id))[0]);
+        Assert.All(Gaps(recovered), g => Assert.Equal(TimeSpan.FromMinutes(30), g));
+        Assert.True(recovered.Count > 2);
+    }
+
+    // SC-013, FR-012a, FR-012b: 50 calendars due at once on one host at 10 requests a minute.
+    [Fact]
+    public async Task BudgetSpacesABacklogEvenly()
+    {
+        await using var h = await Harness.CreateAsync(("InTheKnow:MaxRequestsPerHostPerMinute", "10"));
+        var seeded = new List<long>();
+        for (var i = 0; i < 50; i++) seeded.Add((await h.SeedAsync("mt-nl.ics", nextCheckAt: Harness.T0.AddMinutes(-60).AddMilliseconds(50 - i))).Id);
+        await RunForAsync(h, TimeSpan.FromMinutes(6), TimeSpan.FromSeconds(1));
+
+        var times = Times(h, Harness.Mt);
+        Assert.Equal(50, times.Count);
+        Assert.All(Gaps(times), g => Assert.Equal(TimeSpan.FromSeconds(6), g));
+        Assert.True(times[^1] - Harness.T0 < TimeSpan.FromMinutes(5));
+        var rows = await h.Db.RowsAsync("SELECT id, last_checked_at, next_check_at FROM calendar ORDER BY last_checked_at");
+        Assert.Equal(Enumerable.Reverse(seeded), rows.Select(r => (long)r[0]!)); // longest-waiting first
+        Assert.All(rows, r => Assert.Equal((DateTime)r[1]! + TimeSpan.FromMinutes(10), (DateTime)r[2]!));
+    }
+
+    [Fact]
+    public async Task ValidationDuringABacklogTakesTheNextSlot()
+    {
+        await using var h = await Harness.CreateAsync(("InTheKnow:MaxRequestsPerHostPerMinute", "10"));
+        for (var i = 0; i < 5; i++) await h.SeedAsync("mt-nl.ics");
+        await h.RunAsync(); // one check at T0; the host is free again at T0 + 6 s
+        h.Time.Advance(TimeSpan.FromSeconds(1));
+
+        var link = LinkIdentityTests.MtLink(id: "NEWGROUP");
+        h.Http.Map[new Uri(link).AbsoluteUri] = "mt-nl.ics";
+        var add = h.Subscriptions.AddLinkAsync("s9", link, Ct);
+        await Harness.UntilAsync(() => h.Budget.EarliestFree(h.Now) == Harness.T0.AddSeconds(12));
+        while (!add.IsCompleted || h.Now < Harness.T0.AddSeconds(13))
+        {
+            await h.RunAsync();
+            h.Time.Advance(TimeSpan.FromSeconds(1));
+            await Task.Yield();
+        }
+        Assert.Null((await add).Error);
+        Assert.Equal(1, h.Http.Count(new Uri(link).AbsoluteUri));
+        Assert.Equal([Harness.T0, Harness.T0.AddSeconds(6), Harness.T0.AddSeconds(12)], Times(h, Harness.Mt));
+    }
+
+    [Fact]
+    public async Task DomainBudgetOverride()
+    {
+        (string, string?)[] settings = [("InTheKnow:MaxRequestsPerHostPerMinute", "10"), ("InTheKnow:MyTimetables:Domains:0:MaxRequestsPerMinute", "60")];
+        await using var h = await Harness.CreateAsync(settings);
+        var mt = new List<long>();
+        for (var i = 0; i < 5; i++)
+        {
+            mt.Add((await h.SeedAsync("mt-nl.ics")).Id);
+            await h.SeedAsync("mt-nl.ics", "other.example");
+        }
+        await RunForAsync(h, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1));
+        Assert.All(Gaps(Times(h, Harness.Mt)), g => Assert.Equal(TimeSpan.FromSeconds(1), g));
+        Assert.All(Gaps(Times(h, "other.example")), g => Assert.Equal(TimeSpan.FromSeconds(6), g));
+        Assert.Equal(5, Times(h, "other.example").Count);
+
+        // Restart with the override raised: the new spacing applies, nothing is skipped or re-baselined.
+        h.Restart([settings[0], ("InTheKnow:MyTimetables:Domains:0:MaxRequestsPerMinute", "120")]);
+        h.Time.Advance(TimeSpan.FromMinutes(10));
+        var before = Times(h, Harness.Mt).Count;
+        await RunForAsync(h, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(500));
+        var after = Times(h, Harness.Mt).Skip(before).ToList();
+        Assert.Equal(5, after.Count);
+        Assert.All(Gaps(after), g => Assert.Equal(TimeSpan.FromMilliseconds(500), g));
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM detected_change"));
+    }
+
+    // US3-6, FR-014a. Distinct hosts, so the budget never limits the claims.
+    [Fact]
+    public async Task AtMostMaxConcurrentChecksRunAtOnce()
+    {
+        await using var h = await Harness.CreateAsync(("InTheKnow:MaxConcurrentChecks", "3"));
+        for (var i = 0; i < 10; i++) await h.SeedAsync("mt-nl.ics", $"h{i}.example");
+        h.Http.Gate = new SemaphoreSlim(0);
+        var run = h.Checker.RunDueChecksAsync(h.Now, Ct);
+
+        await Harness.UntilAsync(() => h.Http.InFlight == 3);
+        await Task.Delay(100, Ct);
+        Assert.Equal((3, 3), (h.Http.InFlight, h.Http.MaxInFlight));
+
+        h.Http.Gate.Release();
+        await Harness.UntilAsync(() => h.Http.PerUrl.Count == 4);
+        await Harness.UntilAsync(() => h.Http.InFlight == 3);
+        await Task.Delay(100, Ct);
+        Assert.Equal((4, 3), (h.Http.PerUrl.Count, h.Http.MaxInFlight));
+
+        h.Http.Gate.Release(100);
+        await run.WaitAsync(TimeSpan.FromSeconds(20), Ct);
+        Assert.Equal(10, await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE last_ok"));
+        Assert.Equal(3, h.Http.MaxInFlight);
+    }
 }

@@ -52,12 +52,41 @@ sealed class Settings
         if (string.IsNullOrWhiteSpace(cs)) throw new InvalidOperationException("ConnectionStrings:Default is required");
         if (o.ApiKey.Length < 32) throw new InvalidOperationException("InTheKnow:ApiKey must be at least 32 characters");
 
+        var minimum = TimeSpan.FromMinutes(5);
+        if (o.CheckInterval < minimum)
+        {
+            log.LogWarning("InTheKnow:CheckInterval {Value} is below the minimum and is clamped to {Minimum}", o.CheckInterval, minimum);
+            o.CheckInterval = minimum;
+        }
+        if (o.FailingCheckInterval < o.CheckInterval)
+        {
+            log.LogWarning("InTheKnow:FailingCheckInterval {Value} is below CheckInterval and is clamped to {Minimum}", o.FailingCheckInterval, o.CheckInterval);
+            o.FailingCheckInterval = o.CheckInterval;
+        }
+        Require(o.MaxRequestsPerHostPerMinute >= 1, "InTheKnow:MaxRequestsPerHostPerMinute must be at least 1");
+        Require(o.MaxConcurrentChecks is >= 1 and <= 64, "InTheKnow:MaxConcurrentChecks must be between 1 and 64");
+        Require(o.ExpansionHorizonMonths >= 1, "InTheKnow:ExpansionHorizonMonths must be at least 1");
+        Require(o.ChangeRetention > TimeSpan.Zero, "InTheKnow:ChangeRetention must be positive");
+        var domains = o.MyTimetables.Domains;
+        for (var i = 0; i < domains.Count; i++)
+        {
+            Require(!string.IsNullOrWhiteSpace(domains[i].Host), $"InTheKnow:MyTimetables:Domains:{i}:Host is required");
+            Require(domains[i].MaxRequestsPerMinute is null or >= 1, $"InTheKnow:MyTimetables:Domains:{i}:MaxRequestsPerMinute must be at least 1");
+            Require(domains.Take(i).All(d => !d.Host.Equals(domains[i].Host, StringComparison.OrdinalIgnoreCase)),
+                $"InTheKnow:MyTimetables:Domains:{i}:Host duplicates another domain");
+        }
+
         return new Settings
         {
             Options = o,
             ConnectionString = cs,
             domains = o.MyTimetables.Domains.ToDictionary(d => d.Host, StringComparer.OrdinalIgnoreCase),
         };
+    }
+
+    static void Require(bool ok, string message)
+    {
+        if (!ok) throw new InvalidOperationException(message);
     }
 
     public Features? FeaturesFor(string host) =>

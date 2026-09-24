@@ -28,7 +28,8 @@ sealed class FakeHttp(TimeProvider? time = null) : HttpMessageHandler
     public readonly ConcurrentDictionary<string, int> PerUrl = new();
     public readonly ConcurrentDictionary<string, int> PerHost = new();
     public readonly ConcurrentQueue<(string Host, DateTimeOffset At)> Requests = new();
-    public TaskCompletionSource? Gate { get; set; }
+    // While set, every request waits for one release of the gate.
+    public SemaphoreSlim? Gate { get; set; }
     int inFlight, maxInFlight;
     public int InFlight => Volatile.Read(ref inFlight);
     public int MaxInFlight => Volatile.Read(ref maxInFlight);
@@ -49,7 +50,7 @@ sealed class FakeHttp(TimeProvider? time = null) : HttpMessageHandler
         for (int max; now > (max = maxInFlight) && Interlocked.CompareExchange(ref maxInFlight, now, max) != max;) { }
         try
         {
-            if (Gate is { } gate) await gate.Task.WaitAsync(ct);
+            if (Gate is { } gate) await gate.WaitAsync(ct);
             return Map.TryGetValue(url, out var reply) ? await AnswerAsync(reply, ct) : new HttpResponseMessage(HttpStatusCode.NotFound);
         }
         finally { Interlocked.Decrement(ref inFlight); }

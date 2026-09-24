@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -53,4 +54,41 @@ public class SettingsTests
         Assert.False(f.TeacherDetection);
         Assert.Equal("mt:111001", f.Canonical);
     }
+
+    static Settings Load(ILogger log, params (string, string?)[] o) =>
+        TestDb.LoadSettings(log, [("ConnectionStrings:Default", "Host=x"), ("InTheKnow:ApiKey", TestDb.ApiKey), .. o]);
+
+    [Fact]
+    public void IntervalsAreClampedWithAWarning()
+    {
+        var logs = new CapturingLogs();
+        var o = Load(logs.CreateLogger("Settings"), ("InTheKnow:CheckInterval", "00:01:00")).Options;
+        Assert.Equal(TimeSpan.FromMinutes(5), o.CheckInterval);
+        Assert.Contains(logs.Lines, l => l.Contains("CheckInterval"));
+
+        logs = new CapturingLogs();
+        o = Load(logs.CreateLogger("Settings"), ("InTheKnow:FailingCheckInterval", "00:07:00")).Options;
+        Assert.Equal(TimeSpan.FromMinutes(10), o.FailingCheckInterval);
+        Assert.Contains(logs.Lines, l => l.Contains("FailingCheckInterval"));
+    }
+
+    [Theory]
+    [InlineData("InTheKnow:MaxConcurrentChecks", "0")]
+    [InlineData("InTheKnow:MaxConcurrentChecks", "65")]
+    [InlineData("InTheKnow:MaxRequestsPerHostPerMinute", "0")]
+    [InlineData("InTheKnow:MyTimetables:Domains:0:MaxRequestsPerMinute", "0")]
+    [InlineData("InTheKnow:ExpansionHorizonMonths", "0")]
+    [InlineData("InTheKnow:ChangeRetention", "00:00:00")]
+    [InlineData("InTheKnow:MyTimetables:Domains:1:Host", "MyTimetables.Inholland.nl")]
+    public void InvalidValuesFailStartup(string key, string value)
+    {
+        var e = Assert.Throws<InvalidOperationException>(() => Load(NullLogger.Instance, (key, value)));
+        Assert.Contains(key.Replace(":Host", "").Replace(":MaxRequestsPerMinute", ""), e.Message);
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("64")]
+    public void ConcurrencyBounds(string value) =>
+        Assert.Equal(int.Parse(value), Load(NullLogger.Instance, ("InTheKnow:MaxConcurrentChecks", value)).Options.MaxConcurrentChecks);
 }
