@@ -597,31 +597,31 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T059 [P] [US3] Add to `backend/InTheKnow.Tests/SettingsTests.cs`, using a capturing logger:
+- [X] T059 [P] [US3] Add to `backend/InTheKnow.Tests/SettingsTests.cs`, using a capturing logger:
   - **Clamped with a warning**: `CheckInterval=00:01:00` becomes 5 min with a warning (US3-2). `FailingCheckInterval=00:07:00` with `CheckInterval=00:10:00` becomes 10 min with a warning.
   - **Startup failures**: `MaxConcurrentChecks` 0 and 65, `MaxRequestsPerHostPerMinute` 0, a domain `MaxRequestsPerMinute` 0, `ExpansionHorizonMonths` 0, and `ChangeRetention` `00:00:00`.
   - **Accepted**: `MaxConcurrentChecks` 1 and 64.
-- [ ] T060 [P] [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (scheduling):
+- [X] T060 [P] [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (scheduling):
   - **Interval**: with `CheckInterval=00:30:00`, a calendar is fetched once per 30 fake minutes over 3 hours (US3-1).
   - **Failing interval**: with `FailingCheckInterval=06:00:00` and every link serving `mt-empty.ics` after a baseline, the calendar is fetched every 6 h. After a link serves `mt-nl.ics` again, it returns to the 30-min interval (US3-4).
-- [ ] T061 [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (budget spacing, SC-013, FR-012a, FR-012b). With `MaxRequestsPerHostPerMinute=10`, 50 calendars on one host all have the same `next_check_at` (as after a restart). Loop `RunDueChecksAsync(now)` and `Advance(1 s)` for 6 fake minutes. Assert:
+- [X] T061 [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (budget spacing, SC-013, FR-012a, FR-012b). With `MaxRequestsPerHostPerMinute=10`, 50 calendars on one host all have the same `next_check_at` (as after a restart). Loop `RunDueChecksAsync(now)` and `Advance(1 s)` for 6 fake minutes. Assert:
   - consecutive `FakeHttp` timestamps are exactly 6 s apart;
   - the order is longest-waiting first (seed slightly different `next_check_at` values to make the order observable);
   - all 50 are fetched within 5 min and none is skipped;
   - every `next_check_at` = its actual check time + `CheckInterval`, so they stay 6 s apart.
 
   In a **separate** test with the same backlog: call `AddLinkAsync` for that host at a moment when 5 s or less remain until the host's next slot (the 5 s cap otherwise returns `host_budget_exhausted`). Do not await it straight away; advance `FakeTimeProvider` until it completes, because its `Task.Delay` runs on fake time. It succeeds, its request lands in the next slot, and the following check request comes one gap later.
-- [ ] T062 [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (budget override, US3-5):
+- [X] T062 [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (budget override, US3-5):
   - With a default of 10/min and `mytimetables.inholland.nl` `MaxRequestsPerMinute=60`, requests to that domain are 1 s apart and requests to an unlisted host 6 s apart.
   - Build a new `Settings`, `HostBudget` and `Checker` with the override raised to 120/min (a restart): the spacing becomes 0.5 s, no calendar is skipped, and 0 changes are recorded (the budget is not a feature, so no re-baseline).
-- [ ] T063 [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (concurrency, US3-6, FR-014a). With `MaxConcurrentChecks=3`, 10 due calendars and the `FakeHttp` gate set, start `RunDueChecksAsync` without awaiting it:
+- [X] T063 [US3] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (concurrency, US3-6, FR-014a). With `MaxConcurrentChecks=3`, 10 due calendars and the `FakeHttp` gate set, start `RunDueChecksAsync` without awaiting it:
   - `FakeHttp` max-in-flight is exactly 3;
   - completing one gated request lets exactly one more start;
   - after the gate opens, all 10 finish.
 
 ### Implementation for User Story 3
 
-- [ ] T064 [US3] Add clamping and validation to `Settings.Load` in `backend/InTheKnow/Settings.cs` (contracts/configuration.md § Settings):
+- [X] T064 [US3] Add clamping and validation to `Settings.Load` in `backend/InTheKnow/Settings.cs` (contracts/configuration.md § Settings):
   - **Clamped with a warning** through the passed `ILogger`:
     - `CheckInterval < 00:05:00` → 5 min;
     - `FailingCheckInterval < CheckInterval` → `CheckInterval`.
