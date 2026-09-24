@@ -10,6 +10,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(new Fetcher());
 builder.Services.AddSingleton<HostBudget>();
 // checker (T044)
+builder.Services.AddSingleton<Checker>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Checker>());
 // subscriptions (T049)
 // api (T058)
 

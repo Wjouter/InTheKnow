@@ -289,7 +289,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T028 [P] [US1] Create `backend/InTheKnow.Tests/Fixtures/mt-nl-edited.ics` from `mt-nl.ics` with exactly these edits, listed in a comment at the top of the test that uses them:
+- [X] T028 [P] [US1] Create `backend/InTheKnow.Tests/Fixtures/mt-nl-edited.ics` from `mt-nl.ics` with exactly these edits, listed in a comment at the top of the test that uses them:
   - one lesson's `LOCATION` goes from `AL00.A1.38` to `AL00.A1.20` (US1-1);
   - one lesson's `DTEND` moves 30 min later (US1-2);
   - one lesson's second teacher is replaced (US1-3);
@@ -300,8 +300,8 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - the Groep(en) order of one multi-group event is reversed, with no other change (FR-026).
 
   Also create `backend/InTheKnow.Tests/Fixtures/mt-nl-volatile.ics`, which is `mt-nl.ics` with only `DTSTAMP`, `CREATED`, `LAST-MODIFIED` and the `Laatst gesynchroniseerd op …` lines changed (US1-6).
-- [ ] T029 [P] [US1] Create `backend/InTheKnow.Tests/Fixtures/generic-edited.ics` from `generic.ics`. The `RECURRENCE-ID` override gets a new `SUMMARY`, and one single event's `DTSTART`/`DTEND` is re-expressed from `TZID=Europe/Amsterdam` local time into the same instant in UTC (`…Z`). Nothing else changes.
-- [ ] T030 [P] [US1] Write `backend/InTheKnow.Tests/FeedParserTests.cs` against `generic.ics` with a fixed horizon:
+- [X] T029 [P] [US1] Create `backend/InTheKnow.Tests/Fixtures/generic-edited.ics` from `generic.ics`. The `RECURRENCE-ID` override gets a new `SUMMARY`, and one single event's `DTSTART`/`DTEND` is re-expressed from `TZID=Europe/Amsterdam` local time into the same instant in UTC (`…Z`). Nothing else changes.
+- [X] T030 [P] [US1] Write `backend/InTheKnow.Tests/FeedParserTests.cs` against `generic.ics` with a fixed horizon:
   - **Expansion**: weekly occurrences appear with keys `weekly@test|<original start UTC ISO>`. The EXDATE occurrence is absent. The override keeps the original-start key and has the moved time.
   - **Time zones**: occurrences on both sides of the DST switch resolve to the correct UTC instants. The floating event resolves in Europe/Amsterdam. The all-day event starts at local midnight (for example 1 April 2026 becomes `2026-03-31T22:00Z`) and ends the next day.
   - **Missing UID**: the UID-less event gets a `content:<sha256>` key, stable across two parses.
@@ -311,7 +311,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - **Horizon**: the 2030 single event is present even though the horizon is 12 months, and the daily series stops at the horizon.
   - **Bounds**: a synthetic `FREQ=MINUTELY` feed gives `too_many_occurrences`, and garbage text gives `unparseable`.
   - **Long keys**: a 1,100-character UID gives a `sha256:<hex>` key.
-- [ ] T031 [P] [US1] Write `backend/InTheKnow.Tests/MyTimetablesTests.cs`.
+- [X] T031 [P] [US1] Write `backend/InTheKnow.Tests/MyTimetablesTests.cs`.
   - **Parsing `mt-nl.ics` with all features on**, each event yields:
     - `type` mapped as `Les`→`lesson`, `Toets`→`test`, `Vakantie`→`holiday`, `Afspraak`→`appointment`;
     - `rooms` taken from `LOCATION`, split on `,`, sorted;
@@ -325,7 +325,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - **Unlisted host** (`Features` null): `fields` = the raw `{location, description}`, and the `[CONCEPT] ` prefix stays in the name.
   - **Unknown label**: an unknown `Foo: bar` block gives `details.Foo = "bar"`. An unlabelled free-text block gives `details.text`.
   - **Real data**: when `Fixtures/private/*.ics` exist, every event in them has a name, a start and an end, and every `Les` event has a type, rooms and groups. Skip this test when the folder is empty.
-- [ ] T032 [P] [US1] Write `backend/InTheKnow.Tests/DifferTests.cs` with in-memory `EventState`s:
+- [X] T032 [P] [US1] Write `backend/InTheKnow.Tests/DifferTests.cs` with in-memory `EventState`s:
   - **Field changes**: one change per differing field, with field names and value shapes per contracts/detected-change.md. `time` covers start and end in one change, as `{"start","end"}`. Rooms, teachers and groups are compared as sets.
   - **Added and removed**: they carry the event object `{key,name,start,end,status,fields}`. The context is the new name and start, or the old ones for `removed`.
   - **Absent vs empty**: a key absent on one side and empty on the other is not a change.
@@ -334,15 +334,15 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     - a stored recurring occurrence with `OccurrenceStart > currentHorizon` that is missing now goes to `Deletes` without a change;
     - a single event is never horizon-exempt.
   - **Hash**: `SnapshotHash` is identical for the same events in a different order, and changes when one field changes.
-- [ ] T033 [US1] Add a seed helper to `backend/InTheKnow.Tests/TestDb.cs`: `Task<(long CalendarId, long[] LinkIds)> SeedCalendarAsync(string host, string[] urls, string subscriber = "s1", DateTimeOffset? nextCheckAt = null)`. It inserts directly with SQL: one `calendar` with a random 32-byte `identity_hash` and `next_check_at` = `nextCheckAt` or epoch, and one `calendar_link` per URL (URLs must be `https://`, or the `url` CHECK rejects them). US1 tests therefore do not depend on the US2 add-link code.
-- [ ] T034 [US1] Write `backend/InTheKnow.Tests/CheckerTests.cs` (part 1: detection). Build a `Checker` with a `TestDb`, `new Fetcher(fakeHttp, FakeHttp.Resolve)`, `FakeTimeProvider` and default `Settings`, and seed with T033. Cover:
+- [X] T033 [US1] Add a seed helper to `backend/InTheKnow.Tests/TestDb.cs`: `Task<(long CalendarId, long[] LinkIds)> SeedCalendarAsync(string host, string[] urls, string subscriber = "s1", DateTimeOffset? nextCheckAt = null)`. It inserts directly with SQL: one `calendar` with a random 32-byte `identity_hash` and `next_check_at` = `nextCheckAt` or epoch, and one `calendar_link` per URL (URLs must be `https://`, or the `url` CHECK rejects them). US1 tests therefore do not depend on the US2 add-link code.
+- [X] T034 [US1] Write `backend/InTheKnow.Tests/CheckerTests.cs` (part 1: detection). Build a `Checker` with a `TestDb`, `new Fetcher(fakeHttp, FakeHttp.Resolve)`, `FakeTimeProvider` and default `Settings`, and seed with T033. Cover:
   - **Baseline**: the first check records 0 changes and stores all events (US1-7).
   - **Known edits**: `mt-nl.ics` then `mt-nl-edited.ics` records exactly the T028 edits and nothing else. The Groep(en) reorder records nothing. The time and room changes of one event share `(event_key, detected_at)` (US1-1…5, SC-001).
   - **Volatile only**: `mt-nl.ics` then `mt-nl-volatile.ics` records 0 changes (US1-6).
   - **Language switch**: `mt-nl.ics` then `mt-en.ics` records 0 changes.
   - **Restart**: build a **new** `Checker` instance on the same database after the baseline, check the edited feed, and get the same changes. A further check then records nothing new (US1-8, SC-008).
   - **Generic feed**: on an unlisted host, `generic.ics` then `generic-edited.ics` records exactly one `name` change, for the override occurrence. After advancing fake time by 1 month with the unchanged `generic.ics`, the horizon shift records nothing (SC-007, FR-015a).
-- [ ] T035 [US1] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (part 2: outcomes and writes):
+- [X] T035 [US1] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (part 2: outcomes and writes):
   - **No-op writes**: checking an unchanged feed twice leaves the `event_snapshot` row count and every row's `xmin` unchanged. A one-room edit changes the `xmin` of exactly one row (FR-019a, SC-010).
   - **Failures**: `http 500`, `Timeout` (fetch timeout) and an unparseable body each leave the snapshot unchanged and record no changes. They set `last_ok=false` and `last_error` to the code only, increment `consecutive_failures`, and set `failing_since` once (FR-024, FR-027).
   - **Empty feed (SC-004, FR-008a)**:
@@ -350,7 +350,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     - with every link empty, the calendar becomes `failing` and `next_check_at` = check start + `FailingCheckInterval`;
     - when a flagged link serves the **same** `mt-nl.ics` as before (the hash no-op path), the link is un-flagged, the calendar returns to `ok`, `consecutive_failures=0`, and `next_check_at` = check start + `CheckInterval`.
   - **Retention**: `RunRetentionAsync(now)` deletes changes with `detected_at < now - ChangeRetention` and keeps newer ones (FR-025a). Seed 25,000 expired changes so that more than two batches run, and check that all are gone.
-- [ ] T036 [US1] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (part 3: stuck checks and leases, SC-012, FR-014a):
+- [X] T036 [US1] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (part 3: stuck checks and leases, SC-012, FR-014a):
   - **Stuck fetch**: one calendar whose URL is `Hang`, plus three normal calendars, are all due. Start `RunDueChecksAsync` without awaiting it, and advance `FakeTimeProvider` by 2 min. The three normal calendars are checked successfully before the advance. The stuck one is recorded `last_error='timeout'` with no changes, and its worker slot is released (a further due calendar gets checked).
   - **Stuck hook**: the same with `BeforeWriteHook` blocking on a `TaskCompletionSource` that ignores cancellation.
   - **Orphan resumes**: release the hook after the timeout was recorded. It commits no `event_snapshot` rows and no `detected_change` rows, and `last_error` stays `timeout`. Repeat after the calendar was claimed again by a later `RunDueChecksAsync`: still nothing is committed by the orphan.
@@ -359,7 +359,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Implementation for User Story 1
 
-- [ ] T037 [P] [US1] Implement `backend/InTheKnow/FeedParser.cs` `Parse` (research R2, R6, R7, R8, R8a, R10).
+- [X] T037 [P] [US1] Implement `backend/InTheKnow/FeedParser.cs` `Parse` (research R2, R6, R7, R8, R8a, R10).
   - **1. Pre-scan**: scan the raw text and, in every `BEGIN:VEVENT` … `END:VEVENT` block with no line starting `UID`, insert the line `X-INTHEKNOW-NO-UID:1`. Ical.Net gives UID-less events a random GUID, so it cannot be relied on.
   - **2. Load**: `Calendar.Load(text)`. Any exception returns `unparseable`.
   - **3. Fix bad ends**: for each event with `DtEnd < DtStart`, set `DtEnd = DtStart` **before** any expansion. One such event otherwise makes the whole enumeration throw `Duration must be >= 0`.
@@ -375,7 +375,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - **8. Fields**: `Name = Summary ?? ""`, `Status = Status?.ToLowerInvariant()`, and Location and Description taken raw.
   - **9. Bounds**: return `too_many_occurrences` once the count exceeds 50,000, and `unparseable` for any evaluation exception.
   - **Cancellation**: call `ct.ThrowIfCancellationRequested()` between stages.
-- [ ] T038 [P] [US1] Implement `backend/InTheKnow/MyTimetables.cs` `ToState(Occurrence o, Features? f)` (research R9, FR-015 to FR-018, FR-016a).
+- [X] T038 [P] [US1] Implement `backend/InTheKnow/MyTimetables.cs` `ToState(Occurrence o, Features? f)` (research R9, FR-015 to FR-018, FR-016a).
   - **Unlisted host (`f == null`)**: `fields = {location, description}`, taken raw.
   - **Listed host, common steps**:
     1. With `f.DraftMarkerDetection`, a name starting with `[CONCEPT] ` or `[DRAFT] ` loses the prefix and gets status `tentative`.
@@ -390,7 +390,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     - `Groep(en)`/`Student set(s)` → `groups`, split on `,`.
     - Any other label → `details[<label verbatim>]`. Unlabelled blocks are joined with `\n\n` into `details.text`.
   - **All paths**: lists are trimmed, empty entries removed, de-duplicated and sorted ordinally. Keys with null, empty-string or empty-list values are omitted. `fields` keys are written in sorted order.
-- [ ] T039 [US1] Implement `backend/InTheKnow/Differ.cs` (depends on T038 for `EventState`; research R7, R14; contracts/detected-change.md).
+- [X] T039 [US1] Implement `backend/InTheKnow/Differ.cs` (depends on T038 for `EventState`; research R7, R14; contracts/detected-change.md).
   - **Changed events**: for each key in both `stored` and `current`, emit `changed` rows for:
     - `name`;
     - `time` (`{"start","end"}` ISO UTC; one change when either differs);
@@ -403,12 +403,12 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - **Missing keys**: `removed`, with `old_value` = the event object, and in `Deletes`. The exception is a recurring occurrence whose `OccurrenceStart > currentHorizon`: it goes in `Deletes` only.
   - **Context**: `EventName`/`EventStartsAt` are the new values, or the old ones for `removed`.
   - **`SnapshotHash`**: SHA-256 over the events sorted by key (ordinal), serialised canonically as one JSON array of `[key,name,start,end,status,occurrenceStart,fields]` with ISO UTC times.
-- [ ] T040 [US1] Implement the check input half of `backend/InTheKnow/Checker.cs`.
+- [X] T040 [US1] Implement the check input half of `backend/InTheKnow/Checker.cs`.
   - **Claim**: `ClaimAsync(now, busyHosts)` computes `leaseEnd = now + 5 min` and `lease = Guid.NewGuid()` in C#, then runs `UPDATE calendar SET next_check_at = @leaseEnd, lease_id = @lease WHERE id = (SELECT id FROM calendar WHERE next_check_at <= @now AND host <> ALL(@busyHosts) ORDER BY next_check_at LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING id, host, status` (research R4). All times come from `TimeProvider` parameters, never SQL `now()`.
   - **Link selection (FR-008)**: when `status='ok'`, use `SELECT id, url FROM calendar_link WHERE calendar_id=@id AND flagged_at IS NULL ORDER BY id LIMIT 1`. When the status is `failing`, or no unflagged link exists, use `… ORDER BY last_used_at NULLS FIRST, id LIMIT 1` over all links.
   - **Pipeline**: `Fetcher.FetchAsync`, then `FeedParser.Parse` with horizon `startedAt.AddMonths(ExpansionHorizonMonths)`, then `MyTimetables.ToState(o, settings.FeaturesFor(host))`, then `Differ.SnapshotHash`, then `await BeforeWriteHook?.Invoke(calendarId, ct)`.
   - **Logging**: log only calendar ids, link ids and reason codes, never URLs or exception messages. For an unexpected exception, log its type only.
-- [ ] T041 [US1] Implement the outcome transaction in `backend/InTheKnow/Checker.cs` (data-model.md § One check, research R14). Every outcome runs in **one** transaction that starts with the lease fence `SELECT status, baseline_features, snapshot_hash, horizon_end, EXISTS(SELECT 1 FROM event_snapshot WHERE calendar_id=@id) FROM calendar WHERE id=@id AND lease_id=@lease FOR UPDATE`. When no row comes back, roll back and write **nothing**.
+- [X] T041 [US1] Implement the outcome transaction in `backend/InTheKnow/Checker.cs` (data-model.md § One check, research R14). Every outcome runs in **one** transaction that starts with the lease fence `SELECT status, baseline_features, snapshot_hash, horizon_end, EXISTS(SELECT 1 FROM event_snapshot WHERE calendar_id=@id) FROM calendar WHERE id=@id AND lease_id=@lease FOR UPDATE`. When no row comes back, roll back and write **nothing**.
 
   Evaluate the rows **in this order**; the first match wins:
   1. **Fetch or parse error** (including `too_many_occurrences`): failure with that code.
@@ -434,7 +434,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - `consecutive_failures = consecutive_failures + 1`, `failing_since = COALESCE(failing_since, @startedAt)`;
   - `next_check_at = startedAt + (resulting status = 'failing' ? FailingCheckInterval : CheckInterval)`, `lease_id=NULL`;
   - the link's `last_used_at=startedAt`.
-- [ ] T042 [US1] Implement the dispatcher in `backend/InTheKnow/Checker.cs` (research R4, FR-012b, FR-014a).
+- [X] T042 [US1] Implement the dispatcher in `backend/InTheKnow/Checker.cs` (research R4, FR-012b, FR-014a).
   - **Worker slots**: `SemaphoreSlim(MaxConcurrentChecks)`.
   - **One pass**:
     1. await a slot;
@@ -456,8 +456,8 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     1. run a pass at `time.GetUtcNow()`;
     2. when nothing was claimable, `Task.Delay(min(1 s, EarliestFree(now) - now), time, stoppingToken)`;
     3. every 10 min of `TimeProvider` time, call `RunRetentionAsync`.
-- [ ] T043 [US1] Implement `RunRetentionAsync(now)` in `backend/InTheKnow/Checker.cs` (FR-025a, data-model.md § Lifecycle): with `@cutoff = now - ChangeRetention`, repeat `DELETE FROM detected_change WHERE id IN (SELECT id FROM detected_change WHERE detected_at < @cutoff LIMIT 10000)` until it deletes fewer than 10,000 rows, each in its own statement, so an expiring burst never becomes one long transaction.
-- [ ] T044 [US1] In `backend/InTheKnow/Program.cs`, at `// checker (T044)`, register `builder.Services.AddSingleton<Checker>()` and `builder.Services.AddHostedService(sp => sp.GetRequiredService<Checker>())`.
+- [X] T043 [US1] Implement `RunRetentionAsync(now)` in `backend/InTheKnow/Checker.cs` (FR-025a, data-model.md § Lifecycle): with `@cutoff = now - ChangeRetention`, repeat `DELETE FROM detected_change WHERE id IN (SELECT id FROM detected_change WHERE detected_at < @cutoff LIMIT 10000)` until it deletes fewer than 10,000 rows, each in its own statement, so an expiring burst never becomes one long transaction.
+- [X] T044 [US1] In `backend/InTheKnow/Program.cs`, at `// checker (T044)`, register `builder.Services.AddSingleton<Checker>()` and `builder.Services.AddHostedService(sp => sp.GetRequiredService<Checker>())`.
 
 **Checkpoint**: US1 tests pass. A seeded calendar is checked on schedule and its changes are recorded (MVP).
 
