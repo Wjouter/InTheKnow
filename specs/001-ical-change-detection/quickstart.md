@@ -50,7 +50,8 @@ Expected: every test passes. This covers:
 | An empty feed after events gives no removals, flags the link and falls back to another link. With all links flagged the calendar becomes `failing`. When a link returns the **same** feed as before the failure (the hash no-op path), the link is un-flagged and the calendar returns to `ok` and the normal interval. | SC-004, FR-008a, US3-4 |
 | A generic feed with RRULE, EXDATE, a RECURRENCE-ID override, a floating time and a UID-less event: an edit to one occurrence records one change, a horizon shift records nothing, and a DST-only representation change records nothing | SC-007, FR-015a |
 | The same feed from an unlisted domain, a fully enabled domain and a partly enabled domain: the features that apply match the configuration, and switching them re-baselines with 0 changes | US4-1…5, SC-009 |
-| The address classifier rejects loopback, private, link-local and CGNAT addresses (both IPv4 and IPv6-mapped forms) and the `file:` scheme. A real `SocketsHttpHandler` refuses to connect to `localhost` through the connect-time callback, which also covers redirects. | FR-001 |
+| The address classifier rejects loopback, private, link-local and CGNAT addresses (both IPv4 and IPv6-mapped forms), and the `file:` and plain `http:` schemes. A real `SocketsHttpHandler` refuses to connect to `localhost` through the connect-time callback, which also covers redirects. A body over 10 MB fails with `too_large`, and a network error with `network`. | FR-001, FR-014 |
+| Adding a link that creates a calendar stores its baseline from the validation fetch, with 0 changes and the first check one interval later. A link that joins stores nothing. | FR-023, research R11 |
 | An interval below the minimum is clamped with a warning, and the defaults apply when nothing is configured | US3-2, US3-3 |
 | With the per-host budget set to 10/min and 50 calendars on one host all due at the same instant (as after a restart), `FakeTimeProvider` shows consecutive requests exactly 6 s apart, in longest-waiting-first order. None is skipped, all 50 are checked within 5 minutes, and their next checks are one interval after each actual check, so they stay 6 s apart. An add-link validation during the backlog waits at most one slot and succeeds. | FR-012a, FR-012b, SC-013 |
 | A default budget of 10/min and an override of 60/min for one configured domain: requests to that domain are 1 s apart, and requests to an unlisted host are 6 s apart. Restarting with the override raised to 120/min changes the domain's spacing to 0.5 s, and no calendar is skipped or re-baselined. | FR-012a, US3-5 |
@@ -92,8 +93,8 @@ Expected: every test passes. This covers:
    curl -s localhost:5000/api/subscribers/me/calendars -H "Authorization: Bearer $InTheKnow__ApiKey"
    ```
 
-   Expected: within one interval, `lastOk: true`. There should be no link in the output, and no link anywhere in
-   the app's log (FR-032).
+   Expected: `lastOk: true` straight away, because the baseline came from the validation fetch. There should be no
+   link in the output, and no link anywhere in the app's log (FR-032).
 
 6. Leave the app running for 24 hours, then run:
 
@@ -117,3 +118,40 @@ Set `InTheKnow__CheckInterval=00:01:00` and start the app.
 
 Expected: a warning that the interval was clamped to 5 minutes (US3-2). Starting without `InTheKnow__ApiKey`, or
 with a key shorter than 32 characters, fails at startup.
+
+## 4. Performance check
+
+Run this once against the live source with a real link, and note the numbers in research R19. The plan's goals are
+not asserted in tests, because wall-clock assertions are flaky. The `dotnet test` selection options below are
+unverified until the test project exists; T076 confirms them.
+
+1. **Compression**: check whether the source compresses its feed, without printing the link:
+
+   ```bash
+   read -rs LINK && printf 'url = "%s"\n' "$LINK" | curl -s -o /dev/null -D - -H 'Accept-Encoding: gzip, br' -K - | grep -i -E '^(content-encoding|content-length|expires):'
+   ```
+
+   The link goes to curl through a config on stdin, never on its command line (FR-028). Expected: the headers only.
+   A `Content-Encoding` means the bandwidth figures in R19 are an upper bound.
+
+2. **Parse cost**: with real feeds in `Fixtures/private/`, run the explicit parse benchmark. Explicit tests never
+   run in the normal gate:
+
+   ```bash
+   dotnet test -- --filter-method "*ParseCost*" --explicit only
+   ```
+
+   Expected: it logs the average time of parse + extraction + hash per feed, well under the 1 s goal.
+
+3. **Throughput and API reads**: run the explicit 5,000-calendar test. It seeds 5,000 calendars on one configured
+   domain with a budget high enough not to limit, serves `mt-nl.ics` from fake HTTP, and runs a baseline pass and an
+   unchanged pass, one calendar per fake-clock step (so the numbers are a sequential upper bound). It then seeds
+   2,000 changes and times `GET /api/calendars?limit=500` and one subscriber's `GET …/changes?limit=500` through the
+   in-memory host:
+
+   ```bash
+   dotnet test -- --filter-method "*Throughput5000*" --explicit only
+   ```
+
+   Expected: the unchanged pass writes 0 `event_snapshot` rows and its total wall time is well under the 10-minute
+   interval (SC-010); both API reads take under 0.2 s.

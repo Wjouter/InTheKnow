@@ -28,6 +28,12 @@
 - Q: Can one stuck check hold up the others, and what happens to a check that would exceed the per-host request budget? → A: Calendars are checked concurrently, and each check has an overall time limit, so a stuck check is recorded as failed and never delays other calendars. A check that would exceed the budget is never skipped: it stays due, keeps its place in line (longest-waiting first), and is sent at the host's next free slot. Requests to a host are spaced evenly, so many checks that fall due at the same moment (e.g. after a restart) are spread out automatically.
 - Q: Can one domain get a bigger request allowance than others, and is the number of concurrent checks adjustable? → A: Yes. The operator sets a default request budget for every host and can override it per configured domain (e.g. after the institution grants a bigger allowance); the number of concurrent checks is also operator-configurable. Changes take effect after a restart, and the even spacing follows the new values.
 
+### Session 2026-09-24 (analysis)
+
+- Q: Are plain `http` feed links accepted? → A: No. The constitution requires HTTPS outside local development, so only `https` links are accepted (FR-001); "any iCalendar link" above means any `https` link.
+- Q: When is a new calendar's baseline taken? → A: From the validation fetch of the link that creates it, so a new calendar is watched from the moment it is added, even when checks are running behind (FR-023).
+- Q: What does "within one check interval" mean when the host's budget cannot keep up? → A: Within one check cycle: the interval, or calendars on the host ÷ budget when that is longer (SC-005).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Detect changes in my timetable (Priority: P1)
@@ -46,7 +52,7 @@ A student has added their calendar link. The system periodically checks the cale
 4. **Given** a calendar's state is stored, **When** an event's name changes, **Then** a name change is recorded; **When** an event gains or loses its draft marker (`[CONCEPT]` / `[DRAFT]`), **Then** a status change (tentative ↔ confirmed) is recorded instead.
 5. **Given** a calendar's state is stored, **When** a new event appears, **Then** an "added" change is recorded; **When** an event disappears, **Then** a "removed" change is recorded.
 6. **Given** a calendar's state is stored, **When** it is checked again and only volatile bookkeeping data changed (sync timestamps, generation times), **Then** no change is recorded.
-7. **Given** a calendar is checked for the very first time, **When** the check completes, **Then** its events are stored as the baseline and no changes are recorded.
+7. **Given** a calendar is fetched for the very first time (the validation fetch of the link that creates it), **When** that fetch succeeds, **Then** its events are stored as the baseline and no changes are recorded.
 8. **Given** the system is restarted, **When** the next check runs, **Then** it compares against the state stored before the restart.
 
 ---
@@ -130,7 +136,7 @@ A client (the operator now, the SvelteKit frontend later) adds and removes calen
 
 - **Invalid/revoked MyTimetables link**: MyTimetables returns a successful, well-formed but empty calendar. With empty-feed protection enabled, a calendar that previously had events and now has none is treated as a failed check: no removals are recorded, the link is flagged, and another validated link for the same calendar is used if available. If every link is flagged, the calendar is marked failing and retried at the failing-calendar interval; as soon as a link returns events again it is un-flagged and normal checking resumes (this also covers a legitimately empty timetable, e.g. between academic years).
 - **Server unreachable, error response, oversized or unparseable feed**: the check is marked failed, no changes are recorded, the stored state is kept, and the next check proceeds normally; repeated failures are visible to the operator.
-- **Links pointing at internal/private network addresses or non-web schemes**: rejected when added and never fetched.
+- **Links pointing at internal/private network addresses, or using any scheme other than `https`** (including plain `http`): rejected when added and never fetched.
 - **English vs Dutch MyTimetables feeds**: the feed language is an account-wide setting of the link owner and can change between checks. A switch changes the description labels, the activity-type values, the draft marker (`[CONCEPT]` ↔ `[DRAFT]`) and the calendar name, but no event data. With event details and draft-marker detection enabled, all of these are recognised in both languages and normalised, so a language switch alone records no changes; with either disabled, the change to the affected raw field (description or name) is recorded.
 - **Unknown labelled parts** in a MyTimetables description: kept as additional event details; changes to them are recorded like any other field.
 - **Recurring events** (common in personal/work calendars): expanded into individual occurrences from the start of the series up to the expansion horizon (FR-015a); occurrences entering or leaving the horizon only because time moved on (or the horizon was reconfigured) are not recorded as added or removed; a change to one occurrence is recorded for that occurrence only; a change to the whole series is recorded for each affected occurrence.
@@ -140,7 +146,7 @@ A client (the operator now, the SvelteKit frontend later) adds and removes calen
 - **Shared events** (same event in several calendars, e.g. holidays or combined classes): each calendar records it independently for its own subscribers.
 - **Daylight-saving transitions and floating (time-zone-less) times**: times are resolved to absolute instants (floating times in the calendar's declared time zone); a pure representation difference is not a change.
 - **Last subscriber removes their link**: the calendar is no longer checked, and its links, event snapshots, recorded changes and check result are deleted.
-- **Domain configuration changes** (domain added/removed, feature toggled): links are re-grouped under the new identity rules on the next check, and affected calendars are re-baselined without recording changes.
+- **Domain configuration changes** (domain added/removed, feature toggled): configuration takes effect at the next start: links are re-grouped under the new identity rules at startup, and affected calendars are re-baselined without recording changes.
 - **Many checks for one server due at the same moment** (e.g. after a restart or downtime): they are sent one after another, evenly spaced within the server's request budget, longest-waiting first; none is skipped, and because each calendar's next check is scheduled from when it actually ran, they stay spread out afterwards.
 - **More calendars on one server than its request budget allows per interval**: checks for that server are delayed rather than sent faster or skipped; the operator can see overdue calendars and raise the interval or the budget.
 - **A check that hangs or runs very long** (slow server, stalled connection, pathological feed): it is stopped at the overall check time limit and recorded as a failed check (timeout); other calendars keep being checked on schedule meanwhile.
@@ -152,7 +158,7 @@ A client (the operator now, the SvelteKit frontend later) adds and removes calen
 
 **Calendar registration & identity**
 
-- **FR-001**: System MUST accept any `http`/`https` iCalendar feed link and MUST reject links with other schemes or that resolve to loopback, private or link-local network addresses.
+- **FR-001**: System MUST accept any `https` iCalendar feed link and MUST reject links with any other scheme (including plain `http`, per the constitution's HTTPS rule) or that resolve to loopback, private or link-local network addresses.
 - **FR-002**: The operator MUST be able to configure a list of MyTimetables domains and, per domain, enable or disable each MyTimetables feature: (a) duplicate link merging, (b) class-group sharing, (c) empty-feed protection, (d) teacher detection, (e) event details, (f) draft-marker detection. Default: `mytimetables.inholland.nl` with all features enabled.
 - **FR-002a**: MyTimetables features MUST apply only to links whose host exactly matches a configured MyTimetables domain, and only the features enabled for that domain; links on all other domains MUST get default iCalendar change detection. Removal of volatile MyTimetables notes (FR-018) always applies on configured domains.
 - **FR-003**: System MUST validate every newly added link with a single fetch before accepting it: the response must be a parseable iCalendar feed; when empty-feed protection is enabled for the link's domain it must also contain at least one event.
@@ -192,7 +198,7 @@ A client (the operator now, the SvelteKit frontend later) adds and removes calen
 - **FR-020**: System MUST match events between the stored state and a new fetch by their stable event identity.
 - **FR-021**: System MUST record a change for every extracted field whose value differs, and an "added" or "removed" change for events that appear or disappear. It MUST NOT filter changes by event type, date (past or future) or field; selecting which changes matter is left to later user filters.
 - **FR-022**: Each recorded change MUST include the calendar, the event identity, the field (or added/removed), the old and new values, the event's name and time for context, and when it was detected.
-- **FR-023**: The first successful check of a calendar MUST establish the baseline without recording changes.
+- **FR-023**: The first successful fetch of a calendar MUST establish the baseline without recording changes. For a calendar created by adding a link, that is the link's validation fetch (FR-003).
 - **FR-024**: A check that fails (network/server error, unparseable content, or, with empty-feed protection enabled, a calendar returning zero events where it had events before) MUST NOT record any changes and MUST NOT replace the stored state.
 - **FR-025**: Recorded changes MUST be stored in the database so a later notification feature can pick them up, and each change MUST be recorded once (not again on subsequent checks).
 - **FR-025a**: Recorded changes MUST be deleted once older than an operator-configurable retention period, default 1 year.
@@ -229,7 +235,7 @@ A client (the operator now, the SvelteKit frontend later) adds and removes calen
 - **SC-002**: Checking an unchanged real MyTimetables calendar repeatedly over 24 hours produces 0 recorded changes.
 - **SC-003**: For N links (from one or many users) pointing to the same class-group timetable, the source server receives exactly 1 scheduled request per check interval, plus 1 validation request per newly added link.
 - **SC-004**: With empty-feed protection enabled, an invalid or revoked MyTimetables link never causes events to be recorded as removed.
-- **SC-005**: A change present in the source calendar is recorded within one check interval after it appears.
+- **SC-005**: A change present in the source calendar is recorded within one check cycle after it appears, where the check cycle is the check interval, or `calendars on the host ÷ the host's budget per minute` minutes when that is longer (FR-012a, FR-012b).
 - **SC-006**: Both example class-group timetables (ALTI26VT4ES1, ALET26VT4A) are parsed with every event's name, times, rooms, teachers, type and groups extracted correctly; an English-language feed of the same timetable yields the same extracted values.
 - **SC-007**: A generic calendar feed (e.g. an exported personal calendar with recurring events) is checked and its changes are recorded with the same accuracy as SC-001 for the generic fields.
 - **SC-008**: After a restart, no changes are lost or recorded twice.
@@ -242,7 +248,7 @@ A client (the operator now, the SvelteKit frontend later) adds and removes calen
 ## Assumptions
 
 - Scope is change detection plus the API that manages it: sending notifications, change filters, the user-facing UI and user accounts/login are separate features. Until login exists, the API is operated with a single operator key, and the frontend must call it from its server side so the key never reaches a browser.
-- Target scale is a whole school: tens of thousands of subscribers and thousands of calendars on one deployment, with the source server's tolerance for request volume unknown (hence the per-host budget).
+- Target scale is a whole school: tens of thousands of subscribers and thousands of calendars on one deployment, with the source server's tolerance for request volume unknown (hence the per-host budget). How many calendars one MyTimetables host will carry is unverified: class-group links merge, but personal timetable links do not. With the default budget (120/min) and interval (10 min), one host keeps the 10-minute cycle up to 1,200 calendars; 5,000 calendars give a cycle of about 42 minutes until the operator raises that domain's budget.
 - MyTimetables (Semestry) is the primary, fully supported source and Inholland feeds are the reference for testing; generic iCalendar feeds are supported for the standard fields.
 - Links for the same class group from different users return identical content. This is inferred from the link structure (see investigation.md §2) and must be verified with a second user's link before relying on it.
 - Dutch and English are the only MyTimetables languages supported; the English labels and values were confirmed with a real English feed of the same timetable.

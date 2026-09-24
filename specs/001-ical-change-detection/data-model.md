@@ -42,6 +42,9 @@ The data is stored in PostgreSQL. Every integrity rule below is a database const
 | `failing_since` | `timestamptz` | NULL, `CHECK ((consecutive_failures = 0) = (failing_since IS NULL))` | Check Run |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
+Indexes: `(next_check_at)` for the claim query (research R4), and `(last_link_id)`, so deleting a link does not
+scan `calendar` for its `ON DELETE SET NULL`.
+
 ### `calendar_link`
 
 | Column | Type | Constraints | Notes |
@@ -49,7 +52,7 @@ The data is stored in PostgreSQL. Every integrity rule below is a database const
 | `id` | `bigint` | PK, identity | |
 | `calendar_id` | `bigint` | NOT NULL, FK → `calendar(id)` ON DELETE CASCADE | |
 | `subscriber` | `text` | NOT NULL, `CHECK (subscriber ~ '^[A-Za-z0-9._@-]{1,100}$')` | An operator-chosen subscriber id, used until the accounts feature exists |
-| `url` | `text` | NOT NULL, `CHECK (url ~ '^https?://')`, `CHECK (length(url) <= 2048)` | The link as `Uri.AbsoluteUri`, which lower-cases the scheme so the CHECK holds for `HTTPS://…` input. **Secret** (FR-028). |
+| `url` | `text` | NOT NULL, `CHECK (url ~ '^https://')`, `CHECK (length(url) <= 2048)` | The link as `Uri.AbsoluteUri`, which lower-cases the scheme so the CHECK holds for `HTTPS://…` input. Only `https` is accepted (FR-001). **Secret** (FR-028). |
 | `flagged_at` | `timestamptz` | NULL | `NULL` means valid. Set when the link returned an empty feed under empty-feed protection. Cleared when the link returns events (FR-008a). |
 | `last_used_at` | `timestamptz` | NULL | Used to rotate through flagged links while the calendar is failing |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
@@ -97,7 +100,7 @@ check, and a full replace happens only on a baseline (R14).
 | `kind` | `text` | NOT NULL, `CHECK (kind IN ('added','removed','changed'))` | |
 | `field` | `text` | NULL, `CHECK ((kind = 'changed') = (field IS NOT NULL))` | The field name. The list of values is in [contracts/detected-change.md](./contracts/detected-change.md). |
 | `old_value` | `jsonb` | NULL | `NULL` for `added` |
-| `new_value` | `jsonb` | NULL, `CHECK (kind <> 'changed' OR old_value IS NOT NULL OR new_value IS NOT NULL)` | `NULL` for `removed` |
+| `new_value` | `jsonb` | NULL, `CHECK (kind <> 'changed' OR old_value IS NOT NULL OR new_value IS NOT NULL)`, `CHECK (kind <> 'added' OR (old_value IS NULL AND new_value IS NOT NULL))`, `CHECK (kind <> 'removed' OR (old_value IS NOT NULL AND new_value IS NULL))` | `NULL` for `removed` |
 | `event_name` | `text` | NOT NULL | Context: the new name, or the old one for `removed` |
 | `event_starts_at` | `timestamptz` | NOT NULL | Context: the new start, or the old one for `removed` |
 | `detected_at` | `timestamptz` | NOT NULL | The same value for every change of one check. Together with `event_key` it groups the changes of one event. |
@@ -149,7 +152,7 @@ The rows are evaluated **in this order**. The first matching row wins.
 | 1 | Fetch/parse error, a bound was exceeded, or the 2-minute check limit passed (`timeout`) | kept | none | `last_ok=false`, reason, `consecutive_failures+1` |
 | 2 | Empty feed under protection, and the snapshot has events | kept | none | As row 1 with `empty_feed`, and the link is flagged. If another unflagged link exists, it is used next time. Otherwise status becomes `failing`. |
 | 3 | Success, `baseline_features` is NULL or differs from the current features | replaced | **none** (a baseline) | `last_ok=true`, `consecutive_failures=0`. `baseline_features` and `horizon_end` are set. |
-| 4 | Success, same features, `snapshot_hash` unchanged | untouched | none | `last_ok=true`, counts. This is the common case and costs one calendar `UPDATE` and one link `UPDATE`. |
+| 4 | Success, same features, `snapshot_hash` unchanged | untouched | none | `last_ok=true`, counts. This is the common case and costs one calendar `UPDATE` and one link `UPDATE`, on top of the claim's calendar `UPDATE`. |
 | 5 | Success, same features, hash changed | only affected rows written | the diff (FR-021, and the horizon rule from R7) | `last_ok=true`, counts, new `snapshot_hash` |
 
 Rows 3 to 5 (every success) also set `status='ok'`, `consecutive_failures=0` and `failing_since=NULL`, set
@@ -166,8 +169,14 @@ Feed data is normalised before any write (research R8a), so rows 3 to 5 cannot f
 - **Remove subscription** (`DELETE /api/subscribers/{s}/calendars/{id}`): the subscriber's links to that calendar
   are deleted. In the same transaction, the calendar is deleted if no links remain, and the cascade removes its
   snapshots and changes (FR-008).
-- **Retention**: every 10 minutes the checker runs `DELETE FROM detected_change WHERE detected_at < @cutoff`, where
-  `@cutoff = TimeProvider now - ChangeRetention` (FR-025a, research R4 clock).
+- **Add a link that creates a calendar**: the calendar row, its link and its baseline (`event_snapshot` rows,
+  `baseline_features`, `snapshot_hash`, `horizon_end` and the outcome columns of a successful check) are written in
+  one transaction from the validation fetch. No changes are recorded, and the first check is one `CheckInterval`
+  later (FR-023, research R11). A link that joins an existing calendar stores nothing from its validation.
+- **Retention**: every 10 minutes the checker deletes changes with `detected_at < @cutoff`, where
+  `@cutoff = TimeProvider now - ChangeRetention` (FR-025a, research R4 clock), in batches of 10,000 rows
+  (`DELETE … WHERE id IN (SELECT id … WHERE detected_at < @cutoff LIMIT 10000)`, repeated until fewer are deleted),
+  so an expiring burst never becomes one long transaction.
 - **Configuration regroup at startup**: see research R13.
 
 ## Personal and sensitive data (Principle II)
@@ -183,7 +192,7 @@ Nothing else is stored. Raw feeds, HTTP headers and validation responses are nev
 
 ## Validation rules (application side, on top of the constraints above)
 
-- Link: the scheme is `http` or `https`, the host resolves only to public addresses (research R5), the URL is at
+- Link: the scheme is `https`, the host resolves only to public addresses (research R5), the URL is at
   most 2048 characters, and validation passes (research R11).
 - Subscriber: matches the same pattern as the column CHECK. It is checked before any fetch so the error is clear.
 - Configuration: intervals are clamped and warned about, other values fail at startup (see
