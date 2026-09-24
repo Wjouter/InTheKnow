@@ -13,15 +13,16 @@ static class Api
 {
     public static void MapApi(this WebApplication app)
     {
-        var api = app.MapGroup("/api").AddEndpointFilter(async (ctx, next) =>
+        // Middleware rather than an endpoint filter: filters run after parameter binding, so a request without the
+        // key could get a 400 for its body before the 401.
+        app.Use(async (http, next) =>
         {
-            var key = ctx.HttpContext.RequestServices.GetRequiredService<Settings>().Options.ApiKey;
-            var header = ctx.HttpContext.Request.Headers.Authorization.ToString();
-            var presented = header.StartsWith("Bearer ", StringComparison.Ordinal) ? header["Bearer ".Length..] : "";
-            var ok = CryptographicOperations.FixedTimeEquals(
-                SHA256.HashData(Encoding.UTF8.GetBytes(presented)), SHA256.HashData(Encoding.UTF8.GetBytes(key)));
-            return ok && presented.Length > 0 ? await next(ctx) : Results.StatusCode(401);
+            if (http.Request.Path.StartsWithSegments("/api") && !HasKey(http))
+                http.Response.StatusCode = 401;
+            else
+                await next(http);
         });
+        var api = app.MapGroup("/api");
 
         api.MapPost("/subscribers/{subscriber}/links", async (string subscriber, AddLinkRequest body, Subscriptions subscriptions,
                                                                 HttpResponse response, CancellationToken ct) =>
@@ -141,6 +142,15 @@ static class Api
             }
             return Page(items, take);
         });
+    }
+
+    static bool HasKey(HttpContext http)
+    {
+        var key = http.RequestServices.GetRequiredService<Settings>().Options.ApiKey;
+        var header = http.Request.Headers.Authorization.ToString();
+        var presented = header.StartsWith("Bearer ", StringComparison.Ordinal) ? header["Bearer ".Length..] : "";
+        return presented.Length > 0 && CryptographicOperations.FixedTimeEquals(
+            SHA256.HashData(Encoding.UTF8.GetBytes(presented)), SHA256.HashData(Encoding.UTF8.GetBytes(key)));
     }
 
     static IResult Problem(int status, string reason) =>
