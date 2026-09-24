@@ -535,4 +535,104 @@ public class CheckerTests
         Assert.Equal(10, await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE last_ok"));
         Assert.Equal(3, h.Http.MaxInFlight);
     }
+
+    const string Rooster = "rooster.example.nl";
+    static readonly (string, string?)[] TwoDomains = [("InTheKnow:MyTimetables:Domains:1:Host", Rooster), ("InTheKnow:MyTimetables:Domains:1:TeacherDetection", "false")];
+    const string Lesson = "Xedule!GI3TINRWGUZQ@schedule.inholland.nl";
+
+    static async Task<string[]> FieldKeysAsync(Harness h, long id) =>
+        [.. (await h.Db.RowsAsync("SELECT jsonb_object_keys(fields) FROM event_snapshot WHERE calendar_id = $1 AND event_key = $2 ORDER BY 1", id, Lesson))
+            .Select(r => (string)r[0]!)];
+
+    // SC-009, US4-2, US4-3
+    [Fact]
+    public async Task FeaturesApplyPerDomain()
+    {
+        await using var h = await Harness.CreateAsync(TwoDomains);
+        var plain = (await h.SeedAsync("mt-nl.ics", "plain.example")).Id;
+        var full = (await h.SeedAsync("mt-nl.ics")).Id;
+        var partial = (await h.SeedAsync("mt-nl.ics", Rooster)).Id;
+        await h.RunAsync();
+        Assert.Equal(["description", "location"], await FieldKeysAsync(h, plain));
+        Assert.Equal(["groups", "rooms", "teachers", "type"], await FieldKeysAsync(h, full));
+        Assert.Equal(["details", "groups", "rooms", "type"], await FieldKeysAsync(h, partial));
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM event_snapshot WHERE calendar_id = $1 AND event_key = $2 AND fields->'details' ? 'teachers'", partial, Lesson));
+        Assert.Equal(["generic", "mt:111111", "mt:111011"], (await h.Db.RowsAsync("SELECT baseline_features FROM calendar ORDER BY id")).Select(r => (string)r[0]!));
+    }
+
+    // US4-5, FR-026a
+    [Fact]
+    public async Task FeatureSwitchRebaselinesWithoutChanges()
+    {
+        var (h, id, _) = await BaselineAsync();
+        await using var _h = h;
+        h.Restart(("InTheKnow:MyTimetables:Domains:0:EventDetails", "false"));
+        await NextIntervalAsync(h);
+        Assert.Empty(await h.ChangesAsync(id));
+        Assert.Equal("mt:111001", (await h.CalendarAsync(id))[6]);
+        Assert.Equal(["description", "location"], await FieldKeysAsync(h, id));
+    }
+
+    [Fact]
+    public async Task RevokedLinkDuringAFeatureSwitchKeepsTheSnapshot()
+    {
+        var (h, id, url) = await BaselineAsync();
+        await using var _h = h;
+        var xmin = await h.XminAsync(id);
+        h.Restart(("InTheKnow:MyTimetables:Domains:0:EventDetails", "false"));
+        h.Http.Map[url] = "mt-empty.ics";
+        await NextIntervalAsync(h);
+        Assert.Equal(xmin, await h.XminAsync(id));
+        var c = await h.CalendarAsync(id);
+        Assert.Equal(("empty_feed", "mt:111111"), ((string)c[2]!, (string)c[6]!));
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar_link WHERE flagged_at IS NOT NULL"));
+    }
+
+    // Research R13, US4-4
+    [Fact]
+    public async Task RegroupSplitsAndMerges()
+    {
+        await using var h = await Harness.CreateAsync();
+        var a = await SubscriptionsTests.AddAsync(h, "s1", LinkIdentityTests.MtLink(user: "1001"));
+        var b = await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "2002"));
+        Assert.Equal(a.CalendarId, b.CalendarId);
+        var original = a.CalendarId!.Value;
+
+        // Split
+        h.Restart(("InTheKnow:MyTimetables:Domains:0:ClassGroupSharing", "false"));
+        await h.Checker.RegroupAsync(h.Now, Ct);
+        var calendars = await h.Db.RowsAsync("SELECT c.id, c.baseline_features, count(l.id) FROM calendar c JOIN calendar_link l ON l.calendar_id = c.id GROUP BY c.id ORDER BY c.id");
+        Assert.Equal(2, calendars.Count);
+        Assert.All(calendars, c => Assert.Equal(1L, c[2]));
+        Assert.Equal(original, calendars[0][0]);
+        Assert.Equal(26, await h.Db.ScalarAsync("SELECT count(*) FROM event_snapshot WHERE calendar_id = $1", original));
+        var split = (long)calendars[1][0]!;
+        Assert.Null(calendars[1][1]);
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar_link WHERE calendar_id = $1 AND id = $2", split, b.LinkId!.Value));
+        h.Time.Advance(TimeSpan.FromMinutes(10));
+        await h.RunAsync();
+        Assert.Equal(26, await h.Db.ScalarAsync("SELECT count(*) FROM event_snapshot WHERE calendar_id = $1", split));
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM detected_change"));
+
+        // Merge back
+        h.Restart();
+        await h.Checker.RegroupAsync(h.Now, Ct);
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
+        Assert.Equal(2, await h.Db.ScalarAsync("SELECT count(*) FROM calendar_link"));
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE id = $1", split));
+    }
+
+    [Fact]
+    public async Task RegroupUnderAnUnlistedHostUsesNormalisedUrls()
+    {
+        await using var h = await Harness.CreateAsync();
+        string[] urls = [LinkIdentityTests.MtLink(user: "1001"), LinkIdentityTests.MtLink(user: "2002")];
+        foreach (var (u, i) in urls.Select((u, i) => (u, i))) await SubscriptionsTests.AddAsync(h, $"s{i}", u);
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
+
+        h.Restart(("InTheKnow:MyTimetables:Domains:0:Host", "elsewhere.example"));
+        await h.Checker.RegroupAsync(h.Now, Ct);
+        var hashes = (await h.Db.RowsAsync("SELECT identity_hash FROM calendar ORDER BY id")).Select(r => Convert.ToHexString((byte[])r[0]!));
+        Assert.Equal(urls.Select(u => Convert.ToHexString(LinkIdentity.Hash(LinkIdentity.Normalise(new Uri(u))))).Order(), hashes.Order());
+    }
 }

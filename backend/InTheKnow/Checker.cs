@@ -337,6 +337,75 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
     static Task WriteNullableAsync(NpgsqlBinaryImporter w, string? value, NpgsqlDbType type, CancellationToken ct) =>
         value is null ? w.WriteNullAsync(ct) : w.WriteAsync(value, type, ct);
 
+    // Startup regroup after a configuration change (research R13): recompute every link's identity and move
+    // links to the calendar with that identity. Calendars left without links are deleted.
+    // ponytail: a merge deletes the emptied calendar with its undelivered changes (accepted in R13); move them first if that ever matters
+    public async Task RegroupAsync(DateTimeOffset now, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
+        var calendars = new Dictionary<long, string>(); // id → identity hash (hex)
+        await using (var cmd = new NpgsqlCommand("SELECT id, identity_hash FROM calendar", conn, tx))
+        await using (var r = await cmd.ExecuteReaderAsync(ct))
+            while (await r.ReadAsync(ct)) calendars[r.GetInt64(0)] = Convert.ToHexString((byte[])r[1]);
+
+        var links = new List<(long Id, long CalendarId, string Subscriber, string Url, string Host, string Hash)>();
+        await using (var cmd = new NpgsqlCommand("SELECT id, calendar_id, subscriber, url FROM calendar_link ORDER BY id", conn, tx))
+        await using (var r = await cmd.ExecuteReaderAsync(ct))
+            while (await r.ReadAsync(ct))
+            {
+                var uri = new Uri(r.GetString(3));
+                links.Add((r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), uri.IdnHost.ToLowerInvariant(),
+                           Convert.ToHexString(LinkIdentity.Hash(LinkIdentity.KeyFor(uri, settings).Key))));
+            }
+
+        // Targets: first the calendars that already have a group's identity, then the lowest-id link's
+        // calendar when no other group took it, else a new calendar.
+        var groups = links.GroupBy(l => l.Hash).ToList();
+        var byHash = calendars.ToDictionary(kv => kv.Value, kv => kv.Key);
+        var target = new Dictionary<string, long>();
+        var used = new HashSet<long>();
+        foreach (var g in groups.Where(g => byHash.ContainsKey(g.Key)))
+            used.Add(target[g.Key] = byHash[g.Key]);
+        int created = 0, moved = 0;
+        foreach (var g in groups.Where(g => !target.ContainsKey(g.Key)))
+        {
+            var first = g.First();
+            if (used.Add(first.CalendarId))
+            {
+                target[g.Key] = first.CalendarId;
+                await ExecAsync(conn, tx, "UPDATE calendar SET identity_hash = $1 WHERE id = $2", ct, Convert.FromHexString(g.Key), first.CalendarId);
+                continue;
+            }
+            var firstCheck = now + TimeSpan.FromTicks(Random.Shared.NextInt64(O.CheckInterval.Ticks));
+            await using var insert = new NpgsqlCommand("INSERT INTO calendar (identity_hash, host, next_check_at) VALUES ($1, $2, $3) RETURNING id", conn, tx)
+            { Parameters = { new() { Value = Convert.FromHexString(g.Key) }, new() { Value = first.Host }, new() { Value = firstCheck } } };
+            used.Add(target[g.Key] = (long)(await insert.ExecuteScalarAsync(ct))!);
+            created++;
+        }
+
+        var placed = links.Where(l => target[l.Hash] == l.CalendarId).Select(l => (l.CalendarId, l.Subscriber, l.Url)).ToHashSet();
+        foreach (var l in links.Where(l => target[l.Hash] != l.CalendarId))
+        {
+            // The target already has this subscriber's exact link: drop the duplicate instead of moving it.
+            if (placed.Add((target[l.Hash], l.Subscriber, l.Url)))
+                await ExecAsync(conn, tx, "UPDATE calendar_link SET calendar_id = $2 WHERE id = $1", ct, l.Id, target[l.Hash]);
+            else
+                await ExecAsync(conn, tx, "DELETE FROM calendar_link WHERE id = $1", ct, l.Id);
+            moved++;
+        }
+
+        await using (var delete = new NpgsqlCommand(
+            "DELETE FROM calendar c WHERE NOT EXISTS (SELECT 1 FROM calendar_link WHERE calendar_id = c.id)", conn, tx))
+        {
+            var deleted = await delete.ExecuteNonQueryAsync(ct);
+            await tx.CommitAsync(ct);
+            log.LogInformation("Regroup: {Kept} calendars kept, {Moved} links moved, {Created} calendars created, {Deleted} deleted",
+                calendars.Count - deleted, moved, created, deleted);
+        }
+    }
+
     // FR-025a: batched, so an expiring burst never becomes one long transaction.
     public async Task RunRetentionAsync(DateTimeOffset now, CancellationToken ct = default)
     {
