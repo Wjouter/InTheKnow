@@ -99,7 +99,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T010 Implement `backend/InTheKnow/Settings.cs` with `InTheKnowOptions`, `DomainOptions`, `Features` and `Settings` (see Shared signatures).
+- [X] T010 Implement `backend/InTheKnow/Settings.cs` with `InTheKnowOptions`, `DomainOptions`, `Features` and `Settings` (see Shared signatures).
   - **Binding**: bind with `IConfiguration.GetSection("InTheKnow").Get<InTheKnowOptions>()`. Property initialisers hold the defaults from contracts/configuration.md: `CheckInterval` 10 min, `MaxRequestsPerHostPerMinute` 120, `MaxConcurrentChecks` 16, `FailingCheckInterval` 24 h, `ExpansionHorizonMonths` 12, `ChangeRetention` 365 d, and every `DomainOptions` feature bool `true`.
   - **Domain list default**: do **not** put a default domain list in code. The configuration binder appends to an initialised collection, so a code default would duplicate the Inholland entry from `appsettings.json`. The shipped `appsettings.json` is the only source of the Inholland default.
   - **Required values**: fail startup (throw `InvalidOperationException` with a message naming the key, never its value) when `ConnectionStrings:Default` is empty or when `InTheKnow:ApiKey` is shorter than 32 characters.
@@ -107,7 +107,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - **Canonical feature string**: `Features.Canonical` is `"mt:"` followed by the effective flags, in the fixed order `dlm,cgs,efp,td,ed,dmd`, as `1`/`0`. `CanonicalFeaturesFor(host)` returns it, or `"generic"` when the host is unlisted.
   - **Budget**: `BudgetFor(host)` returns the domain's `MaxRequestsPerMinute` when the host is listed and sets one, otherwise `MaxRequestsPerHostPerMinute`.
   - Clamping and range validation are added in T064 (US3) and duplicate-host validation in T068 (US4).
-- [ ] T011 Create `backend/InTheKnow/Migrations/001_init.sql` with table `calendar`, using exactly these columns and constraints (data-model.md):
+- [X] T011 Create `backend/InTheKnow/Migrations/001_init.sql` with table `calendar`, using exactly these columns and constraints (data-model.md):
   - `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
   - `identity_hash bytea NOT NULL UNIQUE CHECK (length(identity_hash) = 32)`
   - `host text NOT NULL CHECK (host = lower(host) AND length(host) BETWEEN 1 AND 253)`
@@ -127,7 +127,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - `failing_since timestamptz NULL CHECK ((consecutive_failures = 0) = (failing_since IS NULL))`
   - `created_at timestamptz NOT NULL DEFAULT now()`
   - Also add `CREATE INDEX ON calendar (next_check_at)`.
-- [ ] T012 In `backend/InTheKnow/Migrations/001_init.sql`, add table `calendar_link` with:
+- [X] T012 In `backend/InTheKnow/Migrations/001_init.sql`, add table `calendar_link` with:
   - `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
   - `calendar_id bigint NOT NULL REFERENCES calendar(id) ON DELETE CASCADE`
   - `subscriber text NOT NULL CHECK (subscriber ~ '^[A-Za-z0-9._@-]{1,100}$')`
@@ -139,7 +139,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - `CREATE INDEX ON calendar_link (subscriber, calendar_id)`
   - Then `ALTER TABLE calendar ADD FOREIGN KEY (last_link_id) REFERENCES calendar_link(id) ON DELETE SET NULL` and
     `CREATE INDEX ON calendar (last_link_id)`, so a link delete does not scan `calendar` for the `SET NULL`.
-- [ ] T013 In `backend/InTheKnow/Migrations/001_init.sql`, add table `event_snapshot` with:
+- [X] T013 In `backend/InTheKnow/Migrations/001_init.sql`, add table `event_snapshot` with:
   - `calendar_id bigint NOT NULL REFERENCES calendar(id) ON DELETE CASCADE`
   - `event_key text NOT NULL CHECK (length(event_key) BETWEEN 1 AND 1024)`
   - `name text NOT NULL`
@@ -149,7 +149,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - `occurrence_start timestamptz NULL`
   - `fields jsonb NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(fields) = 'object')`
   - `PRIMARY KEY (calendar_id, event_key)`
-- [ ] T014 In `backend/InTheKnow/Migrations/001_init.sql`, add the remaining objects:
+- [X] T014 In `backend/InTheKnow/Migrations/001_init.sql`, add the remaining objects:
   - Table `detected_change`:
     - `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
     - `calendar_id bigint NOT NULL REFERENCES calendar(id) ON DELETE CASCADE`
@@ -167,14 +167,14 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - Indexes `CREATE INDEX ON detected_change (detected_at)` and `CREATE INDEX ON detected_change (calendar_id, id)`.
   - The view `CREATE VIEW subscription AS SELECT DISTINCT calendar_id, subscriber FROM calendar_link;`.
   - `schema_migration` is **not** created here; the runner in T015 creates it.
-- [ ] T015 Implement `backend/InTheKnow/Db.cs`:
+- [X] T015 Implement `backend/InTheKnow/Db.cs`:
   - **Data source**: `static NpgsqlDataSource Create(string connectionString)`.
   - **Advisory lock**: `static async Task<NpgsqlConnection> TakeInstanceLockAsync(NpgsqlDataSource)` opens a dedicated connection and runs `SELECT pg_try_advisory_lock(<fixed bigint constant>)`. When the result is false, it throws `InvalidOperationException("another InTheKnow instance holds the lock")`. Otherwise it returns the connection, which the caller keeps open for the process lifetime (research R4).
   - **Migrations**: `static async Task MigrateAsync(NpgsqlDataSource)` is about 25 lines.
     1. Run `CREATE TABLE IF NOT EXISTS schema_migration (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`.
     2. Read the embedded `Migrations/NNN_*.sql` resources ordered by their numeric prefix.
     3. Apply each version not yet in `schema_migration` in its own transaction, and insert its version in the same transaction (research R3).
-- [ ] T016 [P] Implement `backend/InTheKnow/Fetcher.cs` (research R5).
+- [X] T016 [P] Implement `backend/InTheKnow/Fetcher.cs` (research R5).
   - **`IsBlocked(IPAddress)`**: first unwrap IPv4-mapped IPv6 with `MapToIPv4`. Then return true for:
     - loopback;
     - `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`;
@@ -197,13 +197,13 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     - `network` for any other `HttpRequestException` or `IOException`.
   - When the **caller's** token is cancelled, rethrow `OperationCanceledException`. Never log or return exception messages or the URL. https→http redirects are not followed (the `HttpClient` default, research R18).
   - Add `// ponytail: worst case 10 MB body (~20 MB string) + Ical.Net graph per check × MaxConcurrentChecks; lower the bound or stream-parse if strangers can add links` next to the size constant (research R10).
-- [ ] T017 [P] Implement `backend/InTheKnow/HostBudget.cs` (about 20 lines, research R4).
+- [X] T017 [P] Implement `backend/InTheKnow/HostBudget.cs` (about 20 lines, research R4).
   - **State**: a `lock`-guarded `Dictionary<string, DateTimeOffset> nextFree`, keyed by lower-cased host. The gap for a host is `TimeSpan.FromMinutes(1) / settings.BudgetFor(host)`.
   - **`BusyHosts(now)`**: returns the hosts with `nextFree > now`.
   - **`EarliestFree(now)`**: returns the smallest `nextFree` that is `> now`, or `null`.
   - **`TryReserve(host, now, maxWait)`**: computes `slot = max(now, nextFree[host])`. When `slot - now > maxWait`, it returns `null` and changes nothing. Otherwise it sets `nextFree[host] = slot + gap` and returns `slot`.
   - **Callers**: the dispatcher calls it with `TimeSpan.MaxValue`, and add-link validation with 5 s.
-- [ ] T018 Replace `backend/InTheKnow/Program.cs`:
+- [X] T018 Replace `backend/InTheKnow/Program.cs`:
   - Create `WebApplication.CreateBuilder(args)`.
   - Register these singletons **as DI factories**, so that `WebApplicationFactory` configuration overrides (applied at `Build()`) are visible to them:
     - `Settings`: `sp => Settings.Load(sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("Settings"))`;
@@ -215,13 +215,13 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     3. `await Db.MigrateAsync(dataSource)`.
   - End the file with `public partial class Program;` for `WebApplicationFactory`.
   - Leave the comment markers `// checker (T044)`, `// subscriptions (T049)`, `// api (T058)` and `// regroup (T070)` where later tasks add their lines.
-- [ ] T019 [P] Implement `backend/InTheKnow.Tests/TestDb.cs`, a per-test isolated database:
+- [X] T019 [P] Implement `backend/InTheKnow.Tests/TestDb.cs`, a per-test isolated database:
   - **Server**: read `INTHEKNOW_TEST_DB` (quickstart § Setup). When it is unset, throw with a message explaining how to start `compose.yaml`.
   - **Template, once per test run**: under a static `SemaphoreSlim`, create database `itk_template_<runGuid>` and run `Db.MigrateAsync` on it. Drop it at process exit through an xunit assembly fixture.
   - **Per test**: `static async Task<TestDb> CreateAsync()` runs `CREATE DATABASE itk_<guid> TEMPLATE itk_template_<runGuid>` and exposes `NpgsqlDataSource DataSource` and `string ConnectionString`. `DisposeAsync` drops the database `WITH (FORCE)`.
   - **Why per-test**: `RunDueChecksAsync` claims every due calendar in its database, so tests must never share one.
   - **Settings helper**: `Settings Settings(params (string Key, string? Value)[] overrides)` builds a `Settings` from the linked shipped `appsettings.json`, plus this database's connection string, a fixed 48-character `InTheKnow:ApiKey`, and the overrides (for example `("InTheKnow:CheckInterval", "00:30:00")`). Every test that needs a `Settings` uses it.
-- [ ] T020 [P] Implement `backend/InTheKnow.Tests/FakeHttp.cs`, an `HttpMessageHandler`:
+- [X] T020 [P] Implement `backend/InTheKnow.Tests/FakeHttp.cs`, an `HttpMessageHandler`:
   - **Configuration**: a map from absolute URL to a response. A response is a fixture file name, a status code, `Hang`, `Timeout`, `Bytes(n)` (a 200 response of `n` bytes, for the size bound) or `Throw(exception)` (for the `network` mapping).
     - `Hang` awaits `Task.Delay(Timeout.Infinite, cancellationToken)`, so it honours cancellation. It is for the 2-minute check-limit tests.
     - `Timeout` throws `TaskCanceledException` immediately while the caller's token is not cancelled. That is the condition `Fetcher` maps to `timeout`, so tests don't wait for the real 30 s `HttpClient.Timeout` (research R4: it runs on real time).
@@ -231,7 +231,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - **Concurrency tracking**: a counter of the current and maximum number of concurrent in-flight requests.
   - **Gate**: an optional `TaskCompletionSource`. While it is set, every request awaits it with the cancellation token before answering.
   - **Resolver**: provide a static `Resolve` delegate for `Fetcher` that returns `IPAddress.Parse("93.184.215.14")` for every host, so tests never use real DNS.
-- [ ] T021 [P] Create anonymised MyTimetables fixtures `backend/InTheKnow.Tests/Fixtures/mt-nl.ics` and `backend/InTheKnow.Tests/Fixtures/mt-en.ics` for the same timetable.
+- [X] T021 [P] Create anonymised MyTimetables fixtures `backend/InTheKnow.Tests/Fixtures/mt-nl.ics` and `backend/InTheKnow.Tests/Fixtures/mt-en.ics` for the same timetable.
   - **Source**: fetch a real feed with a link from the gitignored `mytimetable example links.md`, and save the raw copy under `Fixtures/private/`. Also save the raw feed of the **other** example timetable, so both SC-006 timetables (ALTI26VT4ES1 and ALET26VT4A) are in `Fixtures/private/` for the real-data test in T031.
   - **Trim**: keep the VCALENDAR header, the VTIMEZONE and about 30 VEVENTs. Together they must cover:
     - types `Les`, `Toets`, `Vakantie` and `Afspraak`;
@@ -242,8 +242,8 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     - the sync line and the footer.
   - **Anonymise**: replace every teacher name consistently (`Docent1, Anna`, …). Check that no `h=`, `eu=` or `timetable=` value, and no real person's name, appears in the committed files.
   - **English copy**: if the account currently returns only one language, derive the other file by applying the NL↔EN table in investigation.md §6. That covers the calendar name, the `[CONCEPT] `↔`[DRAFT] ` prefix, the labels, the type values, the footer and the sync line. Keep UIDs, times, rooms, teachers and groups identical.
-- [ ] T022 [P] Create `backend/InTheKnow.Tests/Fixtures/mt-empty.ics`: the invalid-link response from investigation.md §3. It is a VCALENDAR with the same header, `X-WR-CALNAME` and VTIMEZONE as `mt-nl.ics`, and zero VEVENTs.
-- [ ] T023 [P] Create `backend/InTheKnow.Tests/Fixtures/generic.ics`, a synthetic feed with `X-WR-TIMEZONE:Europe/Amsterdam` containing:
+- [X] T022 [P] Create `backend/InTheKnow.Tests/Fixtures/mt-empty.ics`: the invalid-link response from investigation.md §3. It is a VCALENDAR with the same header, `X-WR-CALNAME` and VTIMEZONE as `mt-nl.ics`, and zero VEVENTs.
+- [X] T023 [P] Create `backend/InTheKnow.Tests/Fixtures/generic.ics`, a synthetic feed with `X-WR-TIMEZONE:Europe/Amsterdam` containing:
   - a weekly `RRULE` series (UID `weekly@test`, TZID Europe/Amsterdam, spanning a DST switch) with one `EXDATE` and one `RECURRENCE-ID` override that moves one occurrence by an hour;
   - an open-ended `FREQ=DAILY` series;
   - a floating-time event (no TZID, no `Z`);
@@ -255,24 +255,24 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   - a single event in 2030;
   - a `STATUS:CANCELLED` event;
   - an event without `SUMMARY`.
-- [ ] T024 [P] Write `backend/InTheKnow.Tests/FetcherTests.cs`:
+- [X] T024 [P] Write `backend/InTheKnow.Tests/FetcherTests.cs`:
   - A theory over `IsBlocked`: `127.0.0.1`, `::1`, `10.1.2.3`, `172.16.0.1`, `172.31.255.255`, `192.168.1.1`, `fc00::1`, `fd12::1`, `169.254.1.1`, `fe80::1`, `100.64.0.1`, `0.0.0.0`, `::`, `224.0.0.1`, `ff02::1`, `255.255.255.255`, `::ffff:10.0.0.1` and `::ffff:127.0.0.1` are blocked. `8.8.8.8`, `172.32.0.1`, `100.128.0.1` and `2001:4860:4860::8888` are allowed.
   - `CheckUrlAsync` returns `unsupported_scheme` for `file:///etc/passwd`, `ftp://x` and `http://example.com/cal.ics`, `invalid_url` for `not a url`, and `url_too_long` for a 2,049-character `https` URL.
   - With the **real** default handler (`new Fetcher()`), `FetchAsync(new Uri("https://localhost:<free port>/"))` returns error `blocked_address`. The callback refuses before any TLS handshake. This proves the `ConnectCallback`, which also covers redirects (research R16).
   - **Size bound**: `FakeHttp` serving a 200 response of 10 MB + 1 byte returns `too_large`, and one of exactly 10 MB returns the body.
   - **Network error**: a handler that throws `HttpRequestException` returns `network`, and one that throws `IOException` also returns `network`.
-- [ ] T025 [P] Write `backend/InTheKnow.Tests/HostBudgetTests.cs`:
+- [X] T025 [P] Write `backend/InTheKnow.Tests/HostBudgetTests.cs`:
   - With a default of 10/min, successive `TryReserve(host, now, MaxValue)` calls return slots exactly 6 s apart.
   - A listed domain with `MaxRequestsPerMinute` 60 gets a 1 s spacing, and an unlisted host keeps 6 s.
   - `BusyHosts` contains a host until its `nextFree` passes.
   - `TryReserve(host, now, 5 s)` returns `null` without changing state when the next slot is more than 5 s away.
   - A reservation pushes the next dispatcher slot back by one gap.
-- [ ] T026 [P] Write `backend/InTheKnow.Tests/SettingsTests.cs`, loading the linked shipped `appsettings.json` plus in-memory overrides:
+- [X] T026 [P] Write `backend/InTheKnow.Tests/SettingsTests.cs`, loading the linked shipped `appsettings.json` plus in-memory overrides:
   - With no overrides except the required values, the defaults are 10 min, 120, 16, 24 h, 12, 365 d, and `mytimetables.inholland.nl` with all features on (US3-3, US4-1).
   - An empty connection string fails, and an `ApiKey` of 31 characters fails.
   - `FeaturesFor("MyTimetables.Inholland.NL")` matches, `FeaturesFor("x.mytimetables.inholland.nl")` returns `null`, and `CanonicalFeaturesFor` returns `"generic"` for an unlisted host.
   - With `EventDetails=false`, `TeacherDetection` is effectively `false` in `Canonical`.
-- [ ] T027 [P] Write `backend/InTheKnow.Tests/DbTests.cs`:
+- [X] T027 [P] Write `backend/InTheKnow.Tests/DbTests.cs`:
   - `MigrateAsync` run twice on a `TestDb` applies version 1 once.
   - A second `TakeInstanceLockAsync` on the same database throws while the first connection is open, and succeeds after it is disposed.
   - Inserting a `calendar` with `status = 'x'` fails with a check violation. This proves the constraints are live.
