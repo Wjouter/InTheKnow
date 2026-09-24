@@ -92,6 +92,21 @@ sealed class TestDb : IAsyncDisposable
         return Convert.ToInt64(await cmd.ExecuteScalarAsync());
     }
 
+    public async Task<List<object?[]>> RowsAsync(string sql, params object[] args)
+    {
+        await using var cmd = DataSource.CreateCommand(sql);
+        foreach (var a in args) cmd.Parameters.Add(new() { Value = a });
+        await using var r = await cmd.ExecuteReaderAsync();
+        var rows = new List<object?[]>();
+        while (await r.ReadAsync())
+        {
+            var row = new object?[r.FieldCount];
+            for (var i = 0; i < row.Length; i++) row[i] = r.IsDBNull(i) ? null : r.GetValue(i);
+            rows.Add(row);
+        }
+        return rows;
+    }
+
     public async Task ExecAsync(string sql, params object[] args)
     {
         await using var cmd = DataSource.CreateCommand(sql);
