@@ -26,3 +26,6 @@ build/
 
 # Local example links (contain live calendar tokens)
 mytimetable example links.md
+
+# Real MyTimetables feeds (contain real names)
+backend/InTheKnow.Tests/Fixtures/private/
