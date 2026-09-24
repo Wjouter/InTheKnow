@@ -537,7 +537,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T050 [US5] Write `backend/InTheKnow.Tests/ApiTests.cs`.
+- [X] T050 [US5] Write `backend/InTheKnow.Tests/ApiTests.cs`.
   - **Test host**: a `WebApplicationFactory<Program>` per test with:
     - `builder.UseSetting` for `ConnectionStrings:Default` = `TestDb.ConnectionString` and a 48-character `InTheKnow:ApiKey`. `Settings` is a DI factory (T018), so these are visible when it is resolved;
     - `ConfigureTestServices` replacing `Fetcher` with `new Fetcher(fakeHttp, FakeHttp.Resolve)` and `TimeProvider` with a `FakeTimeProvider`;
@@ -555,16 +555,16 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Implementation for User Story 5
 
-- [ ] T051 [US5] Implement `RemoveAsync(subscriber, calendarId)` in `backend/InTheKnow/Subscriptions.cs`. In one transaction:
+- [X] T051 [US5] Implement `RemoveAsync(subscriber, calendarId)` in `backend/InTheKnow/Subscriptions.cs`. In one transaction:
   1. `DELETE FROM calendar_link WHERE calendar_id=@c AND subscriber=@s`. When 0 rows are deleted, return `false`.
   2. `DELETE FROM calendar WHERE id=@c AND NOT EXISTS (SELECT 1 FROM calendar_link WHERE calendar_id=@c)`. The cascade removes snapshots and changes (FR-008).
   3. Return `true`.
-- [ ] T052 [US5] Create `backend/InTheKnow/Api.cs` with `static void MapApi(this WebApplication app)`:
+- [X] T052 [US5] Create `backend/InTheKnow/Api.cs` with `static void MapApi(this WebApplication app)`:
   - **Route group**: `app.MapGroup("/api")` with an endpoint filter that reads `Authorization: Bearer <key>`. The filter compares `SHA256.HashData(presented)` with `SHA256.HashData(configured)` using `CryptographicOperations.FixedTimeEquals`, and returns `Results.StatusCode(401)` with no body on a missing or wrong key, before any handler runs (FR-031, research R15).
   - **Error helper**: `Problem(int status, string reason)` returns `Results.Problem(statusCode: status, extensions: { ["reason"] = reason })`.
   - **Subscriber check**: validate `{subscriber}` against `^[A-Za-z0-9._@-]{1,100}$`, returning 400 `invalid_subscriber`.
   - **Clock**: all times come from `TimeProvider`.
-- [ ] T053 [US5] In `backend/InTheKnow/Api.cs`, add `POST /api/subscribers/{subscriber}/links` with body `{ "url": string }`.
+- [X] T053 [US5] In `backend/InTheKnow/Api.cs`, add `POST /api/subscribers/{subscriber}/links` with body `{ "url": string }`.
   - **Call**: `Subscriptions.AddLinkAsync`.
   - **Success**: 201, or 200 when `AlreadyExisted`, with `{calendarId, linkId, calendarIsNew}`.
   - **Errors**:
@@ -572,18 +572,18 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
     - `validation_failed:*` → 422;
     - `host_budget_exhausted` → 429, with the header `Retry-After: 5` (the validation's longest wait).
   - **Privacy**: never echo the URL.
-- [ ] T054 [US5] In `backend/InTheKnow/Api.cs`, add `GET /api/subscribers/{subscriber}/calendars`. It returns the calendars joined through `calendar_link` for that subscriber, as `[{calendarId, status, lastCheckedAt, lastOk, lastError, consecutiveFailures, nextCheckAt, links: [{linkId, flagged: flagged_at IS NOT NULL, createdAt}]}]` (links of that subscriber only, never the URL). An unknown subscriber gets `[]`.
-- [ ] T055 [US5] In `backend/InTheKnow/Api.cs`, add `DELETE /api/subscribers/{subscriber}/calendars/{calendarId:long}`, calling `Subscriptions.RemoveAsync`. It returns 204, or 404 when the result is `false`.
-- [ ] T056 [US5] In `backend/InTheKnow/Api.cs`, add `GET /api/subscribers/{subscriber}/changes?after={id}&limit={n}`.
+- [X] T054 [US5] In `backend/InTheKnow/Api.cs`, add `GET /api/subscribers/{subscriber}/calendars`. It returns the calendars joined through `calendar_link` for that subscriber, as `[{calendarId, status, lastCheckedAt, lastOk, lastError, consecutiveFailures, nextCheckAt, links: [{linkId, flagged: flagged_at IS NOT NULL, createdAt}]}]` (links of that subscriber only, never the URL). An unknown subscriber gets `[]`.
+- [X] T055 [US5] In `backend/InTheKnow/Api.cs`, add `DELETE /api/subscribers/{subscriber}/calendars/{calendarId:long}`, calling `Subscriptions.RemoveAsync`. It returns 204, or 404 when the result is `false`.
+- [X] T056 [US5] In `backend/InTheKnow/Api.cs`, add `GET /api/subscribers/{subscriber}/changes?after={id}&limit={n}`.
   - **Parameters**: `after` defaults to 0, and `limit` defaults to 100. A limit outside 1–500 gets 400 `invalid_limit`.
   - **Query**: `SELECT c.* FROM detected_change c JOIN subscription s ON s.calendar_id = c.calendar_id WHERE s.subscriber=@s AND c.id > @after ORDER BY c.id LIMIT @limit + 1`.
   - **Response**: `{items: [{id, calendarId, eventKey, kind, field, oldValue, newValue, eventName, eventStartsAt, detectedAt}], next}`, with `oldValue`/`newValue` as raw JSON. `next` is the last item's id when an extra row existed, otherwise `null`.
   - **Read-only**: never set `notified_at`.
-- [ ] T057 [US5] In `backend/InTheKnow/Api.cs`, add `GET /api/calendars?status={ok|failing}&overdue={true}&after={id}&limit={n}`.
+- [X] T057 [US5] In `backend/InTheKnow/Api.cs`, add `GET /api/calendars?status={ok|failing}&overdue={true}&after={id}&limit={n}`.
   - **Filters**: `status` is optional, with any other value giving 400 `invalid_status`. `overdue=true` filters `next_check_at < @now - 1 min`.
   - **Paging**: keyset by calendar id, like T056: `after` defaults to 0, `limit` defaults to 100 and allows 1–500 (otherwise 400 `invalid_limit`). Query `… WHERE c.id > @after ORDER BY c.id LIMIT @limit + 1`, and count the links per calendar only for that page.
   - **Response**: `{items, next}`. Each item is the calendar object from T054, with `links` replaced by `subscribers` (the count of distinct subscribers), `validLinks` (links with `flagged_at IS NULL`) and `totalLinks`. No URLs and no subscriber ids.
-- [ ] T058 [US5] In `backend/InTheKnow/Program.cs`, at `// api (T058)`, add `builder.Services.AddProblemDetails()` and `app.MapApi()`. Do not add HTTP logging, CORS or OpenAPI (contracts/api.md § Not in this feature).
+- [X] T058 [US5] In `backend/InTheKnow/Program.cs`, at `// api (T058)`, add `builder.Services.AddProblemDetails()` and `app.MapApi()`. Do not add HTTP logging, CORS or OpenAPI (contracts/api.md § Not in this feature).
 
 **Checkpoint**: US1, US2 and US5 tests pass. The API can be used from start to finish (quickstart §2).
 

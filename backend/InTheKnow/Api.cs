@@ -1,0 +1,166 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Nodes;
+using Npgsql;
+
+namespace InTheKnow;
+
+sealed record AddLinkRequest(string? Url);
+
+// The HTTP API from contracts/api.md. Every route needs the operator key (FR-031), and no response
+// ever contains a link (FR-032).
+static class Api
+{
+    public static void MapApi(this WebApplication app)
+    {
+        var api = app.MapGroup("/api").AddEndpointFilter(async (ctx, next) =>
+        {
+            var key = ctx.HttpContext.RequestServices.GetRequiredService<Settings>().Options.ApiKey;
+            var header = ctx.HttpContext.Request.Headers.Authorization.ToString();
+            var presented = header.StartsWith("Bearer ", StringComparison.Ordinal) ? header["Bearer ".Length..] : "";
+            var ok = CryptographicOperations.FixedTimeEquals(
+                SHA256.HashData(Encoding.UTF8.GetBytes(presented)), SHA256.HashData(Encoding.UTF8.GetBytes(key)));
+            return ok && presented.Length > 0 ? await next(ctx) : Results.StatusCode(401);
+        });
+
+        api.MapPost("/subscribers/{subscriber}/links", async (string subscriber, AddLinkRequest body, Subscriptions subscriptions,
+                                                                HttpResponse response, CancellationToken ct) =>
+        {
+            var r = await subscriptions.AddLinkAsync(subscriber, body.Url ?? "", ct);
+            switch (r.Error)
+            {
+                case null:
+                    var result = new { calendarId = r.CalendarId, linkId = r.LinkId, calendarIsNew = r.CalendarIsNew };
+                    return Results.Json(result, statusCode: r.AlreadyExisted ? 200 : 201);
+                case "host_budget_exhausted":
+                    response.Headers.RetryAfter = "5";
+                    return Problem(429, r.Error);
+                case var e when e.StartsWith("validation_failed:", StringComparison.Ordinal):
+                    return Problem(422, e);
+                default:
+                    return Problem(400, r.Error);
+            }
+        });
+
+        api.MapGet("/subscribers/{subscriber}/calendars", async (string subscriber, NpgsqlDataSource db, CancellationToken ct) =>
+        {
+            if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
+            await using var cmd = db.CreateCommand("""
+                SELECT c.id, c.status, c.last_checked_at, c.last_ok, c.last_error, c.consecutive_failures, c.next_check_at,
+                       l.id, l.flagged_at IS NOT NULL, l.created_at
+                FROM calendar_link l JOIN calendar c ON c.id = l.calendar_id
+                WHERE l.subscriber = $1 ORDER BY c.id, l.id
+                """);
+            cmd.Parameters.Add(new() { Value = subscriber });
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            var calendars = new List<(long Id, Dictionary<string, object?> Json, List<object> Links)>();
+            while (await r.ReadAsync(ct))
+            {
+                if (calendars.Count == 0 || calendars[^1].Id != r.GetInt64(0))
+                {
+                    var json = CalendarJson(r);
+                    var links = new List<object>();
+                    json["links"] = links;
+                    calendars.Add((r.GetInt64(0), json, links));
+                }
+                calendars[^1].Links.Add(new { linkId = r.GetInt64(7), flagged = r.GetBoolean(8), createdAt = r.GetDateTime(9) });
+            }
+            return Results.Json(calendars.Select(c => c.Json));
+        });
+
+        api.MapDelete("/subscribers/{subscriber}/calendars/{calendarId:long}", async (string subscriber, long calendarId,
+                                                                                      Subscriptions subscriptions, CancellationToken ct) =>
+        {
+            if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
+            return await subscriptions.RemoveAsync(subscriber, calendarId, ct) ? Results.NoContent() : Results.NotFound();
+        });
+
+        // Read-only: never sets notified_at, which belongs to the notification feature.
+        api.MapGet("/subscribers/{subscriber}/changes", async (string subscriber, long? after, int? limit, NpgsqlDataSource db, CancellationToken ct) =>
+        {
+            if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
+            if (limit is < 1 or > 500) return Problem(400, "invalid_limit");
+            var take = limit ?? 100;
+            await using var cmd = db.CreateCommand("""
+                SELECT c.id, c.calendar_id, c.event_key, c.kind, c.field, c.old_value::text, c.new_value::text,
+                       c.event_name, c.event_starts_at, c.detected_at
+                FROM detected_change c JOIN subscription s ON s.calendar_id = c.calendar_id
+                WHERE s.subscriber = $1 AND c.id > $2 ORDER BY c.id LIMIT $3
+                """);
+            cmd.Parameters.Add(new() { Value = subscriber });
+            cmd.Parameters.Add(new() { Value = after ?? 0 });
+            cmd.Parameters.Add(new() { Value = take + 1 });
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            var items = new List<(long Id, object Json)>();
+            while (await r.ReadAsync(ct))
+                items.Add((r.GetInt64(0), new
+                {
+                    id = r.GetInt64(0),
+                    calendarId = r.GetInt64(1),
+                    eventKey = r.GetString(2),
+                    kind = r.GetString(3),
+                    field = r.IsDBNull(4) ? null : r.GetString(4),
+                    oldValue = r.IsDBNull(5) ? null : JsonNode.Parse(r.GetString(5)),
+                    newValue = r.IsDBNull(6) ? null : JsonNode.Parse(r.GetString(6)),
+                    eventName = r.GetString(7),
+                    eventStartsAt = r.GetDateTime(8),
+                    detectedAt = r.GetDateTime(9),
+                }));
+            return Page(items, take);
+        });
+
+        api.MapGet("/calendars", async (string? status, bool? overdue, long? after, int? limit, NpgsqlDataSource db, TimeProvider time, CancellationToken ct) =>
+        {
+            if (status is not (null or "ok" or "failing")) return Problem(400, "invalid_status");
+            if (limit is < 1 or > 500) return Problem(400, "invalid_limit");
+            var take = limit ?? 100;
+            // The link counts in the select list are evaluated for the returned page only.
+            await using var cmd = db.CreateCommand("""
+                SELECT c.id, c.status, c.last_checked_at, c.last_ok, c.last_error, c.consecutive_failures, c.next_check_at,
+                       (SELECT count(DISTINCT subscriber) FROM calendar_link WHERE calendar_id = c.id),
+                       (SELECT count(*) FROM calendar_link WHERE calendar_id = c.id AND flagged_at IS NULL),
+                       (SELECT count(*) FROM calendar_link WHERE calendar_id = c.id)
+                FROM calendar c
+                WHERE c.id > $1 AND ($2::text IS NULL OR c.status = $2) AND (NOT $3 OR c.next_check_at < $4)
+                ORDER BY c.id LIMIT $5
+                """);
+            cmd.Parameters.Add(new() { Value = after ?? 0 });
+            cmd.Parameters.Add(new() { Value = (object?)status ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text });
+            cmd.Parameters.Add(new() { Value = overdue == true });
+            cmd.Parameters.Add(new() { Value = time.GetUtcNow() - TimeSpan.FromMinutes(1) });
+            cmd.Parameters.Add(new() { Value = take + 1 });
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            var items = new List<(long Id, object Json)>();
+            while (await r.ReadAsync(ct))
+            {
+                var json = CalendarJson(r);
+                json["subscribers"] = r.GetInt64(7);
+                json["validLinks"] = r.GetInt64(8);
+                json["totalLinks"] = r.GetInt64(9);
+                items.Add((r.GetInt64(0), json));
+            }
+            return Page(items, take);
+        });
+    }
+
+    static IResult Problem(int status, string reason) =>
+        Results.Problem(statusCode: status, extensions: new Dictionary<string, object?> { ["reason"] = reason });
+
+    // Keyset paging: `next` is the last returned id when one more row existed.
+    static IResult Page(List<(long Id, object Json)> rows, int limit) => Results.Json(new
+    {
+        items = rows.Take(limit).Select(i => i.Json),
+        next = rows.Count > limit ? rows[limit - 1].Id : (long?)null,
+    });
+
+    static Dictionary<string, object?> CalendarJson(NpgsqlDataReader r) => new()
+    {
+        ["calendarId"] = r.GetInt64(0),
+        ["status"] = r.GetString(1),
+        ["lastCheckedAt"] = r.IsDBNull(2) ? null : r.GetDateTime(2),
+        ["lastOk"] = r.IsDBNull(3) ? null : r.GetBoolean(3),
+        ["lastError"] = r.IsDBNull(4) ? null : r.GetString(4),
+        ["consecutiveFailures"] = r.GetInt32(5),
+        ["nextCheckAt"] = r.GetDateTime(6),
+    };
+}

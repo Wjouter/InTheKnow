@@ -15,6 +15,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<Checker>());
 // subscriptions (T049)
 builder.Services.AddSingleton<Subscriptions>();
 // api (T058)
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
@@ -23,6 +24,8 @@ var dataSource = app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>();
 await using var instanceLock = await Db.TakeInstanceLockAsync(dataSource);
 await Db.MigrateAsync(dataSource);
 // regroup (T070)
+
+app.MapApi();
 
 app.Run();
 
