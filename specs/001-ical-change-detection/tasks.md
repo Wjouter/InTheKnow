@@ -677,10 +677,10 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T071 [P] Add to `backend/InTheKnow.Tests/CheckerTests.cs` a test with a capturing `ILoggerProvider`. It runs a success, an `http 500`, a `Hang` timeout, an `empty_feed` and a duplicate-UID feed, and asserts that no log line contains any seeded URL or its `h` value (FR-028, SC-011).
-- [ ] T072 [P] Update `README.md` with a short "Run it" section: `docker compose up -d db`, the required `ConnectionStrings__Default` and `InTheKnow__ApiKey` environment variables, `dotnet test`, `dotnet run --project backend/InTheKnow`, and links to `specs/001-ical-change-detection/quickstart.md` and `contracts/api.md`.
-- [ ] T073 Run `dotnet list package --include-transitive` for both projects. Confirm every package in `backend/InTheKnow/packages.lock.json` and `backend/InTheKnow.Tests/packages.lock.json` is GPL-3.0-compatible, and update the table in `specs/001-ical-change-detection/research.md` § R17 with the resolved versions.
-- [ ] T074 Run the quality gate from the repo root and fix everything it reports:
+- [X] T071 [P] Add to `backend/InTheKnow.Tests/CheckerTests.cs` a test with a capturing `ILoggerProvider`. It runs a success, an `http 500`, a `Hang` timeout, an `empty_feed` and a duplicate-UID feed, and asserts that no log line contains any seeded URL or its `h` value (FR-028, SC-011).
+- [X] T072 [P] Update `README.md` with a short "Run it" section: `docker compose up -d db`, the required `ConnectionStrings__Default` and `InTheKnow__ApiKey` environment variables, `dotnet test`, `dotnet run --project backend/InTheKnow`, and links to `specs/001-ical-change-detection/quickstart.md` and `contracts/api.md`.
+- [X] T073 Run `dotnet list package --include-transitive` for both projects. Confirm every package in `backend/InTheKnow/packages.lock.json` and `backend/InTheKnow.Tests/packages.lock.json` is GPL-3.0-compatible, and update the table in `specs/001-ical-change-detection/research.md` § R17 with the resolved versions.
+- [X] T074 Run the quality gate from the repo root and fix everything it reports:
   - `dotnet restore --locked-mode`;
   - `dotnet build` (warnings are errors);
   - `dotnet format --verify-no-changes`;
@@ -688,7 +688,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
   The gate covers `InTheKnow.slnx`.
 - [ ] T075 Walk through `specs/001-ical-change-detection/quickstart.md` §2, §3 and §4 by hand against the live source with a real link. §2 includes the 24-hour unchanged run (SC-002). Confirm the expected results, including no link in any response or in the app log. Note any deviation in `specs/001-ical-change-detection/quickstart.md`, and record the §4 numbers (compression, parse cost, throughput, API reads) in `specs/001-ical-change-detection/research.md` § R19 (depends on T076).
-- [ ] T076 [P] Add the two explicit performance tests from quickstart.md §4. Both use `[Fact(Explicit = true)]`, so they never run in the normal gate, and both **log** their timings rather than assert them (plan § Performance Goals):
+- [X] T076 [P] Add the two explicit performance tests from quickstart.md §4. Both use `[Fact(Explicit = true)]`, so they never run in the normal gate, and both **log** their timings rather than assert them (plan § Performance Goals):
   - `ParseCost` in `backend/InTheKnow.Tests/MyTimetablesTests.cs`: for each `Fixtures/private/*.ics` (skip when none), run `FeedParser.Parse` + `MyTimetables.ToState` + `Differ.SnapshotHash` 20 times after one warm-up and log the average per feed.
   - `Throughput5000` in `backend/InTheKnow.Tests/ApiTests.cs`, using the T050 host with `mytimetables.inholland.nl` `MaxRequestsPerMinute=60000` (a 1 ms gap): seed 5,000 calendars on that host with `SeedCalendarAsync` (one subscriber per 5 calendars), all serving `mt-nl.ics`.
     - Run a baseline pass, then `Advance(CheckInterval)` so every calendar is due again, then an unchanged pass. Each pass loops `RunDueChecksAsync(now)` + `Advance(1 ms)` while `SELECT count(*) FROM calendar WHERE next_check_at <= @now` is above 0 (a single `RunDueChecksAsync` stops as soon as the host is busy). Log each pass's wall time.

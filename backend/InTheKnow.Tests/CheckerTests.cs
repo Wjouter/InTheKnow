@@ -635,4 +635,34 @@ public class CheckerTests
         var hashes = (await h.Db.RowsAsync("SELECT identity_hash FROM calendar ORDER BY id")).Select(r => Convert.ToHexString((byte[])r[0]!));
         Assert.Equal(urls.Select(u => Convert.ToHexString(LinkIdentity.Hash(LinkIdentity.Normalise(new Uri(u))))).Order(), hashes.Order());
     }
+
+    // FR-028, SC-011: no outcome ever logs a link or its token.
+    [Fact]
+    public async Task NoLinkIsEverLogged()
+    {
+        var logs = new CapturingLogs();
+        await using var h = await Harness.CreateAsync(logs);
+        var outcomes = new[] { "success", "http500", "hang", "empty", "duplicates" };
+        var urls = outcomes.Select((o, i) => LinkIdentityTests.MtLink(host: $"{o}.example", token: $"secret-token-{i}")).ToList();
+        for (var i = 0; i < urls.Count; i++)
+        {
+            h.Http.Map[new Uri(urls[i]).AbsoluteUri] = i == 4 ? "generic.ics" : "mt-nl.ics";
+            await h.Db.SeedCalendarAsync(i == 3 ? Harness.Mt : $"{outcomes[i]}.example", [new Uri(urls[i]).AbsoluteUri]);
+        }
+        await h.RunAsync();
+        h.Http.Map[new Uri(urls[1]).AbsoluteUri] = System.Net.HttpStatusCode.InternalServerError;
+        h.Http.Map[new Uri(urls[2]).AbsoluteUri] = Reply.Hang;
+        h.Http.Map[new Uri(urls[3]).AbsoluteUri] = "mt-empty.ics";
+        h.Time.Advance(TimeSpan.FromMinutes(10));
+        var run = h.Checker.RunDueChecksAsync(h.Now, Ct);
+        await Harness.UntilAsync(() => h.Http.Count(new Uri(urls[2]).AbsoluteUri) == 2);
+        await Harness.UntilAsync(async () => await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE lease_id IS NULL") == 4);
+        h.Time.Advance(TimeSpan.FromMinutes(2));
+        await run.WaitAsync(TimeSpan.FromSeconds(20), Ct);
+
+        Assert.Equal(["empty_feed", "http_500", "timeout"],
+            (await h.Db.RowsAsync("SELECT last_error FROM calendar WHERE last_error IS NOT NULL ORDER BY 1")).Select(r => (string)r[0]!));
+        Assert.NotEmpty(logs.Lines);
+        Assert.DoesNotContain(logs.Lines, l => l.Contains("secret-token") || l.Contains("/ical") || l.Contains("https://"));
+    }
 }
