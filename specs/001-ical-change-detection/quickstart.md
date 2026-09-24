@@ -112,6 +112,12 @@ Expected: every test passes. This covers:
 
    Expected: `204`, and the calendar, its links, snapshots and changes are gone (FR-008).
 
+**Walkthrough notes (T075, 2026-09-24)**: steps 1–5 and 7 were run against the live source with two real
+timetables. Step 3 first created a second calendar: live `timetable` values are `!` + base64, which the investigation
+had missed, so identity decoding failed and every link fell back to its full URL. Fixed in `LinkIdentity`; after the
+fix the startup regroup merged the two calendars and step 3 behaves as described. The first scheduled checks recorded
+0 changes and the app log contained no link. The 24-hour run of step 6 (SC-002) has not been done yet.
+
 ## 3. Operator configuration check
 
 Set `InTheKnow__CheckInterval=00:01:00` and start the app.
@@ -122,8 +128,9 @@ with a key shorter than 32 characters, fails at startup.
 ## 4. Performance check
 
 Run this once against the live source with a real link, and note the numbers in research R19. The plan's goals are
-not asserted in tests, because wall-clock assertions are flaky. The `dotnet test` selection options below are
-unverified until the test project exists; T076 confirms them.
+not asserted in tests, because wall-clock assertions are flaky. The explicit tests run through the test executable
+(xunit.v3's own runner options), because `dotnet test -- --filter-method … --explicit only` runs them but does not
+print their output. Build first with `dotnet build`.
 
 1. **Compression**: check whether the source compresses its feed, without printing the link:
 
@@ -138,7 +145,7 @@ unverified until the test project exists; T076 confirms them.
    run in the normal gate:
 
    ```bash
-   dotnet test -- --filter-method "*ParseCost*" --explicit only
+   backend/InTheKnow.Tests/bin/Debug/net10.0/InTheKnow.Tests -method "*ParseCost" -explicit only -showLiveOutput
    ```
 
    Expected: it logs the average time of parse + extraction + hash per feed, well under the 1 s goal.
@@ -150,7 +157,7 @@ unverified until the test project exists; T076 confirms them.
    in-memory host:
 
    ```bash
-   dotnet test -- --filter-method "*Throughput5000*" --explicit only
+   backend/InTheKnow.Tests/bin/Debug/net10.0/InTheKnow.Tests -method "*Throughput5000" -explicit only -showLiveOutput
    ```
 
    Expected: the unchanged pass writes 0 `event_snapshot` rows and its total wall time is well under the 10-minute

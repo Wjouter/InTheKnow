@@ -51,10 +51,11 @@ static partial class LinkIdentity
             .ThenBy(p => p, StringComparer.Ordinal),
     ];
 
-    // URL-decoded base64, tolerant of missing padding and of '-'/'_'; "Source!kind!id".
+    // "!" + URL-decoded base64 (live links carry the leading "!"), tolerant of missing padding and of '-'/'_';
+    // decodes to "Source!kind!id".
     static string? Decode(string timetable)
     {
-        var b64 = Uri.UnescapeDataString(timetable).Replace('-', '+').Replace('_', '/');
+        var b64 = Uri.UnescapeDataString(timetable).TrimStart('!').Replace('-', '+').Replace('_', '/');
         b64 = b64.PadRight(b64.Length + (4 - b64.Length % 4) % 4, '=');
         try
         {

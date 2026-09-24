@@ -526,10 +526,15 @@ Checked from the nuspec files and `dotnet list package --include-transitive`.
 |---|---|---|---|
 | Ical.Net | 5.2.3 | MIT | yes |
 | NodaTime (transitive) | 3.2.2 | Apache-2.0 | yes (GPLv3 accepts Apache-2.0) |
-| Npgsql | 10.0.x | PostgreSQL License (permissive) | yes |
-| Microsoft.AspNetCore.Mvc.Testing (test) | 10.0.x | MIT | yes |
-| xunit.v3 (test, brings Microsoft.Testing.Platform, MIT) | 4.0.x | Apache-2.0 | yes |
-| Microsoft.Extensions.TimeProvider.Testing (test) | 10.x | MIT (its only dependency, Microsoft.Bcl.TimeProvider, is MIT) | yes |
+| Npgsql | 10.0.3 | PostgreSQL License (permissive) | yes |
+| Microsoft.AspNetCore.Mvc.Testing (test) | 10.0.12 | MIT | yes |
+| xunit.v3 (test) | 4.0.1 | Apache-2.0 | yes |
+| Microsoft.Extensions.TimeProvider.Testing (test) | 10.10.0 | MIT | yes |
+| Test-only transitive: Microsoft.Testing.Platform and its extensions (2.4.0), Microsoft.ApplicationInsights (2.23.0), Microsoft.AspNetCore.TestHost and Microsoft.Extensions.* (10.0.12), Microsoft.Win32.Registry, System.Security.AccessControl, Microsoft.Bcl.AsyncInterfaces, System.Diagnostics.EventLog | as locked | MIT | yes |
+| Test-only transitive: xunit.v3.* (4.0.1), xunit.analyzers (2.1.0) | as locked | Apache-2.0 | yes |
+
+Re-checked on 2026-09-24 against both `packages.lock.json` files with `dotnet list package --include-transitive`
+and the licence expressions in the nuspec files (T073).
 
 ASP.NET Core itself comes from the shared framework (MIT), not from NuGet. The transitive trees of Npgsql and
 Mvc.Testing (Microsoft.AspNetCore.TestHost and Microsoft.Extensions.*, all MIT) are re-checked with
@@ -605,3 +610,13 @@ Mvc.Testing (Microsoft.AspNetCore.TestHost and Microsoft.Extensions.*, all MIT) 
   - SQLite: a single writer, which is awkward with an API and a checker writing concurrently.
   - A document database: gives up the constraints for no gain.
   - Sharding or read replicas: unnecessary at this size.
+- **Measured (T075/T076, 2026-09-24, Debug build, laptop, PostgreSQL 18 in Docker)**:
+  - **Compression**: the source answers `Accept-Encoding: gzip, br` with `Content-Encoding: gzip`, so the bandwidth
+    figures above are an upper bound. `Expires` is request time + 1 hour, as in the investigation.
+  - **Parse cost** (parse + extraction + hash, `ParseCost`): 20.5 ms for a 227 KB / 73-event feed and 36.2 ms for a
+    255 KB / 120-event feed, well under the 1 s goal.
+  - **Throughput** (`Throughput5000`, one calendar per fake-clock step, so a sequential upper bound): a baseline pass
+    over 5,000 calendars took 2 min 7 s and an unchanged pass 1 min 52 s (about 22 ms per check), with 0
+    `event_snapshot` rows written by the unchanged pass. That fits the 10-minute interval (SC-010).
+  - **API reads** at 5,000 calendars: `GET /api/calendars?limit=500` 9 ms, one subscriber's
+    `GET …/changes?limit=500` (over 2,000 changes) 7 ms, against the 200 ms goal.

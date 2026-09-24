@@ -132,4 +132,23 @@ public class MyTimetablesTests
             }
         }
     }
+
+    // Quickstart §4: logs parse + extraction + hash time per private feed. Never runs in the normal gate.
+    [Fact(Explicit = true)]
+    public void ParseCost()
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "Fixtures", "private");
+        var files = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.ics") : [];
+        Assert.SkipWhen(files.Length == 0, "no private feeds in Fixtures/private");
+        foreach (var file in files)
+        {
+            var text = File.ReadAllText(file);
+            void Once() => Differ.SnapshotHash([.. FeedParser.Parse(text, Horizon, NullLogger.Instance, 1, TestContext.Current.CancellationToken)
+                .Events!.Select(o => MyTimetables.ToState(o, All))]);
+            Once();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            for (var i = 0; i < 20; i++) Once();
+            TestContext.Current.TestOutputHelper!.WriteLine($"{Path.GetFileName(file)} ({text.Length / 1024} KB): {watch.Elapsed.TotalMilliseconds / 20:F1} ms per check");
+        }
+    }
 }

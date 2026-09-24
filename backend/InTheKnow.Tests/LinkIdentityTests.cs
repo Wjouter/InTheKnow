@@ -8,7 +8,7 @@ public class LinkIdentityTests
 {
     const string Mt = "mytimetables.inholland.nl";
 
-    // A synthetic MyTimetables link, shaped like investigation.md §1.
+    // A synthetic MyTimetables link, shaped like the live ones (investigation.md §1): timetable is "!" + base64.
     internal static string MtLink(string id = "ALTI26VT4ES1", string kind = "xedule_studentgroup", string user = "1001",
                                   string? hex = "6ab568c1", string host = Mt, string? token = null)
     {
@@ -16,7 +16,7 @@ public class LinkIdentityTests
         var eu = Convert.ToBase64String(Encoding.UTF8.GetBytes(user));
         token ??= Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(kind + id + user))).Replace('+', '-').Replace('/', '_').TrimEnd('=');
         var marker = hex is null ? "" : hex + "&";
-        return $"https://{host}/ical?{marker}timetable={Uri.EscapeDataString(timetable)}&eu={Uri.EscapeDataString(eu)}&h={token}";
+        return $"https://{host}/ical?{marker}timetable=!{Uri.EscapeDataString(timetable)}&eu={Uri.EscapeDataString(eu)}&h={token}";
     }
 
     static string Base32(string s)
@@ -96,6 +96,13 @@ public class LinkIdentityTests
         Assert.NotEqual(Key(MtLink(user: "1001"), noSharing), Key(MtLink(user: "2002"), noSharing));
         var none = S(("InTheKnow:MyTimetables:Domains:0:ClassGroupSharing", "false"), ("InTheKnow:MyTimetables:Domains:0:DuplicateLinkMerging", "false"));
         Assert.NotEqual(Key(MtLink(hex: "01"), none), Key(MtLink(hex: "02"), none));
+    }
+
+    [Fact]
+    public void TimetableWithoutTheLeadingBangAlsoDecodes()
+    {
+        var bare = MtLink().Replace("timetable=!", "timetable=");
+        Assert.Equal(Key(MtLink()), Key(bare));
     }
 
     [Fact]

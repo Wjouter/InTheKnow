@@ -13,7 +13,7 @@ https://mytimetables.inholland.nl/ical?<HEX>&timetable=<T>&eu=<E>&h=<H>
 | Part | Example (decoded) | Meaning |
 |------|-------------------|---------|
 | `<HEX>` (bare, valueless first param) | `6ab568c1` → 2026-09-24 18:15:29 UTC | Unix timestamp (hex) of when the link was generated. **Optional**: the feed is returned byte-identical without it. |
-| `timetable` | base64 → `Xedule!xedule_studentgroup!IFGFISJSGZLFINCFKMYQ`; last segment is base32 → `ALTI26VT4ES1` | Which timetable: source system (`Xedule`), timetable kind (`xedule_studentgroup`), and the id (here the student-group code). |
+| `timetable` | `!` + base64 (the leading `!` was found during implementation, T075) → `Xedule!xedule_studentgroup!IFGFISJSGZLFINCFKMYQ`; last segment is base32 → `ALTI26VT4ES1` | Which timetable: source system (`Xedule`), timetable kind (`xedule_studentgroup`), and the id (here the student-group code). |
 | `eu` | base64 → `<numeric user id>` | Most likely the id of the user who generated the link. Same for both groups in the examples (same user). |
 | `h` | 32-byte base64url | Signature/token over the other params. Identical for the two links of the same timetable, so it does **not** cover `<HEX>`. |
 

@@ -247,4 +247,51 @@ public class ApiTests
         Assert.Equal((HttpStatusCode.BadRequest, "invalid_limit"), (badLimit.StatusCode, await ReasonAsync(badLimit)));
         Assert.DoesNotContain("https://", (await h.JsonAsync("/api/calendars")).ToJsonString());
     }
+
+    // Quickstart §4: 5,000 calendars on one domain, a baseline pass and an unchanged pass, then API reads.
+    // Logs timings rather than asserting them. Never runs in the normal gate.
+    [Fact(Explicit = true)]
+    public async Task Throughput5000()
+    {
+        await using var h = await ApiHost.CreateAsync(("InTheKnow:MyTimetables:Domains:0:MaxRequestsPerMinute", "60000"));
+        var output = TestContext.Current.TestOutputHelper!;
+        await h.Db.ExecAsync("""
+            INSERT INTO calendar (identity_hash, host, next_check_at)
+            SELECT sha256(g::text::bytea), 'mytimetables.inholland.nl', 'epoch' FROM generate_series(1, 5000) g
+            """);
+        await h.Db.ExecAsync("""
+            INSERT INTO calendar_link (calendar_id, subscriber, url)
+            SELECT id, 's' || ((id - 1) / 5), 'https://mytimetables.inholland.nl/ical?c=' || id FROM calendar
+            """);
+        foreach (var id in Enumerable.Range(1, 5000)) h.Http.Map[$"https://mytimetables.inholland.nl/ical?c={id}"] = "mt-nl.ics";
+
+        async Task<TimeSpan> PassAsync()
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE next_check_at <= $1", h.Time.GetUtcNow()) > 0)
+            {
+                await h.Checker.RunDueChecksAsync(h.Time.GetUtcNow(), Ct);
+                h.Time.Advance(TimeSpan.FromMilliseconds(1));
+            }
+            return watch.Elapsed;
+        }
+        const string xmin = "SELECT md5(string_agg(xmin::text, ',' ORDER BY calendar_id, event_key)) FROM event_snapshot";
+        output.WriteLine($"baseline pass: {await PassAsync()}");
+        var before = (await h.Db.RowsAsync(xmin)).Single()[0];
+        h.Time.Advance(TimeSpan.FromMinutes(10));
+        output.WriteLine($"unchanged pass: {await PassAsync()}");
+        Assert.Equal(before, (await h.Db.RowsAsync(xmin)).Single()[0]);
+
+        await h.Db.ExecAsync("""
+            INSERT INTO detected_change (calendar_id, event_key, kind, new_value, event_name, event_starts_at, detected_at)
+            SELECT 1 + g % 5, 'k' || g, 'added', '{}', 'n', now(), now() FROM generate_series(1, 2000) g
+            """);
+        foreach (var path in new[] { "/api/calendars?limit=500", "/api/subscribers/s0/changes?limit=500" })
+        {
+            await h.JsonAsync(path);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var json = await h.JsonAsync(path);
+            output.WriteLine($"GET {path}: {watch.Elapsed.TotalMilliseconds:F0} ms, {json["items"]!.AsArray().Count} items");
+        }
+    }
 }
