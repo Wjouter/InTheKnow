@@ -40,19 +40,21 @@ Request body:
 ```
 
 The link travels only in the body, never in the path or query string (FR-032). The server then:
-1. checks the scheme and address;
+1. checks the scheme (`https` only) and address;
 2. validates the link with one fetch (research R11);
 3. attaches the link to the matching calendar, or creates one.
 
-The validation response is not stored.
+When the link creates a calendar, the validation response becomes that calendar's baseline (FR-023), so
+`GET …/calendars` shows `lastOk: true` straight away. When it joins an existing calendar, nothing from the
+validation is stored.
 
 | Status | Body |
 |---|---|
-| `201` | `{ "calendarId": 12, "linkId": 40, "calendarIsNew": false, "insecure": false }`. `insecure` is `true` for `http` links (research R18). |
+| `201` | `{ "calendarId": 12, "linkId": 40, "calendarIsNew": false }` |
 | `200` | The same shape. The subscriber already had this exact link, so nothing changed. |
-| `400` | `reason`: `invalid_subscriber`, `invalid_url`, `unsupported_scheme`, `url_too_long`, `blocked_address` |
+| `400` | `reason`: `invalid_subscriber`, `invalid_url`, `unsupported_scheme` (anything other than `https`, including `http`), `url_too_long`, `blocked_address` |
 | `422` | `reason`: `validation_failed:<code>`, where `<code>` is one of the check failure codes in [data-model.md](../data-model.md), for example `validation_failed:empty_feed` |
-| `429` | `reason`: `host_budget_exhausted`. The validation waits up to 5 s for the host's next free request slot (FR-012a). This status means more than 5 s of requests were already queued for that host. Retry after a few seconds. |
+| `429` | `reason`: `host_budget_exhausted`. The validation waits up to 5 s for the host's next free request slot (FR-012a). This status means more than 5 s of requests were already queued for that host. The response carries `Retry-After: 5`; the client retries after that many seconds. |
 
 ### `GET /api/subscribers/{subscriber}/calendars`: the subscriber's calendars (FR-030)
 
@@ -119,13 +121,19 @@ Pagination is keyset-based:
 - The values of `kind`, `field`, `oldValue` and `newValue` follow [detected-change.md](./detected-change.md).
 - This endpoint only reads. It never sets `notified_at`, which belongs to the notification feature.
 
-### `GET /api/calendars?status={ok|failing}&overdue={true}`: operator overview (US5-5, FR-027)
+### `GET /api/calendars?status={ok|failing}&overdue={true}&after={id}&limit={n}`: operator overview (US5-5, FR-027)
 
-`status` and `overdue` are both optional filters. `overdue=true` returns only calendars with
-`nextCheckAt < now - 1 min`, which shows when the per-host budget is making checks fall behind.
+`status` and `overdue` are both optional filters. `status` other than `ok` or `failing` gets `400` with the reason
+`invalid_status`. `overdue=true` returns only calendars with `nextCheckAt < now - 1 min`, which shows when the
+per-host budget is making checks fall behind.
 
-`200`: an array of the calendar objects from `GET …/calendars` above, where `links` is replaced by
-`"subscribers": <n>, "validLinks": <n>, "totalLinks": <n>`. No links or subscriber ids are included.
+The list is paged by calendar id like the changes endpoint, because at school scale it holds thousands of
+calendars: `after` defaults to 0, and `limit` defaults to 100 and allows 1 to 500 (otherwise `400`
+`invalid_limit`).
+
+`200`: `{ "items": [...], "next": <id or null> }`. Each item is a calendar object from `GET …/calendars` above,
+ordered by `calendarId`, where `links` is replaced by `"subscribers": <n>, "validLinks": <n>, "totalLinks": <n>`.
+No links or subscriber ids are included.
 
 ## Not in this feature
 
@@ -135,8 +143,9 @@ Pagination is keyset-based:
 
 ## Transport
 
-- The app listens on plain HTTP inside the host or network.
-- **Outside local development it MUST run behind a TLS-terminating reverse proxy.** The constitution's HTTPS
-  rule applies, and the operator key must never travel unencrypted.
+- The app listens on plain HTTP on the same host only: loopback (the ASP.NET Core default `http://localhost:5000`)
+  or a host-internal container network. It never listens on an address reachable across a physical network.
+- **Outside local development it MUST run behind a TLS-terminating reverse proxy on the same host.** The
+  constitution's HTTPS rule applies, and the operator key must never travel unencrypted.
 - The API does not log request bodies. ASP.NET Core does not log them by default, and HTTP logging middleware is
   not enabled.

@@ -107,7 +107,9 @@ synthetic generic feed.
   - **After each check**: `next_check_at = check_started_at + interval`, where interval is the check interval, or
     the failing-calendar interval when status is `failing`. A calendar that was delayed therefore keeps its new,
     later slot, and a bunch of calendars that fell due together stays spread out afterwards (FR-012b).
-  - **New calendars** get `next_check_at = now + random(0, interval)`.
+  - **New calendars** added through a link are baselined from the validation fetch and get
+    `next_check_at = now + interval` (R11); adds happen at user-chosen moments, so they are naturally spread.
+    Calendars created by a regroup (R13) have no baseline and get `next_check_at = now + random(0, interval)`.
   - **Check time limit (FR-014a)**: 2 minutes per check (constant), covering fetch, parse, diff and database
     write. It is enforced two ways:
     - The check runs under a `CancellationTokenSource(limit, timeProvider)`. The fetch has its own 30 s timeout
@@ -117,6 +119,11 @@ synthetic generic feed.
       failure `timeout` in its own short transaction, schedules the next check normally and **releases the
       worker slot**, even if the check's code is stuck somewhere that ignores cancellation, such as CPU-bound
       parsing inside Ical.Net.
+    - The wrapper **releases the worker slot first**, then writes `timeout`. That write uses only the stopping
+      token, never the check's own token, which is already cancelled at that point and would make the write fail.
+      Its fence is a plain blocking `FOR UPDATE`: if the stuck check is inside its outcome transaction, the
+      cancellation rolls that transaction back and the wrapper then records `timeout`; if the check committed
+      first, its lease is cleared and the wrapper writes nothing. Waiting on the lock costs no worker slot.
     - **Lease fence**: every write for a check runs in a transaction that begins with
       `SELECT … FROM calendar WHERE id = @id AND lease_id = @lease FOR UPDATE`. If no row comes back, the check
       has lost its lease and writes **nothing**. This applies to the success transaction (R14) and to the
@@ -142,6 +149,9 @@ synthetic generic feed.
     - **Checker**: a host is claimable only when `nextFree <= now`. Taking a slot sets
       `nextFree = max(now, nextFree) + gap`. Hosts with `nextFree > now` are passed as `@busyHosts`, so their due
       calendars keep their place in line and aren't claimed and put back.
+    - Known ceiling: while the main host is busy, a claim pass that finds nothing walks that host's whole due
+      backlog in the `next_check_at` index (`host <> ALL` cannot use an index). That is about two scans a second
+      over a few thousand entries, milliseconds each. Marked with a `ponytail:` comment in `Checker.cs`.
     - **Validation** (adding a link): reserves the next slot, `slot = max(now, nextFree)`, and waits for it
       (`Task.Delay` on the `TimeProvider`) if that is at most 5 s away. Otherwise it returns `429`
       (`host_budget_exhausted`). A reserved slot pushes `nextFree` forward, so validations queue ahead of the
@@ -149,14 +159,14 @@ synthetic generic feed.
   - **Why this spreads bunches**: suppose 300 calendars on one host fall due in the same second, for example
     after a restart, and the budget is 120/min. They go out one every 0.5 s, longest-waiting first, and all are
     done in 2.5 minutes. None is skipped. Their next checks land 0.5 s apart, one interval later. Without budget
-    pressure, the worker limit and the random first slots do the same job.
+    pressure, the worker limit and the spread-out first checks do the same job.
   - **Single-instance guard**: at startup the app takes `pg_try_advisory_lock(<constant>)` on a dedicated
     connection that it holds for its lifetime. If the lock is held, it exits with an error. One instance is the
     deployment model (R1). The lock stops an accidental second instance from recording every change twice
     (FR-025) and from racing migrations.
 - **Clock**: every time decision takes its time from the BCL `TimeProvider`, passed as a parameter to SQL rather
   than read from `now()` in SQL. That covers claiming, the lease, `next_check_at`, the retention cutoff,
-  `detected_at`, the random first slot, the horizon and `HostBudget`. The checker exposes
+  `detected_at`, the first check of a new calendar, the horizon and `HostBudget`. The checker exposes
   `RunDueChecksAsync(DateTimeOffset now)`. It runs dispatch passes at `now` until nothing is claimable, then
   awaits the checks it started. The background loop runs the same passes without awaiting the checks.
   - **Timers use the same provider**: `Task.WaitAsync(limit, timeProvider)`,
@@ -209,8 +219,10 @@ synthetic generic feed.
     - CGNAT (100.64/10);
     - unspecified, multicast or broadcast;
     - an IPv4-mapped IPv6 form of any of the above.
-  - At link-add time the scheme (`http`/`https`) and the resolved addresses are also checked, so the user gets an
+  - At link-add time the scheme (`https` only) and the resolved addresses are also checked, so the user gets an
     immediate, specific rejection (FR-001).
+  - `PooledConnectionLifetime = 5 min`, so pooled connections are replaced and DNS changes at the source are
+    picked up. Every new connection passes the `ConnectCallback` again.
 - **Rationale**:
   - Checking at connect time also covers redirects and DNS rebinding, which checking only at add time would miss.
   - A plain `HttpClient` avoids the factory's default logging of full request URIs at Information level, which
@@ -341,6 +353,13 @@ synthetic generic feed.
   - Parse errors fail the check with `unparseable`.
 - **Rationale**: Feeds are third-party input (Principle II). A single `FREQ=MINUTELY` rule would otherwise expand
   to millions of rows. Real feeds are about 250 KB and fewer than 3,000 occurrences.
+- **Known ceilings** (accepted, marked with `ponytail:` comments):
+  - Memory: the worst case per check is a 10 MB body (about 20 MB as a .NET string) plus Ical.Net's object graph,
+    times `MaxConcurrentChecks` (up to 64). Only links added with the operator key can reach it today. Lower the
+    size bound or stream-parse if user-added links ever make this reachable by strangers.
+  - Recurring series are expanded from their start (FR-015a). A generic calendar with many long-running daily
+    series (roughly 14 daily series over 10 years) passes 50,000 occurrences and fails every check with
+    `too_many_occurrences`. This is rare and visible in the operator overview.
 - **Alternatives considered**: Making these operator-configurable. That would be configuration for values that
   never need to change (Principle I).
 
@@ -351,18 +370,24 @@ synthetic generic feed.
   - The response must parse. It must also contain ≥ 1 event when **either** empty-feed protection is enabled for
     the domain **or** the link would join an *existing* calendar through a MyTimetables-derived identity (duplicate
     link merging or class-group sharing).
-  - The validation response is **never** diffed or stored. The calendar's baseline comes from its first scheduled
-    check.
+  - The validation response is **never** diffed. When the link **creates** a calendar, the validation result is
+    stored as its baseline in the same transaction that inserts the calendar (FR-023), with the calendar's first
+    check one `CheckInterval` later. When the link **joins** an existing calendar, nothing from the validation is
+    stored.
 - **Rationale**:
   - FR-003 alone would let a forged class-group link (right `timetable`, junk `h`) join a calendar on a domain
     with protection off. When it later becomes the fetch link, its empty feed would look like a mass removal.
   - US2-5 rejects such a link without conditions, so requiring events on MyTimetables-derived joins satisfies
     both FR-003 and US2-5.
-  - Not storing the validation result means a link in the other language, or fetched at another moment, cannot
-    record changes outside the schedule. The cost is one extra request per new link, which SC-003 already
-    allows.
-- **Alternatives considered**: Using the validation fetch as the baseline for a new calendar. It saves one request,
-  but makes the baseline depend on the path the link took.
+  - Storing nothing from a joining link means a link in the other language, or fetched at another moment, cannot
+    record changes outside the schedule.
+  - Baselining a new calendar from its validation fetch means it is watched from the moment it is added. With a
+    random first check instead, a new calendar under budget pressure waited behind the whole overdue backlog
+    (about one check cycle, R19), and anything that changed at the source in that window was absorbed into the
+    late baseline without being recorded. It also saves one request per new calendar. The baseline is exactly
+    what the first check would store, because the fetch link of a new calendar is the link that created it.
+- **Alternatives considered**: Taking the baseline from the first scheduled check (the earlier design): simpler by
+  one shared helper, but it loses changes under budget pressure as described above.
 
 ## R12. Calendar identity keys
 
@@ -433,7 +458,8 @@ synthetic generic feed.
     is held.
   - Almost every check of a timetable finds nothing new. With thousands of calendars, replacing every row each
     time would rewrite millions of rows every interval and keep autovacuum busy for nothing. With the hash
-    shortcut, an unchanged calendar costs one small `UPDATE` (SC-010).
+    shortcut, an unchanged calendar costs three small row updates (the claim, the calendar outcome and the fetch
+    link) and no event rows (SC-010).
 - **Alternatives considered**:
   - Always replacing the full snapshot: simpler, but writes grow with events rather than changes.
   - Hashing the raw feed: useless, because `DTSTAMP` and the sync line change on every fetch.
@@ -511,13 +537,18 @@ Mvc.Testing (Microsoft.AspNetCore.TestHost and Microsoft.Extensions.*, all MIT) 
 
 ## R18. HTTPS outside local development vs FR-001
 
-- **Decision**: Plain `http` feed links are accepted as FR-001 requires, and the add-link response carries
-  `"insecure": true` so the client can warn that the link and its content travel unencrypted.
-- **Rationale**: The constitution's HTTPS rule covers traffic the app controls. A third-party feed only available
-  over http can't be upgraded by us. Real MyTimetables links are https, and a redirect from https to http is never
-  followed (the `HttpClient` default). This is logged as a justified deviation in the plan's Complexity Tracking.
-- **Alternatives considered**: Rejecting `http` outright, or only on MyTimetables domains. Either would contradict
-  FR-001, and that call belongs to the spec owner.
+- **Decision** (revised after analysis, 2026-09-24): only `https` feed links are accepted. `http` links are
+  rejected at add time with `unsupported_scheme`, and the database CHECK on `calendar_link.url` allows only
+  `https://`. A redirect from https to http is never followed (the `HttpClient` default), so no feed is ever read
+  over plain http. The API's own hop from the TLS-terminating proxy to the app stays on the same host (loopback or
+  a host-internal container network), never across a physical network, so the operator key never travels
+  unencrypted ([contracts/api.md § Transport](./contracts/api.md#transport)).
+- **Rationale**: The constitution's "Traffic MUST use HTTPS outside local development" has no deviation path;
+  Complexity Tracking only covers Principle I. The spec owner chose to drop `http` from FR-001 rather than amend
+  the constitution. Real MyTimetables links are https.
+- **Alternatives considered**: Accepting `http` with an `insecure` flag in the add-link response (the earlier
+  design): it violated Principle II. Amending the constitution to scope the rule to traffic the app serves:
+  possible later, if an http-only calendar source is ever needed.
 
 ## R19. Scale: a whole school
 
@@ -531,14 +562,36 @@ Mvc.Testing (Microsoft.AspNetCore.TestHost and Microsoft.Extensions.*, all MIT) 
     operator raises that domain's budget (for example after agreeing a bigger allowance with the institution)
     or the interval.
     Inholland's tolerance is unknown, so the default is deliberately cautious.
+  - **The budget, not the interval, sets the pace.** Nearly every calendar is on one host, so one check cycle is
+    `max(CheckInterval, calendars on the host ÷ budget)` minutes. SC-005 is phrased in cycles for this reason.
+
+    | Calendars on one host | Cycle at 120/min, 10 min | Requests to the source per day |
+    |---|---|---|
+    | 1,200 | 10 min | 172,800 |
+    | 5,000 | about 42 min | 172,800 (budget cap) |
+    | 20,000 | about 167 min | 172,800 (budget cap) |
+
+    How many calendars one host carries is **unverified**: class-group links merge, personal timetable links do
+    not, so "thousands" could be tens of thousands. The operator overview's `overdue` filter shows when the budget
+    is the limit. Each MyTimetables response appears to be generated per request (`Last-Modified` and `DTSTAMP` are
+    the request time, investigation §5), so the budget protects real work at the source. The source's
+    `Expires` of 1 hour is close to the cycle at 5,000 calendars.
+  - **Bandwidth figures are uncompressed and unverified**: about 250 KB per response, so about 43 GB a day at the
+    default budget's cap. Whether the server compresses (`Content-Encoding`) was not recorded; the fetcher asks for
+    compression, and quickstart §4 records the header.
   - **Database**:
     - The hash shortcut (R14) makes unchanged checks almost free.
     - `event_snapshot` holds about 5,000 × 400 = 2 million small rows, which is comfortable for PostgreSQL.
     - `detected_change` grows with real changes only and is capped by retention.
-    - The indexes are on `calendar(next_check_at)`, `detected_change(detected_at)` and
-      `detected_change(calendar_id, id)`. The last one serves the paged changes endpoint through the
-      `subscription` join.
-  - **CPU**: parsing a 250 KB feed takes a few milliseconds, and 16 concurrent checks use a few cores at most.
+    - The indexes are on `calendar(next_check_at)`, `calendar(last_link_id)`, `detected_change(detected_at)` and
+      `detected_change(calendar_id, id)`. The `detected_change(calendar_id, id)` index serves the paged changes
+      endpoint through the `subscription` join. The `last_link_id` index keeps each link delete from scanning
+      `calendar` for its `ON DELETE SET NULL`.
+    - Retention deletes in batches of 10,000 rows, because a timetable-publication day (every event of every
+      calendar `added`) expires as one burst a year later.
+  - **CPU**: unmeasured. The spike parsed a 73-event feed without timing it; real feeds have about 390 events.
+    The margin is large: at the default budget about 2 checks start per second, against a goal of < 1 s per
+    unchanged check. Quickstart §4 measures it once.
   - **Throughput limit of the workers**: at about 1 s per check (mostly network), the default 16 workers manage
     about 16 checks/s (960/min), well above the default budget of 120/min. With a much bigger per-domain
     budget, the workers can become the limit. `MaxConcurrentChecks` (up to 64) is then raised as well; see
