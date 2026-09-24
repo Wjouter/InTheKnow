@@ -644,20 +644,20 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T065 [P] [US4] Add to `backend/InTheKnow.Tests/SettingsTests.cs`: two domain entries `mytimetables.inholland.nl` and `MyTimetables.Inholland.nl` fail at startup as duplicate hosts.
-- [ ] T066 [P] [US4] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (features per domain, SC-009):
+- [X] T065 [P] [US4] Add to `backend/InTheKnow.Tests/SettingsTests.cs`: two domain entries `mytimetables.inholland.nl` and `MyTimetables.Inholland.nl` fail at startup as duplicate hosts.
+- [X] T066 [P] [US4] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (features per domain, SC-009):
   - **Per-domain features**: `mt-nl.ics` is seeded on three hosts: unlisted, `mytimetables.inholland.nl` (all on), and `rooster.example.nl` (`TeacherDetection=false`). Their snapshot `fields` are, respectively, `{location, description}`, the parsed parts with `teachers`, and the parsed parts with `details.teachers` and no `teachers` (US4-2, US4-3).
   - **Feature switch**: after a baseline, rebuild `Settings` and `Checker` with `EventDetails=false` for the domain, and check the same feed again. It records 0 changes, and `baseline_features` and the snapshot `fields` now reflect the new features (US4-5, FR-026a).
   - **Revoked link during a switch**: the same switch combined with an `mt-empty.ics` response keeps the old snapshot and flags the link (row 2 before row 3).
-- [ ] T067 [US4] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (regroup, research R13):
+- [X] T067 [US4] Add to `backend/InTheKnow.Tests/CheckerTests.cs` (regroup, research R13):
   - **Split**: two subscribers' class-group links are added through `AddLinkAsync` into one calendar. `RegroupAsync` under settings with `ClassGroupSharing=false` gives two calendars, each with one link. The original calendar keeps its snapshot, and the new calendar has `baseline_features IS NULL` and records 0 changes on its first check (US4-4).
   - **Merge back**: `RegroupAsync` with sharing back on merges them, and the calendar left without links is deleted.
   - **Unlisted host**: removing the domain from the list regroups its links under normalised-URL keys.
 
 ### Implementation for User Story 4
 
-- [ ] T068 [US4] In `backend/InTheKnow/Settings.cs`, fail startup when two `MyTimetables:Domains` entries have the same `Host` case-insensitively, or when a `Host` is empty.
-- [ ] T069 [US4] Implement `RegroupAsync(now)` in `backend/InTheKnow/Checker.cs` (research R13), in one transaction, run before the checker starts.
+- [X] T068 [US4] In `backend/InTheKnow/Settings.cs`, fail startup when two `MyTimetables:Domains` entries have the same `Host` case-insensitively, or when a `Host` is empty.
+- [X] T069 [US4] Implement `RegroupAsync(now)` in `backend/InTheKnow/Checker.cs` (research R13), in one transaction, run before the checker starts.
   1. Load every link `(id, calendar_id, subscriber, url)` and every calendar `(id, identity_hash, host)`, and compute `LinkIdentity.Hash(KeyFor(url))` for each link.
   2. For each calendar whose links all map to one hash equal to its `identity_hash`, change nothing.
   3. For each other target hash, choose the target calendar:
@@ -669,7 +669,7 @@ sealed class Subscriptions(NpgsqlDataSource db, Fetcher f, HostBudget b, Setting
   6. Log only counts: calendars kept, moved, created and deleted.
 
   Known ceiling: the undelivered changes of a calendar deleted by a merge are lost (accepted in R13). Mark this with a `// ponytail:` comment.
-- [ ] T070 [US4] In `backend/InTheKnow/Program.cs`, at `// regroup (T070)`, after `MigrateAsync` and before `app.Run()`, call `await app.Services.GetRequiredService<Checker>().RegroupAsync(app.Services.GetRequiredService<TimeProvider>().GetUtcNow())`, using the DI clock so test fakes apply.
+- [X] T070 [US4] In `backend/InTheKnow/Program.cs`, at `// regroup (T070)`, after `MigrateAsync` and before `app.Run()`, call `await app.Services.GetRequiredService<Checker>().RegroupAsync(app.Services.GetRequiredService<TimeProvider>().GetUtcNow())`, using the DI clock so test fakes apply.
 
 **Checkpoint**: All user stories pass their tests independently.
 

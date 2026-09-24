@@ -24,6 +24,7 @@ var dataSource = app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>();
 await using var instanceLock = await Db.TakeInstanceLockAsync(dataSource);
 await Db.MigrateAsync(dataSource);
 // regroup (T070)
+await app.Services.GetRequiredService<Checker>().RegroupAsync(app.Services.GetRequiredService<TimeProvider>().GetUtcNow());
 
 app.MapApi();
 
