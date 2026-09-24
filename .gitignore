@@ -1,0 +1,25 @@
+# Claude Code: personal settings stay local, shared settings/skills get committed
+.claude/settings.local.json
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+*.user
+
+# .NET
+bin/
+obj/
+*.suo
+.vs/
+
+# SvelteKit / Node
+node_modules/
+.svelte-kit/
+build/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
