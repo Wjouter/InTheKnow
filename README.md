@@ -32,6 +32,10 @@ Start the API and the background checker:
 dotnet run --project backend/InTheKnow
 ```
 
+For IDE runs, copy `backend/InTheKnow/Properties/launchSettings.example.json` to `launchSettings.json` (ignored by
+git) and replace `CHANGE-ME` with a key of at least 32 characters, e.g. `openssl rand -base64 48`. Its variables
+override the ones exported above.
+
 See [the quickstart](specs/001-ical-change-detection/quickstart.md) for a walkthrough and
 [the API contract](specs/001-ical-change-detection/contracts/api.md) for the endpoints.
 
