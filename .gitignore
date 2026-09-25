@@ -6,6 +6,7 @@
 .env.*
 !.env.example
 appsettings.*.local.json
+backend/InTheKnow/Properties/launchSettings.json
 *.user
 
 # .NET
