@@ -11,6 +11,8 @@ sealed record AddLinkRequest(string? Url);
 // ever contains a link (FR-032).
 static class Api
 {
+    const int Batch = 500;
+
     public static void MapApi(this WebApplication app)
     {
         // Middleware rather than an endpoint filter: filters run after parameter binding, so a request without the
@@ -77,36 +79,55 @@ static class Api
         });
 
         // Read-only: never sets notified_at, which belongs to the notification feature.
-        api.MapGet("/subscribers/{subscriber}/changes", async (string subscriber, long? after, int? limit, NpgsqlDataSource db, CancellationToken ct) =>
+        // Each change carries its outcome under the subscriber's filter; hidden ones only with includeHidden (FR-008).
+        api.MapGet("/subscribers/{subscriber}/changes", async (string subscriber, long? after, int? limit, string? includeHidden,
+                                                               NpgsqlDataSource db, Presets presets, CancellationToken ct) =>
         {
             if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
             if (limit is < 1 or > 500) return Problem(400, "invalid_limit");
+            if (includeHidden is not (null or "true" or "false")) return Problem(400, "invalid_include_hidden");
             var take = limit ?? 100;
-            await using var cmd = db.CreateCommand("""
-                SELECT c.id, c.calendar_id, c.event_key, c.kind, c.field, c.old_value::text, c.new_value::text,
-                       c.event_name, c.event_starts_at, c.detected_at
-                FROM detected_change c JOIN subscription s ON s.calendar_id = c.calendar_id
-                WHERE s.subscriber = $1 AND c.id > $2 ORDER BY c.id LIMIT $3
-                """);
-            cmd.Parameters.Add(new() { Value = subscriber });
-            cmd.Parameters.Add(new() { Value = after ?? 0 });
-            cmd.Parameters.Add(new() { Value = take + 1 });
-            await using var r = await cmd.ExecuteReaderAsync(ct);
+            var filters = await presets.LoadFiltersAsync(subscriber, ct);
             var items = new List<(long Id, object Json)>();
-            while (await r.ReadAsync(ct))
-                items.Add((r.GetInt64(0), new
+            // Keyset batches until the page is full, so a page is never empty while visible changes remain (research R3).
+            // ponytail: a full keyset scan per page; upgrade to an indexed pre-filter or a materialised outcome only if SC-009 measurement fails
+            for (long from = after ?? 0, read = Batch; filters.Count > 0 && items.Count <= take && read == Batch;)
+            {
+                await using var cmd = db.CreateCommand("""
+                    SELECT id, calendar_id, event_key, kind, field, old_value::text, new_value::text, event_name, event_starts_at, detected_at,
+                           event_before::text, event_after::text
+                    FROM detected_change WHERE calendar_id = ANY($1) AND id > $2 ORDER BY id LIMIT $3
+                    """);
+                cmd.Parameters.Add(new() { Value = filters.Keys.ToArray() });
+                cmd.Parameters.Add(new() { Value = from });
+                cmd.Parameters.Add(new() { Value = Batch });
+                await using var r = await cmd.ExecuteReaderAsync(ct);
+                for (read = 0; items.Count <= take && await r.ReadAsync(ct); read++)
                 {
-                    id = r.GetInt64(0),
-                    calendarId = r.GetInt64(1),
-                    eventKey = r.GetString(2),
-                    kind = r.GetString(3),
-                    field = r.IsDBNull(4) ? null : r.GetString(4),
-                    oldValue = r.IsDBNull(5) ? null : JsonNode.Parse(r.GetString(5)),
-                    newValue = r.IsDBNull(6) ? null : JsonNode.Parse(r.GetString(6)),
-                    eventName = r.GetString(7),
-                    eventStartsAt = r.GetDateTime(8),
-                    detectedAt = r.GetDateTime(9),
-                }));
+                    JsonNode? Json(int i) => r.IsDBNull(i) ? null : JsonNode.Parse(r.GetString(i));
+                    var (startsAt, detectedAt) = (r.GetDateTime(8), r.GetDateTime(9));
+                    var c = new ChangeView(r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4),
+                        Json(5), Json(6), r.GetString(7), startsAt, detectedAt, Json(10), Json(11));
+                    from = c.Id;
+                    var (filter, active) = filters[c.CalendarId];
+                    var outcome = FilterEngine.Outcome(filter.Rules, c, active);
+                    if (outcome == Outcome.Hidden && includeHidden != "true") continue;
+                    items.Add((c.Id, new
+                    {
+                        id = c.Id,
+                        calendarId = c.CalendarId,
+                        eventKey = c.EventKey,
+                        kind = c.Kind,
+                        field = c.Field,
+                        oldValue = c.OldValue,
+                        newValue = c.NewValue,
+                        eventName = c.EventName,
+                        eventStartsAt = startsAt,
+                        detectedAt,
+                        outcome = FilterEngine.Name(outcome),
+                    }));
+                }
+            }
             return Page(items, take);
         });
 
@@ -153,7 +174,7 @@ static class Api
             SHA256.HashData(Encoding.UTF8.GetBytes(presented)), SHA256.HashData(Encoding.UTF8.GetBytes(key)));
     }
 
-    static IResult Problem(int status, string reason) =>
+    internal static IResult Problem(int status, string reason) =>
         Results.Problem(statusCode: status, extensions: new Dictionary<string, object?> { ["reason"] = reason });
 
     // Keyset paging: `next` is the last returned id when one more row existed.

@@ -34,6 +34,26 @@ public class DifferTests
         Assert.Empty(d.Deletes);
     }
 
+    // Research R2: changed rows carry the event before and after without details; added and removed carry neither.
+    [Fact]
+    public void ChangedRowsCarryTheEventBeforeAndAfter()
+    {
+        var old = E("a", fields: new() { ["rooms"] = new JsonArray("R1"), ["details"] = new JsonObject { ["Foo"] = "x" } });
+        var now = E("a", name: "Renamed", fields: new() { ["rooms"] = new JsonArray("R2"), ["details"] = new JsonObject { ["Foo"] = "x" } });
+        var d = Diff([old, E("gone")], [now, E("new")]);
+        var changed = d.Changes.Where(c => c.Kind == "changed").ToList();
+        Assert.Equal(["name", "rooms"], changed.Select(c => c.Field!).Order());
+        Assert.All(changed, c =>
+        {
+            Assert.Equal("""{"key":"a","name":"Lesson","start":"2026-10-01T08:00:00Z","end":"2026-10-01T09:00:00Z","status":"confirmed","fields":{"rooms":["R1"]}}""",
+                c.EventBefore!.ToJsonString());
+            Assert.Equal("""{"key":"a","name":"Renamed","start":"2026-10-01T08:00:00Z","end":"2026-10-01T09:00:00Z","status":"confirmed","fields":{"rooms":["R2"]}}""",
+                c.EventAfter!.ToJsonString());
+        });
+        Assert.All(d.Changes.Where(c => c.Kind != "changed"), c => Assert.Equal((null, null), (c.EventBefore, c.EventAfter)));
+        Assert.NotNull(old.Fields["details"]); // the snapshot state is untouched
+    }
+
     [Fact]
     public void EndOnlyIsOneTimeChange()
     {

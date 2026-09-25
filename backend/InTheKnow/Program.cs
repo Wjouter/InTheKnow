@@ -14,6 +14,8 @@ builder.Services.AddSingleton<Checker>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Checker>());
 // subscriptions (T049)
 builder.Services.AddSingleton<Subscriptions>();
+// filters (002 T015)
+builder.Services.AddSingleton<Presets>();
 // api (T058)
 builder.Services.AddProblemDetails();
 
@@ -27,6 +29,7 @@ await Db.MigrateAsync(dataSource);
 await app.Services.GetRequiredService<Checker>().RegroupAsync(app.Services.GetRequiredService<TimeProvider>().GetUtcNow());
 
 app.MapApi();
+app.MapFilterApi();
 
 app.Run();
 
