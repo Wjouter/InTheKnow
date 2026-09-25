@@ -145,6 +145,24 @@ public class SubscriptionsTests
         Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM detected_change"));
     }
 
+    // 002 edge case "subscriber removes a subscription": the filter goes, and re-subscribing starts on Default.
+    [Fact]
+    public async Task RemoveDeletesTheFilter()
+    {
+        await using var h = await Harness.CreateAsync();
+        var presets = new Presets(h.Db.DataSource, h.Settings);
+        var a = await AddAsync(h, "s1", MtLink(user: "1001"));
+        await AddAsync(h, "s2", MtLink(user: "2002"));
+        var calendar = a.CalendarId!.Value;
+        foreach (var s in new[] { "s1", "s2" })
+            Assert.True(await presets.ReplaceFilterAsync(s, calendar, FilterEngineTests.R(PresetsTests.HideZelf), Ct));
+
+        Assert.True(await h.Subscriptions.RemoveAsync("s1", calendar, Ct));
+        Assert.Equal([(calendar, "s2", null, 1L)], await PresetsTests.FiltersAsync(h.Db));
+        await AddAsync(h, "s1", MtLink(user: "1001", hex: "05"));
+        Assert.True((await presets.GetFilterAsync("s1", calendar, Ct))!.Filter.Preset!.IsDefault);
+    }
+
     // SC-003, US3-1: one scheduled request per calendar per interval, plus one per validation.
     [Fact]
     public async Task OneRequestPerCalendarPerInterval()

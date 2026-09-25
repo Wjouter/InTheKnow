@@ -120,6 +120,10 @@ Pagination is keyset-based:
 - `next` is `null` when there are no more items.
 - The values of `kind`, `field`, `oldValue` and `newValue` follow [detected-change.md](./detected-change.md).
 - This endpoint only reads. It never sets `notified_at`, which belongs to the notification feature.
+- Since feature 002, each item also has `"outcome": "normal" | "lowPriority" | "hidden"` under the subscriber's
+  filter, and hidden changes are left out unless `includeHidden=true` (any other value than `true`/`false` gets
+  `400` `invalid_include_hidden`). A page is only short when no visible changes remain. See
+  [002 contracts/api.md](../../002-subscriber-change-filters/contracts/api.md) § Changes.
 
 ### `GET /api/calendars?status={ok|failing}&overdue={true}&after={id}&limit={n}`: operator overview (US5-5, FR-027)
 

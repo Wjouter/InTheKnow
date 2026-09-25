@@ -294,7 +294,8 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
         }
         if (diff.Changes.Count == 0) return;
         await using var w = await conn.BeginBinaryImportAsync("""
-            COPY detected_change (calendar_id, event_key, kind, field, old_value, new_value, event_name, event_starts_at, detected_at)
+            COPY detected_change (calendar_id, event_key, kind, field, old_value, new_value, event_name, event_starts_at, detected_at,
+                                 event_before, event_after)
             FROM STDIN (FORMAT BINARY)
             """, ct);
         foreach (var c in diff.Changes)
@@ -309,6 +310,8 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
             await w.WriteAsync(c.EventName, NpgsqlDbType.Text, ct);
             await w.WriteAsync(c.EventStartsAt, NpgsqlDbType.TimestampTz, ct);
             await w.WriteAsync(claim.StartedAt, NpgsqlDbType.TimestampTz, ct);
+            await WriteNullableAsync(w, c.EventBefore?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
+            await WriteNullableAsync(w, c.EventAfter?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
         }
         await w.CompleteAsync(ct);
     }
@@ -388,6 +391,13 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
         var placed = links.Where(l => target[l.Hash] == l.CalendarId).Select(l => (l.CalendarId, l.Subscriber, l.Url)).ToHashSet();
         foreach (var l in links.Where(l => target[l.Hash] != l.CalendarId))
         {
+            // The subscriber's filter goes with the link; the target's own row wins. A copy, because other links may stay
+            // behind, and first, because moving the last link fires calendar_link_drop_filter (checks are deferred to commit).
+            await ExecAsync(conn, tx, """
+                INSERT INTO subscription_filter (calendar_id, subscriber, preset_id, rules)
+                SELECT $1, subscriber, preset_id, rules FROM subscription_filter WHERE calendar_id = $2 AND subscriber = $3
+                ON CONFLICT (calendar_id, subscriber) DO NOTHING
+                """, ct, target[l.Hash], l.CalendarId, l.Subscriber);
             // The target already has this subscriber's exact link: drop the duplicate instead of moving it.
             if (placed.Add((target[l.Hash], l.Subscriber, l.Url)))
                 await ExecAsync(conn, tx, "UPDATE calendar_link SET calendar_id = $2 WHERE id = $1", ct, l.Id, target[l.Hash]);

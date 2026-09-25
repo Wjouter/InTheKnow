@@ -17,7 +17,9 @@ ORDER BY c.id;
   re-inserted on later checks.
 - The changes of one event in one check share `(calendar_id, event_key, detected_at)`. This is the grouping
   required by the "multiple changes to one event" edge case.
-- No change is filtered out (FR-021). Filters are the next feature's job.
+- Recording filters nothing out (FR-021). Presentation and notification use each subscriber's filter outcome
+  from feature 002: `FilterEngine.Outcome(rules, change, active)`, skipping `hidden` changes
+  ([002 contracts/rules.md](../../002-subscriber-change-filters/contracts/rules.md#for-the-notification-feature-fr-009)).
 
 ## `kind` / `field` values
 
@@ -36,6 +38,13 @@ ORDER BY c.id;
 | `changed` | `groups` | string[] / string[] | event details on |
 | `changed` | `details.<label>` | string or null / string or null | event details on. Covers unknown labelled parts, and `details.teachers` when teacher detection is off. |
 | `changed` | `details.text` | string or null / string or null | event details on. Unlabelled free text in the description, with volatile notes removed. |
+
+## Event before and after (`event_before` / `event_after`, feature 002)
+
+For `kind = changed`, `event_before` and `event_after` hold the whole event object (below) as it was before and
+after the check, with `fields.details` removed. They are `NULL` for `added` and `removed`, whose event is already
+in `new_value` / `old_value`. Filters read them to evaluate event conditions as they were at detection
+(002 research R2).
 
 ## Event object (used by `added` / `removed`)
 
