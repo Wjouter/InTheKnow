@@ -147,6 +147,15 @@ public class CheckerTests
         Assert.Equal(1, grouped);
         var rooms = (await h.Db.RowsAsync("SELECT old_value::text, new_value::text FROM detected_change WHERE field = 'rooms'")).Single();
         Assert.Equal(("[\"AL00.A1.38\"]", "[\"AL00.A1.20\"]"), ((string)rooms[0]!, (string)rooms[1]!));
+
+        // Research R2: field changes carry the event before and after; added and removed rows do not.
+        var events = (await h.Db.RowsAsync("""
+            SELECT event_before->'fields'->>'rooms', event_after->'fields'->>'rooms', event_after->'fields' ? 'details'
+            FROM detected_change WHERE field = 'rooms'
+            """)).Single();
+        Assert.Equal(("[\"AL00.A1.38\"]", "[\"AL00.A1.20\"]", false), ((string)events[0]!, (string)events[1]!, (bool)events[2]!));
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM detected_change WHERE kind = 'changed' AND (event_before IS NULL OR event_after IS NULL)"));
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM detected_change WHERE kind <> 'changed' AND (event_before IS NOT NULL OR event_after IS NOT NULL)"));
     }
 
     [Theory]
@@ -620,6 +629,44 @@ public class CheckerTests
         Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
         Assert.Equal(2, await h.Db.ScalarAsync("SELECT count(*) FROM calendar_link"));
         Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE id = $1", split));
+    }
+
+    // 002 T023: a subscription filter follows its link through a regroup.
+    [Fact]
+    public async Task RegroupKeepsSubscriptionFilters()
+    {
+        await using var h = await Harness.CreateAsync();
+        var presets = new Presets(h.Db.DataSource, h.Settings);
+        var a = await SubscriptionsTests.AddAsync(h, "s1", LinkIdentityTests.MtLink(user: "1001"));
+        var b = await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "2002"));
+        await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "1001", hex: "03")); // stays with s1's link on a split
+        var c = await SubscriptionsTests.AddAsync(h, "s3", LinkIdentityTests.MtLink(user: "3003"));
+        var original = a.CalendarId!.Value;
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
+
+        var personal = (await presets.CreateAsync("s2", "Mine", FilterEngineTests.R(PresetsTests.HideZelf), Ct)).Preset!.Id;
+        Assert.True(await presets.ReplaceFilterAsync("s1", original, FilterEngineTests.R(PresetsTests.HideZelf), Ct));
+        Assert.True(await presets.ApplyAsync("s2", original, personal, Ct));
+        Assert.True(await presets.ReplaceFilterAsync("s3", original, FilterEngineTests.R("[]"), Ct));
+
+        // Split: s2 keeps its filter on both calendars; s3 has no link left on the original, so its row moves.
+        h.Restart(("InTheKnow:MyTimetables:Domains:0:ClassGroupSharing", "false"));
+        await h.Checker.RegroupAsync(h.Now, Ct);
+        async Task<long> CalendarOf(long linkId) => await h.Db.ScalarAsync("SELECT calendar_id FROM calendar_link WHERE id = $1", linkId);
+        var (split2, split3) = (await CalendarOf(b.LinkId!.Value), await CalendarOf(c.LinkId!.Value));
+        Assert.Equal(original, await CalendarOf(a.LinkId!.Value));
+        Assert.Equal(3, new[] { original, split2, split3 }.Distinct().Count());
+        Assert.Equal(new List<(long, string, long?, long?)>
+            {
+                (original, "s1", null, 1), (original, "s2", personal, null), (split2, "s2", personal, null), (split3, "s3", null, 0),
+            }.Order(), (await PresetsTests.FiltersAsync(h.Db)).Order());
+
+        // Merge back: the target's own row wins over the moved link's.
+        Assert.True(await presets.ReplaceFilterAsync("s2", split2, FilterEngineTests.R("[]"), Ct));
+        h.Restart();
+        await h.Checker.RegroupAsync(h.Now, Ct);
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
+        Assert.Equal([(original, "s1", null, 1L), (original, "s2", personal, null), (original, "s3", null, 0L)], await PresetsTests.FiltersAsync(h.Db));
     }
 
     [Fact]

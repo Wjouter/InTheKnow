@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 namespace InTheKnow;
 
 sealed record ChangeRow(string EventKey, string Kind, string? Field, JsonNode? OldValue, JsonNode? NewValue,
-                        string EventName, DateTimeOffset EventStartsAt);
+                        string EventName, DateTimeOffset EventStartsAt, JsonNode? EventBefore = null, JsonNode? EventAfter = null);
 
 sealed record DiffResult(IReadOnlyList<ChangeRow> Changes, IReadOnlyList<EventState> Upserts, IReadOnlyList<string> Deletes);
 
@@ -32,7 +32,8 @@ static class Differ
             var before = changes.Count;
             void Changed(string field, JsonNode? a, JsonNode? b)
             {
-                if (!JsonNode.DeepEquals(Norm(a), Norm(b))) changes.Add(new(now.Key, "changed", field, a?.DeepClone(), b?.DeepClone(), now.Name, now.StartsAt));
+                if (!JsonNode.DeepEquals(Norm(a), Norm(b)))
+                    changes.Add(new(now.Key, "changed", field, a?.DeepClone(), b?.DeepClone(), now.Name, now.StartsAt, Filterable(old), Filterable(now)));
             }
             Changed("name", old.Name, now.Name);
             if (old.StartsAt != now.StartsAt || old.EndsAt != now.EndsAt) Changed("time", Time(old), Time(now));
@@ -86,6 +87,14 @@ static class Differ
         ["status"] = e.Status,
         ["fields"] = e.Fields.DeepClone(),
     };
+
+    // The event as filters see it (research R2): no condition reads fields.details.
+    static JsonObject Filterable(EventState e)
+    {
+        var o = EventObject(e);
+        o["fields"]!.AsObject().Remove("details");
+        return o;
+    }
 
     public static bool IsEmpty(JsonNode? n) => n switch
     {
