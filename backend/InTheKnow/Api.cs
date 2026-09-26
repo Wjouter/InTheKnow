@@ -50,8 +50,9 @@ static class Api
             if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
             await using var cmd = db.CreateCommand("""
                 SELECT c.id, c.status, c.last_checked_at, c.last_ok, c.last_error, c.consecutive_failures, c.next_check_at,
-                       l.id, l.flagged_at IS NOT NULL, l.created_at
+                       l.id, l.flagged_at IS NOT NULL, l.created_at, coalesce(ss.notify, true), ss.label, coalesce(ss.label, c.feed_name, c.host)
                 FROM calendar_link l JOIN calendar c ON c.id = l.calendar_id
+                LEFT JOIN subscription_setting ss ON ss.calendar_id = c.id AND ss.subscriber = l.subscriber
                 WHERE l.subscriber = $1 ORDER BY c.id, l.id
                 """);
             cmd.Parameters.Add(new() { Value = subscriber });
@@ -62,6 +63,10 @@ static class Api
                 if (calendars.Count == 0 || calendars[^1].Id != r.GetInt64(0))
                 {
                     var json = CalendarJson(r);
+                    // 003 FR-028: the notification switch, the label and the name emails use.
+                    json["notify"] = r.GetBoolean(10);
+                    json["label"] = r.IsDBNull(11) ? null : r.GetString(11);
+                    json["name"] = r.GetString(12);
                     var links = new List<object>();
                     json["links"] = links;
                     calendars.Add((r.GetInt64(0), json, links));
@@ -78,7 +83,7 @@ static class Api
             return await subscriptions.RemoveAsync(subscriber, calendarId, ct) ? Results.NoContent() : Results.NotFound();
         });
 
-        // Read-only: never sets notified_at, which belongs to the notification feature.
+        // Read-only: delivery status lives in `delivery` (003).
         // Each change carries its outcome under the subscriber's filter; hidden ones only with includeHidden (FR-008).
         api.MapGet("/subscribers/{subscriber}/changes", async (string subscriber, long? after, int? limit, string? includeHidden,
                                                                NpgsqlDataSource db, Presets presets, CancellationToken ct) =>
@@ -93,10 +98,9 @@ static class Api
             // ponytail: a full keyset scan per page; upgrade to an indexed pre-filter or a materialised outcome only if SC-009 measurement fails
             for (long from = after ?? 0, read = Batch; filters.Count > 0 && items.Count <= take && read == Batch;)
             {
-                await using var cmd = db.CreateCommand("""
-                    SELECT id, calendar_id, event_key, kind, field, old_value::text, new_value::text, event_name, event_starts_at, detected_at,
-                           event_before::text, event_after::text
-                    FROM detected_change WHERE calendar_id = ANY($1) AND id > $2 ORDER BY id LIMIT $3
+                await using var cmd = db.CreateCommand($"""
+                    SELECT {ChangeView.Columns}
+                    FROM detected_change c WHERE c.calendar_id = ANY($1) AND c.id > $2 ORDER BY c.id LIMIT $3
                     """);
                 cmd.Parameters.Add(new() { Value = filters.Keys.ToArray() });
                 cmd.Parameters.Add(new() { Value = from });
@@ -104,10 +108,8 @@ static class Api
                 await using var r = await cmd.ExecuteReaderAsync(ct);
                 for (read = 0; items.Count <= take && await r.ReadAsync(ct); read++)
                 {
-                    JsonNode? Json(int i) => r.IsDBNull(i) ? null : JsonNode.Parse(r.GetString(i));
                     var (startsAt, detectedAt) = (r.GetDateTime(8), r.GetDateTime(9));
-                    var c = new ChangeView(r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4),
-                        Json(5), Json(6), r.GetString(7), startsAt, detectedAt, Json(10), Json(11));
+                    var c = ChangeView.Read(r);
                     from = c.Id;
                     var (filter, active) = filters[c.CalendarId];
                     var outcome = FilterEngine.Outcome(filter.Rules, c, active);
@@ -174,8 +176,8 @@ static class Api
             SHA256.HashData(Encoding.UTF8.GetBytes(presented)), SHA256.HashData(Encoding.UTF8.GetBytes(key)));
     }
 
-    internal static IResult Problem(int status, string reason) =>
-        Results.Problem(statusCode: status, extensions: new Dictionary<string, object?> { ["reason"] = reason });
+    internal static IResult Problem(int status, string reason, Dictionary<string, object?>? extra = null) =>
+        Results.Problem(statusCode: status, extensions: new Dictionary<string, object?>(extra ?? []) { ["reason"] = reason });
 
     // Keyset paging: `next` is the last returned id when one more row existed.
     static IResult Page(List<(long Id, object Json)> rows, int limit) => Results.Json(new

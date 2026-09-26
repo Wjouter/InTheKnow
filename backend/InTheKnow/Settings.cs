@@ -1,3 +1,5 @@
+using System.Net.Mail;
+
 namespace InTheKnow;
 
 sealed class InTheKnowOptions
@@ -11,6 +13,29 @@ sealed class InTheKnowOptions
     public TimeSpan ChangeRetention { get; set; } = TimeSpan.FromDays(365);
     // No default domain here: the binder appends to an initialised list, so appsettings.json holds the default.
     public MyTimetablesOptions MyTimetables { get; set; } = new();
+    public NotificationsOptions Notifications { get; set; } = new();
+}
+
+sealed class NotificationsOptions
+{
+    public TimeSpan CollectionWindow { get; set; } = TimeSpan.FromMinutes(5);
+    public TimeSpan RetryWindow { get; set; } = TimeSpan.FromDays(1);
+    public string DefaultTimeZone { get; set; } = "Europe/Amsterdam";
+    public string PublicBaseUrl { get; set; } = "";
+    public string FrontendBaseUrl { get; set; } = "";
+    public EmailOptions Email { get; set; } = new();
+}
+
+sealed class EmailOptions
+{
+    public string Host { get; set; } = "";
+    public int Port { get; set; } = 587;
+    public bool StartTls { get; set; } = true;
+    public string Username { get; set; } = "";
+    public string Password { get; set; } = "";
+    public string FromAddress { get; set; } = "";
+    public string FromName { get; set; } = "InTheKnow";
+    public int MaxMessagesPerMinute { get; set; } = 60;
 }
 
 sealed class MyTimetablesOptions
@@ -43,6 +68,7 @@ sealed class Settings
 {
     public required InTheKnowOptions Options { get; init; }
     public required string ConnectionString { get; init; }
+    public required TimeZoneInfo DefaultTimeZone { get; init; }
     Dictionary<string, DomainOptions> domains = [];
 
     public static Settings Load(IConfiguration c, ILogger log)
@@ -76,13 +102,39 @@ sealed class Settings
                 $"InTheKnow:MyTimetables:Domains:{i}:Host duplicates another domain");
         }
 
+        // contracts/configuration.md (003).
+        const string n = "InTheKnow:Notifications:";
+        var no = o.Notifications;
+        Require(no.CollectionWindow >= TimeSpan.FromMinutes(1) && no.CollectionWindow <= TimeSpan.FromMinutes(60),
+            n + "CollectionWindow must be between 1 and 60 minutes");
+        Require(no.RetryWindow >= no.CollectionWindow + TimeSpan.FromHours(1), n + "RetryWindow must be at least CollectionWindow + 1 hour");
+        var zone = Texts.FindTimeZone(no.DefaultTimeZone);
+        Require(zone is not null, n + "DefaultTimeZone must be an IANA time zone id");
+        var e = no.Email;
+        if (e.Host != "")
+        {
+            Require(BaseUrl(no.PublicBaseUrl), n + "PublicBaseUrl must be an absolute https URL (http only on localhost) when email is configured");
+            Require(BaseUrl(no.FrontendBaseUrl), n + "FrontendBaseUrl must be an absolute https URL (http only on localhost) when email is configured");
+            Require(MailAddress.TryCreate(e.FromAddress, out _), n + "Email:FromAddress must be an email address when email is configured");
+        }
+        Require(e.Port is >= 1 and <= 65535, n + "Email:Port must be between 1 and 65535");
+        Require(e.StartTls || e.Host is "" or "localhost" or "127.0.0.1" or "::1", n + "Email:StartTls may be false only for localhost");
+        Require((e.Username == "") == (e.Password == ""), n + "Email:Username and Email:Password must be set together");
+        Require(e.FromName is { Length: >= 1 and <= 100 } && !e.FromName.Any(char.IsControl),
+            n + "Email:FromName must be 1 to 100 characters without control characters");
+        Require(e.MaxMessagesPerMinute >= 1, n + "Email:MaxMessagesPerMinute must be at least 1");
+
         return new Settings
         {
             Options = o,
             ConnectionString = cs,
+            DefaultTimeZone = zone!,
             domains = o.MyTimetables.Domains.ToDictionary(d => d.Host, StringComparer.OrdinalIgnoreCase),
         };
     }
+
+    static bool BaseUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var u) && (u.Scheme == "https" || u.Scheme == "http" && u.Host == "localhost");
 
     static void Require(bool ok, string message)
     {

@@ -157,7 +157,7 @@ Queues a test message. The channel must be `active`. `202` with no body.
 
 | Status | `reason` |
 |---|---|
-| `409` | `channel_not_active` with an extra field `"status": "<the channel's status>"` (US7-2) |
+| `409` | `channel_not_active` with an extra field `"channelStatus": "<the channel's status>"` (US7-2). Not `status`: Problem Details already uses that member for the HTTP status code. |
 | `429` | `test_limit` (5 per channel per 24 h) |
 | `503` | `type_unavailable` |
 

@@ -1,11 +1,25 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Npgsql;
 
 namespace InTheKnow;
 
 // What the engine reads from one detected_change row.
 sealed record ChangeView(long Id, long CalendarId, string EventKey, string Kind, string? Field, JsonNode? OldValue, JsonNode? NewValue,
-                         string EventName, DateTimeOffset EventStartsAt, DateTimeOffset DetectedAt, JsonNode? EventBefore, JsonNode? EventAfter);
+                         string EventName, DateTimeOffset EventStartsAt, DateTimeOffset DetectedAt, JsonNode? EventBefore, JsonNode? EventAfter)
+{
+    // The one reader of a detected_change row, aliased c; the changes route and the notifier share it.
+    internal const string Columns = "c.id, c.calendar_id, c.event_key, c.kind, c.field, c.old_value::text, c.new_value::text, c.event_name, " +
+                                    "c.event_starts_at, c.detected_at, c.event_before::text, c.event_after::text";
+
+    internal static ChangeView Read(NpgsqlDataReader r, int start = 0)
+    {
+        JsonNode? Json(int i) => r.IsDBNull(start + i) ? null : JsonNode.Parse(r.GetString(start + i));
+        return new(r.GetInt64(start), r.GetInt64(start + 1), r.GetString(start + 2), r.GetString(start + 3),
+            r.IsDBNull(start + 4) ? null : r.GetString(start + 4), Json(5), Json(6), r.GetString(start + 7),
+            r.GetFieldValue<DateTimeOffset>(start + 8), r.GetFieldValue<DateTimeOffset>(start + 9), Json(10), Json(11));
+    }
+}
 
 enum Outcome { Normal, LowPriority, Hidden }
 

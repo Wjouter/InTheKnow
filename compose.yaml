@@ -10,5 +10,12 @@ services:
     volumes:
       - db:/var/lib/postgresql
 
+  # Manual walkthrough only: captures email at localhost:1025 and shows it at http://localhost:8025 (003 research R11).
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   db:

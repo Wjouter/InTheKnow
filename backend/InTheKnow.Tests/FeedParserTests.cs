@@ -100,4 +100,18 @@ public class FeedParserTests
         var key = Assert.Single(Parse(ics).Keys);
         Assert.Equal("sha256:" + FeedParser.Sha256Hex(uid), key);
     }
+
+    // 003 research R12: the feed's calendar name.
+    [Fact]
+    public void FeedName()
+    {
+        string? Name(string fixture) => FeedParser.Parse(File.ReadAllText(FakeHttp.FixturePath(fixture)), Horizon, NullLogger.Instance, 1,
+            TestContext.Current.CancellationToken).FeedName;
+        Assert.Equal("Hogeschool Inholland - Rooster - ALET26VT4A", Name("mt-nl.ics"));
+        Assert.Null(Name("generic.ics"));
+        Assert.Equal("a b", FeedParser.CleanName(" a\r\n b\u0007 "));
+        Assert.Null(FeedParser.CleanName(" \t "));
+        Assert.Null(FeedParser.CleanName(null));
+        Assert.Equal(100, FeedParser.CleanName(new string('x', 150))!.Length);
+    }
 }

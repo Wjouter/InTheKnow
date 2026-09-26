@@ -140,7 +140,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 **Purpose**: the schema, so every later task can run against the test database.
 
-- [ ] T001 Create `InTheKnow/Migrations/003_notifications.sql` per data-model.md § Migration. All CHECKs are verbatim from data-model.md.
+- [X] T001 Create `InTheKnow/Migrations/003_notifications.sql` per data-model.md § Migration. All CHECKs are verbatim from data-model.md.
   - `ALTER TABLE calendar ADD COLUMN feed_name text NULL CHECK (feed_name IS NULL OR (length(feed_name) BETWEEN 1 AND 100 AND feed_name !~ '[[:cntrl:]]'))`.
   - `ALTER TABLE detected_change DROP COLUMN notified_at`.
   - `channel`:
@@ -197,7 +197,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     - `created_at timestamptz NOT NULL`;
     - `PRIMARY KEY (subscriber, address_hash)`.
   - Then `subscription_setting_check()` with its `DEFERRABLE INITIALLY DEFERRED` constraint trigger, `channel_limit_check()` with its `AFTER INSERT` trigger, and `CREATE OR REPLACE FUNCTION calendar_link_drop_filter()`, all exactly as in data-model.md § Cross-table rules. Keep 002's `CREATE TRIGGER` as it is.
-- [ ] T002 Extend `InTheKnow.Tests/DbTests.cs`, and fix the `notified_at` use in `InTheKnow.Tests/ApiTests.cs`.
+- [X] T002 Extend `InTheKnow.Tests/DbTests.cs`, and fix the `notified_at` use in `InTheKnow.Tests/ApiTests.cs`.
   - **The fix comes first.** `ApiTests.cs:198` counts `detected_change WHERE notified_at IS NOT NULL`, and that column is dropped. Replace the assertion with `SELECT count(*) FROM delivery` = 0: the changes route never creates a delivery.
   - In `DbTests.cs`, after migrating, assert that each of these is rejected:
     - a `failing` channel without `failure_reason`, and an `active` one with it;
@@ -236,7 +236,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests first
 
-- [ ] T003 [P] Extend `InTheKnow.Tests/SettingsTests.cs` with each startup rule of contracts/configuration.md. Each case fails startup with a message naming the key.
+- [X] T003 [P] Extend `InTheKnow.Tests/SettingsTests.cs` with each startup rule of contracts/configuration.md. Each case fails startup with a message naming the key.
   - `CollectionWindow` outside 1 to 60 minutes;
   - `RetryWindow` < `CollectionWindow` + 1 h (with the 5-minute default window, `01:00:00` fails and `01:05:00` succeeds);
   - `DefaultTimeZone` `Nowhere/City` or a Windows id (`W. Europe Standard Time`);
@@ -250,29 +250,29 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
   - `MaxMessagesPerMinute` 0.
 
   With the shipped defaults and an empty `Email:Host`, startup succeeds and email counts as not configured.
-- [ ] T004 [P] Extend `InTheKnow.Tests/FeedParserTests.cs`:
+- [X] T004 [P] Extend `InTheKnow.Tests/FeedParserTests.cs`:
   - `Fixtures/mt-nl.ics` yields its `X-WR-CALNAME` as `FeedName`;
   - `Fixtures/generic.ics` yields `null`.
-- [ ] T005 [P] Extend `InTheKnow.Tests/CheckerTests.cs`, following its existing detection tests. For the fan-out, insert `channel` rows directly with `status = 'active'`, `activated_at` and a 43-character token (FR-011).
+- [X] T005 [P] Extend `InTheKnow.Tests/CheckerTests.cs`, following its existing detection tests. For the fan-out, insert `channel` rows directly with `status = 'active'`, `activated_at` and a 43-character token (FR-011).
   - A check that records changes creates one `pending` `delivery` per change for each channel that is active, of a subscriber linked to the calendar, and without `subscription_setting.notify = false`.
   - Channels that are `paused`, `awaitingConfirmation`, `unsubscribed` or `failing`, and channels of other subscribers or of a subscriber whose `notify` is false, get no row.
   - **The watermark**: two checks that record changes at the same fake instant give a channel activated between them only the second check's changes.
   - A baseline creates no deliveries.
   - `calendar.feed_name` is set on every successful check, including the baseline. It has control characters removed, is trimmed, is cut to 100 characters, and is `null` when empty.
   - A feed whose only edit is a new `X-WR-CALNAME` records no change but updates `feed_name`.
-- [ ] T006 [P] Create `InTheKnow.Tests/FakeSmtp.cs` per the shared signature.
+- [X] T006 [P] Create `InTheKnow.Tests/FakeSmtp.cs` per the shared signature.
   - A `TcpListener` on `127.0.0.1:0` that answers `220`, then `EHLO`/`HELO` → `250`, `MAIL FROM` → `250`, `RCPT TO` → `250` or the scripted code for that address, `DATA` → `354`, then reads until `\r\n.\r\n` and replies `250` or `DataReply`, `RSET`/`NOOP` → `250`, and `QUIT` → `221`.
   - The `EHLO` reply offers no `STARTTLS` and no `AUTH`.
   - Captured mails keep the raw DATA, with dot-unstuffing.
   - `DataReplyFor` takes precedence over `DataReply` for its recipient.
   - One connection is handled at a time on a background task, and `DisposeAsync` stops it.
-- [ ] T007 [P] Create `InTheKnow.Tests/RecordingChannel.cs` per the shared signature.
+- [X] T007 [P] Create `InTheKnow.Tests/RecordingChannel.cs` per the shared signature.
   - `Normalize` trims the input and accepts it when it is 1 to 254 characters, else it returns `null`.
   - `SendAsync` checks, in this order: `Outage` → `TypeUnavailable("unreachable")`; a scripted status for the target (decrementing `times`) → that status with its reason; otherwise `Sent`, and the call is recorded in `Sent`.
 ### Implementation
 
-- [ ] T008 [P] Create `InTheKnow/ChannelType.cs` with `IChannelType`, `SendStatus`, `SendResult`, `MessageKind`, `Message`, `CalendarGroup` and `ChangeItem`, exactly as in the shared signatures and contracts/channel-type.md. No logic.
-- [ ] T009 [P] Create `InTheKnow/Texts.cs` per research R9.
+- [X] T008 [P] Create `InTheKnow/ChannelType.cs` with `IChannelType`, `SendStatus`, `SendResult`, `MessageKind`, `Message`, `CalendarGroup` and `ChangeItem`, exactly as in the shared signatures and contracts/channel-type.md. No logic.
+- [X] T009 [P] Create `InTheKnow/Texts.cs` per research R9.
   - `static class Texts` holds one `Dictionary<string, Dictionary<string, string>>`, keyed `"en"`, with every key messages.md needs:
     - the subjects;
     - the confirmation, changes and test bodies;
@@ -285,15 +285,15 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
   - `Get` throws on an unknown key. `Format` uses `string.Format` with the language's culture.
   - `Date` converts with `TimeZoneInfo.ConvertTime` and formats `ddd d MMM yyyy HH:mm` with `CultureInfo.GetCultureInfo(language == "nl" ? "nl-NL" : "en-GB")`.
   - `FindTimeZone` returns the zone only when `TimeZoneInfo.TryFindSystemTimeZoneById(id, out var z) && z.HasIanaId`, else `null`. This rejects Windows ids.
-- [ ] T010 In `InTheKnow/Settings.cs`, add `NotificationsOptions` and `EmailOptions` per the shared signatures, and `InTheKnowOptions.Notifications`.
+- [X] T010 In `InTheKnow/Settings.cs`, add `NotificationsOptions` and `EmailOptions` per the shared signatures, and `InTheKnowOptions.Notifications`.
   - In `Settings.Load`, validate each rule of contracts/configuration.md § Settings with the existing `Require`. Use the rule wording as the message, prefixed with the key, for example `InTheKnow:Notifications:CollectionWindow must be between 1 and 60 minutes`.
   - `RetryWindow`: `InTheKnow:Notifications:RetryWindow must be at least CollectionWindow + 1 hour`.
   - Resolve `DefaultTimeZone` with `Texts.FindTimeZone` into `Settings.DefaultTimeZone`.
   - The base-URL rule: an absolute `https` URL, or `http` with host `localhost`. It applies only when `Email:Host` is set, and to `PublicBaseUrl`, `FrontendBaseUrl` and `FromAddress` (valid by `MailAddress.TryCreate`).
   - Add the `Notifications` section of contracts/configuration.md § Shape to `InTheKnow/appsettings.json` with its empty placeholders. Keep `Logging:LogLevel:Microsoft.AspNetCore` at `Warning`.
   - Makes T003 pass.
-- [ ] T011 [P] In `InTheKnow/FeedParser.cs`, change `ParseResult` to `(IReadOnlyList<Occurrence>? Events, string? Error, string? FeedName = null)`. Set `FeedName` from `calendar.Properties["X-WR-CALNAME"]?.Value as string` on success. Add `static string? CleanName(string? s)` in the same class: remove `char.IsControl` characters, trim, cut to 100 characters, and return `null` when empty (research R9). Makes T004 pass.
-- [ ] T012 In `InTheKnow/Checker.cs`, implement the fan-out and the feed name (research R1, R12).
+- [X] T011 [P] In `InTheKnow/FeedParser.cs`, change `ParseResult` to `(IReadOnlyList<Occurrence>? Events, string? Error, string? FeedName = null)`. Set `FeedName` from `calendar.Properties["X-WR-CALNAME"]?.Value as string` on success. Add `static string? CleanName(string? s)` in the same class: remove `char.IsControl` characters, trim, cut to 100 characters, and return `null` when empty (research R9). Makes T004 pass.
+- [X] T012 In `InTheKnow/Checker.cs`, implement the fan-out and the feed name (research R1, R12).
   - **(a) The feed name**: in the success branch of `CheckAsync`, add `feed_name = $10` to the `UPDATE calendar SET status = 'ok', …` with `FeedParser.CleanName(parsed.FeedName)`. That branch covers both the baseline and the diff path.
   - **(b) The watermark**: in `ApplyDiffAsync`, after the `if (diff.Changes.Count == 0) return;` and before `BeginBinaryImportAsync`, read `var watermark = (long)(await ScalarAsync(conn, tx, "SELECT coalesce(max(id), 0) FROM detected_change WHERE calendar_id = $1", ct, claim.Id))!;`.
   - **(c) The fan-out**: after `w.CompleteAsync(ct)`, dispose the importer first, then run:
@@ -308,8 +308,8 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     ```
     Pass `claim.Id` and `watermark`. The filter is **not** applied here (research R1). Above it, add `ponytail:` delivery rows kept for the change's retention: add a shorter retention for finished deliveries if the table size matters (research R10).
   - Makes T005 pass.
-- [ ] T013 [P] In `InTheKnow/FilterEngine.cs`, add to `ChangeView` the `internal const string Columns` and `internal static ChangeView Read(NpgsqlDataReader r, int start = 0)` from the shared signatures. Move the column list and the `new ChangeView(...)` construction from the changes route in `InTheKnow/Api.cs` (~line 97–110) here. Make the route use `ChangeView.Columns` (aliasing `detected_change` as `c`) and `ChangeView.Read(r)`. The route's behaviour and existing `ApiTests` stay unchanged. The notifier reuses this reader. Do not copy the SQL.
-- [ ] T014 In `InTheKnow/Subscriptions.cs` `AddLinkAsync`, add `feed_name` to the new-calendar `INSERT INTO calendar (…)` (~line 63) with `FeedParser.CleanName(parsed.FeedName)`. A joining link stores nothing, as before.
+- [X] T013 [P] In `InTheKnow/FilterEngine.cs`, add to `ChangeView` the `internal const string Columns` and `internal static ChangeView Read(NpgsqlDataReader r, int start = 0)` from the shared signatures. Move the column list and the `new ChangeView(...)` construction from the changes route in `InTheKnow/Api.cs` (~line 97–110) here. Make the route use `ChangeView.Columns` (aliasing `detected_change` as `c`) and `ChangeView.Read(r)`. The route's behaviour and existing `ApiTests` stay unchanged. The notifier reuses this reader. Do not copy the SQL.
+- [X] T014 In `InTheKnow/Subscriptions.cs` `AddLinkAsync`, add `feed_name` to the new-calendar `INSERT INTO calendar (…)` (~line 63) with `FeedParser.CleanName(parsed.FeedName)`. A joining link stores nothing, as before.
 
 **Checkpoint**: `dotnet build && dotnet test` passes. Checks fan out pending deliveries and store feed names, and `FakeSmtp` and `RecordingChannel` compile.
 
@@ -323,7 +323,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] Create `InTheKnow.Tests/ChannelsTests.cs` (database, via `TestDb`, with `Channels` built directly and a `RecordingChannel` plus an `EmailChannel`).
+- [X] T015 [P] [US1] Create `InTheKnow.Tests/ChannelsTests.cs` (database, via `TestDb`, with `Channels` built directly and a `RecordingChannel` plus an `EmailChannel`).
   - `AddAsync` rejects, each with its reason:
     - an unknown type → `invalid_type`;
     - an invalid address → `invalid_target`: `a`, `Name <a@b.nl>`, a 255-character address, whitespace only;
@@ -344,7 +344,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     - rejects `""`, 101 characters or a `\n` with `invalid_label`, and the previous label stays;
     - with `null`, clears the label.
   - `name` falls back from the label to `feed_name`, then to `calendar.host`.
-- [ ] T016 [P] [US1] Create `InTheKnow.Tests/EmailChannelTests.cs`.
+- [X] T016 [P] [US1] Create `InTheKnow.Tests/EmailChannelTests.cs`.
   - **Rendering** through an `internal static MailMessage Build(string target, Message m, EmailOptions o)`:
     - `multipart/alternative` with `text/plain` first and `text/html` second;
     - From is `FromName <FromAddress>`, and To holds only the target, with no Cc or Bcc;
@@ -361,7 +361,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     - a captured mail has exactly one recipient.
   - A `MailMessage` whose subject contains `\r\n` throws when sent. This confirms research R9's reason for cleaning names.
   - `Normalize`: trims, rejects a display-name form and anything over 254 characters.
-- [ ] T017 [P] [US1] Create `InTheKnow.Tests/DeliveryTests.cs` with the harness, then the US1 theories over `email` and `test`.
+- [X] T017 [P] [US1] Create `InTheKnow.Tests/DeliveryTests.cs` with the harness, then the US1 theories over `email` and `test`.
   - **The harness** (it references `EmailChannel` and `Notifier`, so it lives here, not in Phase 2):
     - `IChannelUnderTest` has two implementations:
       - `EmailUnderTest` starts `FakeSmtp`, sets `InTheKnow:Notifications:Email:{Host=127.0.0.1, Port, StartTls=false, FromAddress=intheknow@localhost}`, `PublicBaseUrl=http://localhost:5000` and `FrontendBaseUrl=http://localhost:5173`, and wraps the registered `EmailChannel` in the recording decorator;
@@ -385,14 +385,14 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     - **US1-10**: a labelled calendar is named by its label, an unlabelled MyTimetables calendar by its feed name, and a generic fixture calendar by its host.
     - **SC-002**: an `awaitingConfirmation` channel receives only its confirmation. Its `ConfirmUrl` and `DeclineUrl` start with `PublicBaseUrl` + `/n/confirm/` and `/n/decline/`.
     - **No window before its time**: nothing is sent at `CollectionWindow − 1 s`.
-- [ ] T018 [P] [US1] Create `InTheKnow.Tests/PublicPagesTests.cs` (the in-memory app via `ApiTests.Harness`, without the operator key).
+- [X] T018 [P] [US1] Create `InTheKnow.Tests/PublicPagesTests.cs` (the in-memory app via `ApiTests.Harness`, without the operator key).
   - `GET /n/confirm/{token}` returns `200` `text/html; charset=utf-8` with one `<form method="post">`, and the channel is still `awaitingConfirmation`.
   - `POST` makes it `active` and shows the done page. A second `POST` shows "already confirmed".
   - An expired token shows the expired page and changes nothing.
   - An unknown or malformed token returns `404` with the English "not valid" text (the Dutch half is asserted in T043).
   - With email unconfigured, the "not available right now" page is shown and nothing changes.
   - No page contains the address.
-- [ ] T019 [P] [US1] Create `InTheKnow.Tests/NotificationApiTests.cs` (the in-memory app via `ApiTests.Harness`).
+- [X] T019 [P] [US1] Create `InTheKnow.Tests/NotificationApiTests.cs` (the in-memory app via `ApiTests.Harness`).
   - `POST /api/subscribers/{s}/channels` returns `201` with the `Channel` JSON of contracts/api.md, and `400 invalid_type`/`invalid_target`, `409 target_taken`/`channel_limit`, `503 type_unavailable`.
   - `GET …/channels` returns `{ items }` ordered by `id`.
   - An invalid subscriber id returns `400 invalid_subscriber`.
@@ -407,7 +407,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Create `InTheKnow/Channels.cs` with `Channels` and the records of the shared signatures.
+- [X] T020 [US1] Create `InTheKnow/Channels.cs` with `Channels` and the records of the shared signatures.
   - `ListAsync(subscriber)`.
   - `AddAsync(subscriber, type, target)`. The checks run in this order:
     1. `invalid_type`: not a registered `IChannelType.Name`;
@@ -431,7 +431,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
   - `GetSubscriptionAsync(subscriber, calendarId)`: `null` when there is no link. The name comes from `coalesce(ss.label, c.feed_name, c.host)`.
   - `SetSubscriptionAsync(subscriber, calendarId, JsonObject body)`: in this feature phase it handles `label` only. Validate 1 to 100 characters with no `char.IsControl` → `invalid_label`, then `INSERT … ON CONFLICT (calendar_id, subscriber) DO UPDATE SET label = excluded.label`. `notify` is added in T039.
   - Makes T015 pass for US1.
-- [ ] T021 [P] [US1] Create `InTheKnow/EmailChannel.cs` with `sealed class EmailChannel(Settings settings) : IChannelType`.
+- [X] T021 [P] [US1] Create `InTheKnow/EmailChannel.cs` with `sealed class EmailChannel(Settings settings) : IChannelType`.
   - `Name = "email"`, `Configured = Host != ""`, and `MaxMessagesPerMinute` from `EmailOptions`.
   - `Normalize` per contracts/channel-type.md § Implementations.
   - `internal static MailMessage Build(...)` renders per contracts/messages.md:
@@ -450,7 +450,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
     Adjust the mapping to what T016 observes.
   - Makes T016 pass.
-- [ ] T022 [US1] Create `InTheKnow/Notifier.cs` with `Notifier : BackgroundService` per the shared signature (research R4, R5, R6).
+- [X] T022 [US1] Create `InTheKnow/Notifier.cs` with `Notifier : BackgroundService` per the shared signature (research R4, R5, R6).
   - `ExecuteAsync` loops `RunDueAsync(time.GetUtcNow())` then `Task.Delay(1 s, time)`, catching and logging exceptions like `Checker.ExecuteAsync`.
   - **Each pass**, for each configured type:
     1. **The queue**: unsent `channel_message` rows of that type whose channel has `(ch.next_attempt_at IS NULL OR ch.next_attempt_at <= $now)`, fewest `ch.failed_attempts` first, then oldest `requested_at`, 100 per query. Each one runs in one transaction:
@@ -488,7 +488,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
   - Database exceptions roll back the one channel and the pass continues (research R5).
   - Add the `ponytail:` comment for the row lock held across one send (research R5).
   - Makes T017 pass for US1.
-- [ ] T023 [US1] Create `InTheKnow/NotificationApi.cs` with `MapNotificationApi(this WebApplication app)`.
+- [X] T023 [US1] Create `InTheKnow/NotificationApi.cs` with `MapNotificationApi(this WebApplication app)`.
   - Under `app.MapGroup("/api")`, add `GET`/`POST /subscribers/{subscriber}/channels` and `GET`/`PUT /subscribers/{subscriber}/calendars/{calendarId:long}/notifications`, per contracts/api.md:
     - validate the subscriber with `Subscriptions.SubscriberPattern()`;
     - map `ChannelResult.Error` to its status;
@@ -501,8 +501,8 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     - pages are minimal HTML with `<html lang>` from `PageResult.Language`, every inserted value `HtmlEncoder`-encoded, and no address;
     - `NotFound` → `404` with the English text. T047 adds the Dutch text.
   - Makes T018 and T019 pass for US1.
-- [ ] T024 [US1] In `InTheKnow/Api.cs`, extend the `GET /subscribers/{subscriber}/calendars` query with `LEFT JOIN subscription_setting ss ON ss.calendar_id = c.id AND ss.subscriber = l.subscriber` and `c.host, c.feed_name`. Add `notify` (`coalesce(ss.notify, true)`), `label` and `name` (`label ?? feed_name ?? host`) to each calendar object (FR-028).
-- [ ] T025 [US1] In `InTheKnow/Program.cs`:
+- [X] T024 [US1] In `InTheKnow/Api.cs`, extend the `GET /subscribers/{subscriber}/calendars` query with `LEFT JOIN subscription_setting ss ON ss.calendar_id = c.id AND ss.subscriber = l.subscriber` and `c.host, c.feed_name`. Add `notify` (`coalesce(ss.notify, true)`), `label` and `name` (`label ?? feed_name ?? host`) to each calendar object (FR-028).
+- [X] T025 [US1] In `InTheKnow/Program.cs`:
   - `builder.Services.AddSingleton<IChannelType, EmailChannel>();`
   - `builder.Services.AddSingleton<Channels>();`
   - `builder.Services.AddSingleton<Notifier>(); builder.Services.AddHostedService(sp => sp.GetRequiredService<Notifier>());`, the pattern `Checker` uses;
@@ -520,7 +520,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] In `InTheKnow.Tests/DeliveryTests.cs`, add the US2 theories over `email` and `test`:
+- [X] T026 [P] [US2] In `InTheKnow.Tests/DeliveryTests.cs`, add the US2 theories over `email` and `test`:
   - **US2-2**: switching calendar X off makes X's pending changes `skipped`/`notificationsOff` on every channel of the subscriber. Later X changes get no row, Y still arrives, and `GET …/changes` still lists X's changes.
   - **US2-5**: switching X back on sends only changes recorded afterwards.
   - **US2-7**: pausing makes the pending changes `skipped`/`channelNotActive`. After a resume, only later changes are sent.
@@ -530,12 +530,12 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
   - **Edge**: removing the subscription (`DELETE …/calendars/{id}`) makes the pending changes `skipped`/`subscriptionRemoved`.
   - Every message lists changes of only the calendars that are switched on.
   - **Race backstop (FR-011, SC-003)**: record changes while the channel is active, so the rows are `pending`. Then, **bypassing `Channels`**, run `UPDATE channel SET status = 'paused'` directly. After the window, nothing is delivered and every row is `skipped`/`channelNotActive`. Do the same with a direct `INSERT INTO subscription_setting (…, notify) VALUES (…, false)` → `skipped`/`notificationsOff`.
-- [ ] T027 [P] [US2] In `InTheKnow.Tests/EmailChannelTests.cs`, add:
+- [X] T027 [P] [US2] In `InTheKnow.Tests/EmailChannelTests.cs`, add:
   - a Changes email over calendars X and Y has, per calendar, a link to `{FrontendBaseUrl}/calendars/{id}/notifications` in both parts (US2-1, FR-009);
   - the footer text;
   - **SC-003**: every URL in a Changes email is a settings link, and the only `/n/` URL is the one in the `List-Unsubscribe` header, never in the body;
   - in a Confirmation, the only `/n/` URLs are the confirm and decline links.
-- [ ] T028 [P] [US2] In `InTheKnow.Tests/ChannelsTests.cs`, add:
+- [X] T028 [P] [US2] In `InTheKnow.Tests/ChannelsTests.cs`, add:
   - `PauseAsync` is allowed only from `active`, and `ResumeAsync` only from `paused`. Other statuses give `invalid_status`.
   - `RemoveAsync` deletes the channel. Another subscriber's channel id → `not_found`.
   - `RequestConfirmationAsync` is allowed from `awaitingConfirmation`, `unsubscribed` and `failing`. From `active` or `paused` it gives `invalid_status`.
@@ -553,25 +553,25 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     - `active`, `paused` and `failing` channels are kept;
     - `channel_message` rows older than 30 days are deleted.
   - **FR-029**: removing the last subscription keeps the channels, the `subscriber_setting` and `declined_address`.
-- [ ] T029 [P] [US2] In `InTheKnow.Tests/PublicPagesTests.cs`, add:
+- [X] T029 [P] [US2] In `InTheKnow.Tests/PublicPagesTests.cs`, add:
   - `GET` of `/n/decline/{token}` and `/n/unsubscribe/{token}` changes nothing (US2-4);
   - `POST /n/decline/{token}` → `unsubscribed`;
   - `POST /n/unsubscribe/{token}` with no body, and with `Content-Type: application/x-www-form-urlencoded` body `List-Unsubscribe=One-Click` → `200` and `unsubscribed` (RFC 8058);
   - confirming after a decline shows the declined page;
   - one channel's token never affects another channel of the same subscriber;
   - **FR-031, SC-010**: capture logs with a test `ILoggerProvider` added through `ConfigureLogging` in the harness. Across add, confirm, decline, unsubscribe, a sent digest and a failed send, no log line contains the address, any token, `/n/`, or a calendar URL.
-- [ ] T030 [P] [US2] In `InTheKnow.Tests/NotificationApiTests.cs`, add:
+- [X] T030 [P] [US2] In `InTheKnow.Tests/NotificationApiTests.cs`, add:
   - `DELETE …/channels/{id}` → `204`;
   - `POST …/pause` and `…/resume` → `200` with the `Channel`, or `409 invalid_status`;
   - `POST …/confirmation` → `202`, or `409 invalid_status`/`target_declined`, `429 confirmation_limit`, `503 type_unavailable`;
   - a `channelId` of another subscriber → `404` on every channel route;
   - `PUT …/notifications` with `{ "notify": "yes" }` → `400 invalid_notify`;
   - `{ "notify": false }` → `200` with `notify: false`, and the calendars list shows it.
-- [ ] T031 [P] [US2] In `InTheKnow.Tests/CheckerTests.cs`, add to the regroup tests: a subscriber's `subscription_setting` (`notify = false`, a label) moves with a link that regroups to another calendar. A row that the target already has for that subscriber wins. Other subscribers' rows on the old calendar are untouched.
+- [X] T031 [P] [US2] In `InTheKnow.Tests/CheckerTests.cs`, add to the regroup tests: a subscriber's `subscription_setting` (`notify = false`, a label) moves with a link that regroups to another calendar. A row that the target already has for that subscriber wins. Other subscribers' rows on the old calendar are untouched.
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] In `InTheKnow/Channels.cs`, add the lifecycle methods. Each runs in one transaction, locks the channel `FOR UPDATE`, sets `status_since = now` and returns `ChannelResult` with `invalid_status` or `not_found`, per data-model.md § Channel lifecycle.
+- [X] T032 [US2] In `InTheKnow/Channels.cs`, add the lifecycle methods. Each runs in one transaction, locks the channel `FOR UPDATE`, sets `status_since = now` and returns `ChannelResult` with `invalid_status` or `not_found`, per data-model.md § Channel lifecycle.
   - `PauseAsync`: `active` → `paused`, then `UPDATE delivery SET status = 'skipped', reason = 'channelNotActive', status_at = $now WHERE channel_id = $1 AND status = 'pending'`.
   - `ResumeAsync`: `paused` → `active`, `activated_at = now`.
   - `RemoveAsync`: `DELETE FROM channel WHERE id = $1 AND subscriber = $2`. The cascade removes its deliveries and messages.
@@ -581,29 +581,29 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     3. `confirmation_limit`: `count(*) FROM channel_message WHERE channel_id = $1 AND kind = 'confirmation' AND requested_at > $now - 24h` ≥ 3.
 
     Then insert a queued confirmation.
-- [ ] T033 [US2] Same file: add `DeclineAsync(token)` and `UnsubscribeAsync(token)` → `PageResult`.
+- [X] T033 [US2] Same file: add `DeclineAsync(token)` and `UnsubscribeAsync(token)` → `PageResult`.
   - `DeclineAsync` looks the token up as `ConfirmAsync` does. It works for as long as the row exists, not only 48 h. It sets `unsubscribed` if not already, skips the pending rows with `channelNotActive`, deletes the channel's unsent `channel_message` rows (a queued confirmation must not follow a decline, FR-006), and runs `INSERT INTO declined_address … ON CONFLICT DO NOTHING`. It never re-activates.
   - `UnsubscribeAsync` looks the channel up by `unsubscribe_token` (same shape check). From `active`, `paused` or `failing` → `unsubscribed`, with the skip. The language is the subscriber's current `subscriber_setting.language` or `en`.
-- [ ] T034 [US2] Same file: add `CleanupAsync(DateTimeOffset now)` (research R10).
+- [X] T034 [US2] Same file: add `CleanupAsync(DateTimeOffset now)` (research R10).
   ```sql
   DELETE FROM channel ch WHERE ch.status IN ('awaitingConfirmation','unsubscribed') AND ch.status_since < $1
     AND NOT EXISTS (SELECT 1 FROM channel_message m WHERE m.channel_id = ch.id AND m.kind = 'confirmation' AND m.sent_at >= $1)
   ```
   with `$1 = now − 30 d`. Then `DELETE FROM channel_message WHERE requested_at < $1`, and `DELETE FROM channel_message WHERE sent_at IS NULL AND requested_at < now − RetryWindow`. Makes T028 pass.
-- [ ] T035 [US2] In `InTheKnow/Notifier.cs`, call `channels.CleanupAsync(now)` from `RunDueAsync` when 10 minutes have passed since the last cleanup, using the pass's `now`, as `Checker` does with `RetentionEvery`. `Channels` is already a constructor parameter (shared signatures).
-- [ ] T036 [US2] In `InTheKnow/NotificationApi.cs`, add:
+- [X] T035 [US2] In `InTheKnow/Notifier.cs`, call `channels.CleanupAsync(now)` from `RunDueAsync` when 10 minutes have passed since the last cleanup, using the pass's `now`, as `Checker` does with `RetentionEvery`. `Channels` is already a constructor parameter (shared signatures).
+- [X] T036 [US2] In `InTheKnow/NotificationApi.cs`, add:
   - `DELETE /subscribers/{subscriber}/channels/{channelId:long}`, `POST …/pause`, `POST …/resume` and `POST …/confirmation` (`202`), per contracts/api.md;
   - `MapGet`/`MapPost` for `/n/decline/{token}` and `/n/unsubscribe/{token}`. The `POST` handlers bind no body, so the one-click body `List-Unsubscribe=One-Click` is accepted without being parsed, and each ends with `.DisableAntiforgery()`. Every `POST` answers `200` with the result page, also when nothing changed.
   - Makes T029 and T030 pass.
-- [ ] T037 [US2] In `InTheKnow/Checker.cs` `RegroupAsync`, next to the existing `subscription_filter` copy (~line 397) and **before** the link `UPDATE`/`DELETE`, add the same copy for `subscription_setting`:
+- [X] T037 [US2] In `InTheKnow/Checker.cs` `RegroupAsync`, next to the existing `subscription_filter` copy (~line 397) and **before** the link `UPDATE`/`DELETE`, add the same copy for `subscription_setting`:
   ```sql
   INSERT INTO subscription_setting (calendar_id, subscriber, notify, label)
   SELECT $1, subscriber, notify, label FROM subscription_setting WHERE calendar_id = $2 AND subscriber = $3
   ON CONFLICT (calendar_id, subscriber) DO NOTHING
   ```
   Makes T031 pass.
-- [ ] T038 [US2] Makes T026 pass. It needs no code beyond T012, T032, T033 and the extended trigger from T001. Fix any gap it shows in `InTheKnow/Checker.cs`, `InTheKnow/Channels.cs` or `InTheKnow/Migrations/003_notifications.sql`.
-- [ ] T039 [US2] In `InTheKnow/Channels.cs` `SetSubscriptionAsync`, add `notify`.
+- [X] T038 [US2] Makes T026 pass. It needs no code beyond T012, T032, T033 and the extended trigger from T001. Fix any gap it shows in `InTheKnow/Checker.cs`, `InTheKnow/Channels.cs` or `InTheKnow/Migrations/003_notifications.sql`.
+- [X] T039 [US2] In `InTheKnow/Channels.cs` `SetSubscriptionAsync`, add `notify`.
   - A non-boolean value → `invalid_notify`. Upsert it together with `label` in one statement.
   - When it becomes `false`, in the same transaction run:
     ```sql
@@ -612,7 +612,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     WHERE d.status = 'pending' AND ch.id = d.channel_id AND ch.subscriber = $s AND c.id = d.change_id AND c.calendar_id = $cal
     ```
   - Turning it on creates nothing backwards.
-- [ ] T040 [US2] In `InTheKnow/EmailChannel.cs`, render each `CalendarGroup`'s heading with its `SettingsUrl` link, in text and HTML, and the Changes footer from `Texts` (contracts/messages.md). Makes T027 pass.
+- [X] T040 [US2] In `InTheKnow/EmailChannel.cs`, render each `CalendarGroup`'s heading with its `SettingsUrl` link, in text and HTML, and the Changes footer from `Texts` (contracts/messages.md). Makes T027 pass.
 
 **Checkpoint**: US1 + US2 form the shippable MVP. `dotnet test` passes.
 
@@ -626,36 +626,36 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests for User Story 3
 
-- [ ] T041 [P] [US3] In `InTheKnow.Tests/EmailChannelTests.cs`, add:
+- [X] T041 [P] [US3] In `InTheKnow.Tests/EmailChannelTests.cs`, add:
   - **SC-009**: `Texts.Keys("en")` and `Texts.Keys("nl")` are equal sets.
   - `Texts.Date("nl", Amsterdam, 2026-10-06T06:30Z)` = `di 6 okt 2026 08:30`, and in English `Tue 6 Oct 2026 08:30`. This fails without ICU or tzdata (research R9).
   - A Dutch Changes email has the Dutch subject (`3 roosterwijzigingen – Minor robotics`), kind names and "en nog N wijzigingen", while event names, rooms and statuses appear as recorded (US3-2).
   - **US3-6**: the same `time` change in `Europe/Amsterdam` and in `America/New_York` shows the times 6 hours apart for an event at 2026-10-20T10:00Z, **5 hours** apart at 2026-10-27T10:00Z (Europe changes its clocks on 25 Oct, the US on 1 Nov), and 6 hours apart again at 2026-11-02T10:00Z.
   - A Dutch Confirmation has the Dutch subject `Bevestig je InTheKnow-meldingen`.
-- [ ] T042 [P] [US3] In `InTheKnow.Tests/NotificationApiTests.cs`, add:
+- [X] T042 [P] [US3] In `InTheKnow.Tests/NotificationApiTests.cs`, add:
   - `GET …/notification-settings` for a new subscriber → `{ "language": "en", "timeZone": null, "effectiveTimeZone": "Europe/Amsterdam" }`;
   - `PUT` with `{ "language": "nl" }` and with `{ "timeZone": "America/New_York" }` → `200`;
   - `{ "timeZone": null }` clears it;
   - `{ "language": "de" }` → `400 invalid_language` (US3-5), and `{ "timeZone": "W. Europe Standard Time" }` or `"Mars/Base"` → `400 invalid_time_zone`, with the previous values kept;
   - `{}` → `400 empty_body`.
-- [ ] T043 [P] [US3] In `InTheKnow.Tests/PublicPagesTests.cs`, add:
+- [X] T043 [P] [US3] In `InTheKnow.Tests/PublicPagesTests.cs`, add:
   - **US3-4**: a confirmation sent while the subscriber was Dutch gives Dutch confirm and decline pages (`<html lang="nl">`), even after the subscriber has switched back to English;
   - the unsubscribe page follows the subscriber's current language;
   - an unknown token's `404` page holds both the English and the Dutch "not valid" text.
-- [ ] T044 [P] [US3] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types:
+- [X] T044 [P] [US3] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types:
   - **US3-1**: no setting → `Message.Language == "en"` and `TimeZone` = the default.
   - **US3-3 and the edge case "Language changed while waiting"**: a switch to Dutch and New York during a collection window makes the digest `nl`/`America/New_York`. A confirmation requested afterwards is `nl`.
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] In `InTheKnow/Channels.cs`, add `GetSettingsAsync(subscriber)` and `SetSettingsAsync(subscriber, JsonObject body)`.
+- [X] T045 [US3] In `InTheKnow/Channels.cs`, add `GetSettingsAsync(subscriber)` and `SetSettingsAsync(subscriber, JsonObject body)`.
   - `language` ∈ {`en`,`nl`}, else `invalid_language`.
   - `timeZone`: a string for which `Texts.FindTimeZone` returns a zone, stored as `zone.Id`, or `null`; otherwise `invalid_time_zone`.
   - Neither field → `empty_body`.
   - Upsert `subscriber_setting`. `EffectiveTimeZone` = `time_zone ?? settings.DefaultTimeZone.Id`.
-- [ ] T046 [US3] In `InTheKnow/Texts.cs`, add the `"nl"` dictionary with every English key translated. Use the subjects of contracts/messages.md verbatim: "Bevestig je InTheKnow-meldingen", "N roosterwijzigingen – {name}", "N roosterwijzigingen in N roosters", "en nog N wijzigingen" and "InTheKnow-testmelding". Makes T041's parity and Dutch cases pass.
-- [ ] T047 [US3] In `InTheKnow/NotificationApi.cs`, add `GET`/`PUT /subscribers/{subscriber}/notification-settings` per contracts/api.md, with the body `{ language, timeZone, effectiveTimeZone }`, and make the unknown-token `404` page show the English and the Dutch text. Makes T042 and T043's `404` case pass.
-- [ ] T048 [US3] Makes T043 and T044 pass. `Notifier` (T022) already reads `subscriber_setting` at send time and stores `channel_message.language`, and `Channels` returns it in `PageResult`. Fix any gap it shows in `Notifier.cs` or `Channels.cs`.
+- [X] T046 [US3] In `InTheKnow/Texts.cs`, add the `"nl"` dictionary with every English key translated. Use the subjects of contracts/messages.md verbatim: "Bevestig je InTheKnow-meldingen", "N roosterwijzigingen – {name}", "N roosterwijzigingen in N roosters", "en nog N wijzigingen" and "InTheKnow-testmelding". Makes T041's parity and Dutch cases pass.
+- [X] T047 [US3] In `InTheKnow/NotificationApi.cs`, add `GET`/`PUT /subscribers/{subscriber}/notification-settings` per contracts/api.md, with the body `{ language, timeZone, effectiveTimeZone }`, and make the unknown-token `404` page show the English and the Dutch text. Makes T042 and T043's `404` case pass.
+- [X] T048 [US3] Makes T043 and T044 pass. `Notifier` (T022) already reads `subscriber_setting` at send time and stores `channel_message.language`, and `Channels` returns it in `PageResult`. Fix any gap it shows in `Notifier.cs` or `Channels.cs`.
 
 **Checkpoint**: both languages and any IANA time zone work end to end.
 
@@ -669,7 +669,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests for User Story 4
 
-- [ ] T049 [P] [US4] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types:
+- [X] T049 [P] [US4] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types:
   - **US4-1, SC-005**: with `Outage = true`, passes over 30 minutes send nothing. Channel statuses stay `active` (US4-6). Only channels whose send hit the outage have `failed_attempts > 0`. After `Outage = false`, the next pass past the type backoff delivers every pending change exactly once.
   - **Type backoff**: during an outage, the attempts are spaced 1, 2, 4… minutes apart, capped at 1 h, and each attempt counts once for the whole type, not once per channel.
   - **Channel backoff**: `FailTemporarily(target, 2)` → the channel's `next_attempt_at` is at 1 min and then 2 min, and the third attempt delivers. Another channel of the same type is not delayed.
@@ -681,25 +681,25 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
     - `RunDueAsync` is cancelled mid-pass by a token cancelled from inside `SendAsync` of the second of three channels, **before** the inner send (for email: in the decorator, before `EmailChannel.SendAsync`), so the test never lands in FR-025's accepted-then-crash window;
     - a fresh `Notifier` then runs;
     - both of the above are repeated three times.
-- [ ] T050 [P] [US4] In `InTheKnow.Tests/NotificationApiTests.cs`, add `GET /api/channel-types` (operator key; `401` without).
+- [X] T050 [P] [US4] In `InTheKnow.Tests/NotificationApiTests.cs`, add `GET /api/channel-types` (operator key; `401` without).
   - Before any attempt, the attempt fields are `null`.
   - During an email outage: `configured: true`, `lastOk: false`, `lastReason: "unreachable"`, a growing `consecutiveFailures`, `failingSince` set, and `waiting` = channels with pending deliveries + unsent messages.
   - After recovery: `lastOk: true` and `consecutiveFailures: 0` (US4-7).
   - The body holds no address or subscriber id.
-- [ ] T051 [P] [US4] In `InTheKnow.Tests/ChannelsTests.cs`, add:
+- [X] T051 [P] [US4] In `InTheKnow.Tests/ChannelsTests.cs`, add:
   - `ConfirmAsync` from `failing` clears `failure_reason` (DB constraint);
   - `RequestConfirmationAsync` from `failing` is allowed;
   - `UnsubscribeAsync` from `failing` → `unsubscribed`.
 
 ### Implementation for User Story 4
 
-- [ ] T052 [US4] In `InTheKnow/Notifier.cs`, add expiry. Every minute of pass time, **for every registered type, configured or not**, run:
+- [X] T052 [US4] In `InTheKnow/Notifier.cs`, add expiry. Every minute of pass time, **for every registered type, configured or not**, run:
   ```sql
   UPDATE delivery d SET status = 'expired', status_at = $now FROM detected_change c
   WHERE d.status = 'pending' AND c.id = d.change_id AND c.detected_at < $now - RetryWindow
   ```
   The queued messages are covered by T034.
-- [ ] T053 [US4] In `InTheKnow/Notifier.cs`, handle each non-`Sent` result, the same for queue messages and digests (contracts/channel-type.md table).
+- [X] T053 [US4] In `InTheKnow/Notifier.cs`, handle each non-`Sent` result, the same for queue messages and digests (contracts/channel-type.md table).
   - **`TargetFailed`**: roll back the send transaction. In a new statement set `failed_attempts = failed_attempts + 1, next_attempt_at = now + min(1 min × 2^(n−1), 1 h)`.
   - **`TargetRejected`**: roll back. In a new transaction:
     - lock the channel;
@@ -714,13 +714,13 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
   - Log every non-`Sent` result as `"Channel {ChannelId} ({Type}): send failed with {Reason}"`, and nothing else (FR-030a, FR-031).
   - A `Npgsql`/`PostgresException` (including `40P01`) rolls back that one channel, is logged at Warning without data, and counts as no attempt.
   - Makes T049 pass, including its "bad message" case.
-- [ ] T054 [US4] In `InTheKnow/Notifier.cs`, track the operator status per type in memory: `LastAttemptAt`, `LastOk`, `LastReason`, `ConsecutiveFailures` and `FailingSince` (set on the first failure after a success). `StatusAsync` adds `Configured` and `Waiting`:
+- [X] T054 [US4] In `InTheKnow/Notifier.cs`, track the operator status per type in memory: `LastAttemptAt`, `LastOk`, `LastReason`, `ConsecutiveFailures` and `FailingSince` (set on the first failure after a success). `StatusAsync` adds `Configured` and `Waiting`:
   ```sql
   SELECT (SELECT count(DISTINCT d.channel_id) FROM delivery d JOIN channel ch ON ch.id = d.channel_id WHERE d.status = 'pending' AND ch.type = $1)
        + (SELECT count(*) FROM channel_message m JOIN channel ch ON ch.id = m.channel_id WHERE m.sent_at IS NULL AND ch.type = $1)
   ```
-- [ ] T055 [US4] In `InTheKnow/NotificationApi.cs`, add `GET /api/channel-types` (operator) returning `{ items: [TypeStatus] }` per contracts/api.md. Makes T050 pass.
-- [ ] T056 [US4] Makes T051 pass. The code comes from T020 and T033. Fix any gap it shows in `Channels.cs`.
+- [X] T055 [US4] In `InTheKnow/NotificationApi.cs`, add `GET /api/channel-types` (operator) returning `{ items: [TypeStatus] }` per contracts/api.md. Makes T050 pass.
+- [X] T056 [US4] Makes T051 pass. The code comes from T020 and T033. Fix any gap it shows in `Channels.cs`.
 
 **Checkpoint**: outages, rejections and restarts behave per FR-025 to FR-027, and the operator status is visible.
 
@@ -734,12 +734,12 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests for User Story 5
 
-- [ ] T057 [P] [US5] In `InTheKnow.Tests/EmailChannelTests.cs`, add: a `Message` with 50 listed changes and `NotListed = 7` renders all 50 and the closing line `and 7 more changes`. With `Language = "nl"` it is `en nog 7 wijzigingen` (needs T046). The subject counts 57.
-- [ ] T058 [P] [US5] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types:
+- [X] T057 [P] [US5] In `InTheKnow.Tests/EmailChannelTests.cs`, add: a `Message` with 50 listed changes and `NotListed = 7` renders all 50 and the closing line `and 7 more changes`. With `Language = "nl"` it is `en nog 7 wijzigingen` (needs T046). The subject counts 57.
+- [X] T058 [P] [US5] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types:
   - **US5-2, FR-015**: 60 due changes → one message with the first 50 in detection order and `NotListed = 10`. All 60 rows are `sent`.
   - **US5-3, FR-016**: with `MaxMessagesPerMinute = 6` and 20 due channels, passes every 1 s of fake time for 60 s send at most 6 messages per rolling minute and at least 5 in total. The rest stay `pending`, not dropped, and follow in later minutes.
   - A queued confirmation takes its slot before due digests.
-- [ ] T059 [US5] In `InTheKnow.Tests/DeliveryTests.cs`, add `[Fact(Explicit = true)] MassChange` (SC-007), for the `test` type only, so it needs no SMTP:
+- [X] T059 [US5] In `InTheKnow.Tests/DeliveryTests.cs`, add `[Fact(Explicit = true)] MassChange` (SC-007), for the `test` type only, so it needs no SMTP:
   - 1,000 subscribers with one active channel each, on one calendar;
   - one check records 300 changes. Build an edited fixture in code or use a generated feed through `FakeHttp`;
   - **log the fan-out duration** of that check through `TestContext.Current.SendDiagnosticMessage` (research R1);
@@ -748,10 +748,14 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
   Record the measured fan-out time in this task when it runs, as 002 T040 did.
 
+  **Measured 2026-09-26** (dev machine, PostgreSQL 18 in Docker, `--explicit only`, timings from the test output):
+  the check that records 300 changes and fans out 300,000 `delivery` rows took **4.5 s** (limit 2 min); the
+  1,000 digests took 20 s of wall time over 1,000 s of fake time. No fallback needed.
+
 ### Implementation for User Story 5
 
-- [ ] T060 [US5] In `InTheKnow/Notifier.cs`, cap each digest at 50: list the first 50 remaining changes in detection order, set `NotListed` to the rest, and mark all of them `sent` (FR-015). Makes T057 and T058's cap case pass.
-- [ ] T061 [US5] In `InTheKnow/Notifier.cs`, add rate slots.
+- [X] T060 [US5] In `InTheKnow/Notifier.cs`, cap each digest at 50: list the first 50 remaining changes in detection order, set `NotListed` to the rest, and mark all of them `sent` (FR-015). Makes T057 and T058's cap case pass.
+- [X] T061 [US5] In `InTheKnow/Notifier.cs`, add rate slots.
   - Per type, keep an in-memory `nextFree`. Before each send:
     - if `nextFree > now`, stop that type's sending for this pass;
     - otherwise set `nextFree = max(nextFree, now) + 1 min / MaxMessagesPerMinute`.
@@ -771,11 +775,11 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests for User Story 6
 
-- [ ] T062 [P] [US6] In `InTheKnow.Tests/DeliveryTests.cs`, add a non-theory test with **both** `EmailUnderTest` and `TestTypeUnderTest` registered in one app:
+- [X] T062 [P] [US6] In `InTheKnow.Tests/DeliveryTests.cs`, add a non-theory test with **both** `EmailUnderTest` and `TestTypeUnderTest` registered in one app:
   - **US6-1**: one subscriber with an active email channel and an active `test` channel gets the same changes, in the same `CalendarGroup`s, in both messages.
   - **US6-2**: `FailTemporarily` and then `RejectPermanently` on the test channel give the same `failed_attempts`/`next_attempt_at` sequence and the same `failing` status that the email theory produced, while the email channel keeps receiving.
   - An outage of the test type alone does not back off email.
-- [ ] T063 [P] [US6] In `InTheKnow.Tests/NotificationApiTests.cs`, add `GET /api/subscribers/{s}/channel-types` (US6-3):
+- [X] T063 [P] [US6] In `InTheKnow.Tests/NotificationApiTests.cs`, add `GET /api/subscribers/{s}/channel-types` (US6-3):
   - the production registration with email configured → `{ "items": [ { "type": "email" } ] }`;
   - email unconfigured → `{ "items": [] }`;
   - with `RecordingChannel` added in the test → both are listed;
@@ -783,7 +787,7 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Implementation for User Story 6
 
-- [ ] T064 [US6] In `InTheKnow/NotificationApi.cs`, add `GET /subscribers/{subscriber}/channel-types` returning the registered types where `Configured`, ordered by name. Makes T063 pass. T062 needs no production code. If it fails, the shared logic in `Notifier.cs` is type-specific somewhere, so fix it there, not in a type.
+- [X] T064 [US6] In `InTheKnow/NotificationApi.cs`, add `GET /subscribers/{subscriber}/channel-types` returning the registered types where `Configured`, ordered by name. Makes T063 pass. T062 needs no production code. If it fails, the shared logic in `Notifier.cs` is type-specific somewhere, so fix it there, not in a type.
 
 **Checkpoint**: SC-008. The delivery suite passes unchanged for both types.
 
@@ -797,28 +801,28 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ### Tests for User Story 7
 
-- [ ] T065 [P] [US7] In `InTheKnow.Tests/EmailChannelTests.cs`, add: a Test email has the subject `InTheKnow test notification`, or `InTheKnow-testmelding` in Dutch (needs T046), the "this is a test" text, a link to `{FrontendBaseUrl}/notifications`, the `List-Unsubscribe` headers and no changes (FR-010, FR-023).
-- [ ] T066 [P] [US7] In `InTheKnow.Tests/ChannelsTests.cs`, add `RequestTestAsync`:
+- [X] T065 [P] [US7] In `InTheKnow.Tests/EmailChannelTests.cs`, add: a Test email has the subject `InTheKnow test notification`, or `InTheKnow-testmelding` in Dutch (needs T046), the "this is a test" text, a link to `{FrontendBaseUrl}/notifications`, the `List-Unsubscribe` headers and no changes (FR-010, FR-023).
+- [X] T066 [P] [US7] In `InTheKnow.Tests/ChannelsTests.cs`, add `RequestTestAsync`:
   - an `active` channel → queued;
   - `paused` → `channel_not_active`, with the status in the result;
   - the 6th request within 24 h → `test_limit`;
   - an unconfigured type → `type_unavailable`.
-- [ ] T067 [P] [US7] In `InTheKnow.Tests/NotificationApiTests.cs`, add `POST …/channels/{id}/test`:
+- [X] T067 [P] [US7] In `InTheKnow.Tests/NotificationApiTests.cs`, add `POST …/channels/{id}/test`:
   - `202`;
-  - `409 channel_not_active` with the extra field `"status": "paused"` (US7-2);
+  - `409 channel_not_active` with the extra field `"channelStatus": "paused"` (US7-2; `status` is taken by Problem Details);
   - `429 test_limit` (US7-3);
   - `503 type_unavailable`.
-- [ ] T068 [P] [US7] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types (US7-1): a requested test delivers one `MessageKind.Test` message in the subscriber's language, with `UnsubscribeUrl` and `SettingsUrl = {FrontendBaseUrl}/notifications` and no calendars. A test requested and then followed by a pause before the pass is dropped unsent. After a sending pass, the `test` row has `sent_at` and `language` set, and a second pass sends nothing more.
+- [X] T068 [P] [US7] In `InTheKnow.Tests/DeliveryTests.cs`, add over both types (US7-1): a requested test delivers one `MessageKind.Test` message in the subscriber's language, with `UnsubscribeUrl` and `SettingsUrl = {FrontendBaseUrl}/notifications` and no calendars. A test requested and then followed by a pause before the pass is dropped unsent. After a sending pass, the `test` row has `sent_at` and `language` set, and a second pass sends nothing more.
 
 ### Implementation for User Story 7
 
-- [ ] T069 [US7] In `InTheKnow/Channels.cs`, add `RequestTestAsync(subscriber, channelId)`:
+- [X] T069 [US7] In `InTheKnow/Channels.cs`, add `RequestTestAsync(subscriber, channelId)`:
   - the channel must be `active`, else `channel_not_active` (return the status for the API);
   - `type_unavailable`;
   - `test_limit`: `count(*) … kind = 'test' AND requested_at > now − 24 h` ≥ 5;
   - then insert a queued `test` row.
-- [ ] T070 [US7] In `InTheKnow/Notifier.cs`, build `Test` messages in the queue step, with `UnsubscribeUrl`, `SettingsUrl = {FrontendBaseUrl}/notifications` and an empty `Calendars`. In `InTheKnow/EmailChannel.cs`, render the Test body per contracts/messages.md § Test.
-- [ ] T071 [US7] In `InTheKnow/NotificationApi.cs`, add `POST /subscribers/{subscriber}/channels/{channelId:long}/test` → `202`. `channel_not_active` returns `Results.Problem` with the extensions `reason` and `status`: add an `Api.Problem` overload with extra fields rather than a second helper. Makes T065–T068 pass.
+- [X] T070 [US7] In `InTheKnow/Notifier.cs`, build `Test` messages in the queue step, with `UnsubscribeUrl`, `SettingsUrl = {FrontendBaseUrl}/notifications` and an empty `Calendars`. In `InTheKnow/EmailChannel.cs`, render the Test body per contracts/messages.md § Test.
+- [X] T071 [US7] In `InTheKnow/NotificationApi.cs`, add `POST /subscribers/{subscriber}/channels/{channelId:long}/test` → `202`. `channel_not_active` returns `Results.Problem` with the extensions `reason` and `channelStatus`: add an `Api.Problem` overload with extra fields rather than a second helper. Makes T065–T068 pass.
 
 **Checkpoint**: all seven stories are functional.
 
@@ -826,18 +830,18 @@ checks the shared logic. `EmailChannelTests` checks what the email looks like.
 
 ## Phase 10: Polish & Cross-Cutting
 
-- [ ] T072 [P] Update `specs/001-ical-change-detection/contracts/detected-change.md`: `notified_at` is gone, and the delivery status per change and channel lives in `delivery` (link `specs/003-notification-channels/data-model.md`).
-- [ ] T073 [P] Update `specs/001-ical-change-detection/contracts/api.md`:
+- [X] T072 [P] Update `specs/001-ical-change-detection/contracts/detected-change.md`: `notified_at` is gone, and the delivery status per change and channel lives in `delivery` (link `specs/003-notification-channels/data-model.md`).
+- [X] T073 [P] Update `specs/001-ical-change-detection/contracts/api.md`:
   - the calendars list gains `notify`, `label` and `name`;
   - the changes route no longer mentions `notified_at`;
   - link `specs/003-notification-channels/contracts/api.md`.
-- [ ] T074 [P] Update `specs/001-ical-change-detection/contracts/configuration.md` with a pointer to `specs/003-notification-channels/contracts/configuration.md`, and the `Microsoft.AspNetCore` ≥ `Warning` rule.
-- [ ] T075 [P] In `InTheKnow/Api.cs`, replace the comment "Read-only: never sets notified_at, which belongs to the notification feature." with "Read-only: delivery status lives in `delivery` (003)."
-- [ ] T076 [P] Add a `mailpit` service to `compose.yaml` (`image: axllent/mailpit`, ports `1025:1025` and `8025:8025`). The automated tests do not use it (research R11).
-- [ ] T077 Run `dotnet build && dotnet test` from `backend/`, and fix warnings or failures.
+- [X] T074 [P] Update `specs/001-ical-change-detection/contracts/configuration.md` with a pointer to `specs/003-notification-channels/contracts/configuration.md`, and the `Microsoft.AspNetCore` ≥ `Warning` rule.
+- [X] T075 [P] In `InTheKnow/Api.cs`, replace the comment "Read-only: never sets notified_at, which belongs to the notification feature." with "Read-only: delivery status lives in `delivery` (003)."
+- [X] T076 [P] Add a `mailpit` service to `compose.yaml` (`image: axllent/mailpit`, ports `1025:1025` and `8025:8025`). The automated tests do not use it (research R11).
+- [X] T077 Run `dotnet build && dotnet test` from `backend/`, and fix warnings or failures.
   - Confirm that no package was added and that both `packages.lock.json` files are unchanged.
   - Grep for `ponytail:` in `Notifier.cs` and `Checker.cs`, and confirm the four comments of research R5, R6 and R10 are present.
-- [ ] T078 Run the manual walkthrough of quickstart.md § 2 against Mailpit and a dev database, including `grep -E '@|/n/' app.log` finding nothing from the app. Run T059 (`MassChange`) and record its fan-out time. If the fan-out threatens the check's 2-minute limit, apply research R1's named fallback in a follow-up, not here.
+- [X] T078 Run the manual walkthrough of quickstart.md § 2 against Mailpit and a dev database, including `grep -E '@|/n/' app.log` finding nothing from the app. Run T059 (`MassChange`) and record its fan-out time. If the fan-out threatens the check's 2-minute limit, apply research R1's named fallback in a follow-up, not here.
 
 ---
 
