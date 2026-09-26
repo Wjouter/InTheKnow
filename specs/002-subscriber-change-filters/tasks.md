@@ -213,7 +213,7 @@ No new implementation task: US4 behaviour comes from `ActiveConditions.For` (T01
 - [X] T037 [P] Update `specs/001-ical-change-detection/contracts/detected-change.md`: document `event_before` / `event_after` (data-model.md § detected_change), and change its "no change is filtered out" line to say *recording* filters nothing while presentation and notification use the outcome (plan § Source Code).
 - [X] T038 [P] Update `specs/001-ical-change-detection/contracts/api.md` (or add a pointer) so the changes route documents `includeHidden` and `outcome`, linking to `specs/002-subscriber-change-filters/contracts/api.md`.
 - [X] T039 Run `dotnet build && dotnet test` from `backend/` and fix warnings or failures; confirm no new package was added and `packages.lock.json` is unchanged.
-- [ ] T040 Run the manual scenario of quickstart.md § 2 against a dev database, then the SC-009 timing of quickstart.md § 3 (10,000 changes, most hidden, `limit=100` under 1 s). If it fails, optimise at the `ponytail:` comment from T016 and record the result in the PR description.
+- [X] T040 Run the manual scenario of quickstart.md § 2 against a dev database, then the SC-009 timing of quickstart.md § 3 (10,000 changes, most hidden, `limit=100` under 1 s). If it fails, optimise at the `ponytail:` comment from T016 and record the result in the PR description.
   - SC-009 measured with `ApiTests.FilteredChanges10000` (explicit test, Debug build, 2026-09-25): 156 ms with 95% of 10,000 changes hidden, 457 ms with the first 9,000 hidden. Under 1 s, so the `ponytail:` ceiling stays. The manual quickstart § 2 scenario against a dev database is not yet run; `ApiTests` `ReplaceFilter`, `PersonalPresets` and `GlobalPresets` automate its steps.
 
 ---
