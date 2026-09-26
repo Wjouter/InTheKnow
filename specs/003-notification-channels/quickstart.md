@@ -74,3 +74,26 @@ against a development database with one MyTimetables calendar that `alice` subsc
 
 Expected: each step matches the acceptance scenarios in [spec.md](./spec.md). Also, the app log has no address,
 token or link (`grep -E '@|/n/' app.log` finds nothing from the app).
+
+**Walkthrough notes (T078, 2026-09-26)**: run against Mailpit (v1.31.2) and a throwaway database, with
+`CollectionWindow` at its 1-minute minimum. The real app listened on `http://localhost:5000` with its own Checker and
+Notifier and real SMTP. Only the fetch transport was swapped, from a scratch host outside the repository built on
+`WebApplicationFactory.UseKestrel`, to serve an editable local copy of `mt-nl.ics`, because the SSRF guard refuses
+local addresses. Checks were triggered by setting `next_check_at` to now, so every change came from a real check. All
+seven steps matched:
+1. One confirmation email, `multipart/alternative`, no `List-Unsubscribe`.
+2. `GET` showed one button and left the channel `awaitingConfirmation`; `POST` made it `active`.
+3. The first check recorded 8 changes and 8 pending deliveries. One email followed the window, with the feed's name
+   as heading, the low-priority change marked and added/removed events with their rooms. The result was 3 `sent` and
+   5 `skipped`/`hidden`. After the label, the next email's subject was "3 timetable changes – Minor robotics".
+4. After the switch to Dutch and New York: "3 roosterwijzigingen – Minor robotics". 9 Nov 08:30 Amsterdam showed as
+   02:30 and 28 Oct 09:00 as 04:00 (the week between the two summer-time changes).
+5. A Dutch test email arrived with the unsubscribe headers and the settings link.
+6. The one-click POST answered `200` with a Dutch page, and the channel became `unsubscribed`. The next check
+   recorded 8 changes with no deliveries, and no email was sent.
+7. With Mailpit stopped, `GET /api/channel-types` showed `lastOk: false`, `unreachable`, `consecutiveFailures` 1 then
+   2 a minute later, and a fixed `failingSince`. After Mailpit restarted, the confirmation arrived once at the 2-minute
+   retry, and the status went to `lastOk: true`, `consecutiveFailures: 0`, `waiting: 0`.
+
+The app log (15 lines) had no `@`, no `/n/` and no token. Its only warnings were the two lines
+`Channel 1 (email): send failed with unreachable`.
