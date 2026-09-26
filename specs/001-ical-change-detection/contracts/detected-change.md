@@ -1,20 +1,15 @@
-# Contract: Detected changes (for the future notification feature)
+# Contract: Detected changes (read by the notification feature)
 
-The later notification feature reads recorded changes from the database. This file fixes the shape it can rely on.
+The notification feature (003) reads recorded changes from the database. This file fixes the shape it can rely on.
 The table definitions are in [data-model.md](../data-model.md).
 
-## Reading pending changes per subscriber
+## Delivery status (since 003)
 
-```sql
-SELECT s.subscriber, c.*
-FROM detected_change c
-JOIN subscription s ON s.calendar_id = c.calendar_id
-WHERE c.notified_at IS NULL
-ORDER BY c.id;
-```
+`detected_change.notified_at` is gone. The check that records a change also creates one `delivery` row per change
+and per channel it is due for, and the status per change and channel (`pending`, `sent`, `skipped` with a reason,
+`expired`) lives there. See [003 data-model.md](../../003-notification-channels/data-model.md#delivery).
 
-- Every change is recorded once (FR-025). Marking it delivered means setting `notified_at`. Changes are never
-  re-inserted on later checks.
+- Every change is recorded once (FR-025). Changes are never re-inserted on later checks.
 - The changes of one event in one check share `(calendar_id, event_key, detected_at)`. This is the grouping
   required by the "multiple changes to one event" edge case.
 - Recording filters nothing out (FR-021). Presentation and notification use each subscriber's filter outcome

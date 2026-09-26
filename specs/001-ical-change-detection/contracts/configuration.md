@@ -103,6 +103,14 @@ then applies only strips MyTimetables' own footer lines.
 Arrays are merged by index across sources, so overriding index 0 replaces the Inholland entry. To stop treating
 Inholland as MyTimetables, replace the whole array in an appsettings file.
 
+## Notifications (feature 003)
+
+The `InTheKnow:Notifications` section (collection and retry windows, default time zone, public and frontend base
+URLs, and the SMTP settings) is described in
+[003 contracts/configuration.md](../../003-notification-channels/contracts/configuration.md).
+`Logging:LogLevel:Microsoft.AspNetCore` MUST stay at `Warning` or higher: at `Information`, ASP.NET Core logs request
+paths, and the notification links under `/n/` carry tokens.
+
 ## Constants (not configurable, research R4, R5 and R10)
 
 | Constant | Value |

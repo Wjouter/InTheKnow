@@ -16,6 +16,11 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<Checker>());
 builder.Services.AddSingleton<Subscriptions>();
 // filters (002 T015)
 builder.Services.AddSingleton<Presets>();
+// notifications (003 T025)
+builder.Services.AddSingleton<IChannelType, EmailChannel>();
+builder.Services.AddSingleton<Channels>();
+builder.Services.AddSingleton<Notifier>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Notifier>());
 // api (T058)
 builder.Services.AddProblemDetails();
 
@@ -30,6 +35,7 @@ await app.Services.GetRequiredService<Checker>().RegroupAsync(app.Services.GetRe
 
 app.MapApi();
 app.MapFilterApi();
+app.MapNotificationApi();
 
 app.Run();
 
