@@ -40,9 +40,22 @@ With the app running against a dev database and a fixture calendar with several 
 
 Expected: each step matches the acceptance scenarios in [spec.md](./spec.md).
 
+**Walkthrough notes (T040, 2026-09-26)**: run against a throwaway database with two MyTimetables calendars
+(alice on both, bob on the first), seeded after startup with `next_check_at` in 2100 so nothing was fetched, and
+eight recorded changes covering each Default rule. All five steps matched. Also seen: `includeHidden=yes` → `400`,
+an invalid `PUT` left the filter in place, a duplicate preset name → `409 name_taken`, bob could neither list nor
+apply alice's preset (`404`), `preset_is_global` and `preset_is_default` as specified, deleting "Everything" left
+bob's subscription customised with `[]`, and alice and bob saw different outcomes on the shared calendar (SC-002).
+The app log had no errors and no links.
+
 ## 3. Performance check (SC-009, by hand)
 
 Seed 10,000 `detected_change` rows on one calendar, about 95% of them hidden by the Default preset, then time
 `GET …/changes?limit=100` for a subscriber and for a subscriber whose first 9,000 rows are all hidden.
 Expected: under 1 s. If it is not, the `ponytail:` ceiling in the changes endpoint (a full keyset scan per
 page) is where to optimise (research R3).
+
+The explicit test `FilteredChanges10000` in `ApiTests` does this seeding and logs the timings.
+
+**Result (T040, 2026-09-26)**: 160 ms (95% hidden) and 434 ms (first 9,000 hidden), both under 1 s, so the
+`ponytail:` ceiling stays.
