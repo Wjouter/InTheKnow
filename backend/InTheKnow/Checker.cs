@@ -202,9 +202,10 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
             await ExecAsync(conn, tx, """
                 UPDATE calendar SET status = 'ok', consecutive_failures = 0, failing_since = NULL, last_ok = true, last_error = NULL,
                     last_checked_at = $2, last_link_id = $3, last_event_count = $4, last_change_count = $5, snapshot_hash = $6,
-                    horizon_end = $7, baseline_features = $8, next_check_at = $9, lease_id = NULL
+                    horizon_end = $7, baseline_features = $8, next_check_at = $9, lease_id = NULL, feed_name = $10
                 WHERE id = $1
-                """, ct, claim.Id, claim.StartedAt, l.Id, states.Count, changeCount, hash!, horizon, canonical, claim.StartedAt + O.CheckInterval);
+                """, ct, claim.Id, claim.StartedAt, l.Id, states.Count, changeCount, hash!, horizon, canonical, claim.StartedAt + O.CheckInterval,
+                FeedParser.CleanName(parsed!.FeedName));
             await ExecAsync(conn, tx, "UPDATE calendar_link SET flagged_at = NULL, last_used_at = $1 WHERE id = $2", ct, claim.StartedAt, l.Id);
         }
         await tx.CommitAsync(ct);
@@ -293,27 +294,44 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
             await cmd.ExecuteNonQueryAsync(ct);
         }
         if (diff.Changes.Count == 0) return;
-        await using var w = await conn.BeginBinaryImportAsync("""
+        // COPY returns no ids: the calendar row is locked by the lease fence, so every id above this is this check's (research R1).
+        var watermark = (long)(await ScalarAsync(conn, tx, "SELECT coalesce(max(id), 0) FROM detected_change WHERE calendar_id = $1", ct, claim.Id))!;
+        await using (var w = await conn.BeginBinaryImportAsync("""
             COPY detected_change (calendar_id, event_key, kind, field, old_value, new_value, event_name, event_starts_at, detected_at,
                                  event_before, event_after)
             FROM STDIN (FORMAT BINARY)
-            """, ct);
-        foreach (var c in diff.Changes)
+            """, ct))
         {
-            await w.StartRowAsync(ct);
-            await w.WriteAsync(claim.Id, NpgsqlDbType.Bigint, ct);
-            await w.WriteAsync(c.EventKey, NpgsqlDbType.Text, ct);
-            await w.WriteAsync(c.Kind, NpgsqlDbType.Text, ct);
-            await WriteNullableAsync(w, c.Field, NpgsqlDbType.Text, ct);
-            await WriteNullableAsync(w, c.OldValue?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
-            await WriteNullableAsync(w, c.NewValue?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
-            await w.WriteAsync(c.EventName, NpgsqlDbType.Text, ct);
-            await w.WriteAsync(c.EventStartsAt, NpgsqlDbType.TimestampTz, ct);
-            await w.WriteAsync(claim.StartedAt, NpgsqlDbType.TimestampTz, ct);
-            await WriteNullableAsync(w, c.EventBefore?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
-            await WriteNullableAsync(w, c.EventAfter?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
+            foreach (var c in diff.Changes)
+            {
+                await w.StartRowAsync(ct);
+                await w.WriteAsync(claim.Id, NpgsqlDbType.Bigint, ct);
+                await w.WriteAsync(c.EventKey, NpgsqlDbType.Text, ct);
+                await w.WriteAsync(c.Kind, NpgsqlDbType.Text, ct);
+                await WriteNullableAsync(w, c.Field, NpgsqlDbType.Text, ct);
+                await WriteNullableAsync(w, c.OldValue?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
+                await WriteNullableAsync(w, c.NewValue?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
+                await w.WriteAsync(c.EventName, NpgsqlDbType.Text, ct);
+                await w.WriteAsync(c.EventStartsAt, NpgsqlDbType.TimestampTz, ct);
+                await w.WriteAsync(claim.StartedAt, NpgsqlDbType.TimestampTz, ct);
+                await WriteNullableAsync(w, c.EventBefore?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
+                await WriteNullableAsync(w, c.EventAfter?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
+            }
+            await w.CompleteAsync(ct);
         }
-        await w.CompleteAsync(ct);
+
+        // Fan-out (research R1): one pending delivery per change for every channel that qualifies now (FR-011).
+        // The filter is applied at send time, so hidden changes get a row too.
+        // ponytail: delivery rows kept for the change's retention; add a shorter retention for finished deliveries if the table size matters (research R10)
+        await ExecAsync(conn, tx, """
+            INSERT INTO delivery (channel_id, change_id)
+            SELECT ch.id, c.id
+            FROM detected_change c
+            JOIN subscription s ON s.calendar_id = c.calendar_id
+            JOIN channel ch ON ch.subscriber = s.subscriber AND ch.status = 'active'
+            LEFT JOIN subscription_setting ss ON ss.calendar_id = c.calendar_id AND ss.subscriber = s.subscriber
+            WHERE c.calendar_id = $1 AND c.id > $2 AND coalesce(ss.notify, true)
+            """, ct, claim.Id, watermark);
     }
 
     // Binary COPY of a full snapshot inside the caller's open transaction; add-link reuses it for a new calendar's baseline.
@@ -391,11 +409,16 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
         var placed = links.Where(l => target[l.Hash] == l.CalendarId).Select(l => (l.CalendarId, l.Subscriber, l.Url)).ToHashSet();
         foreach (var l in links.Where(l => target[l.Hash] != l.CalendarId))
         {
-            // The subscriber's filter goes with the link; the target's own row wins. A copy, because other links may stay
+            // The subscriber's filter and notification settings go with the link; the target's own row wins. A copy, because other links may stay
             // behind, and first, because moving the last link fires calendar_link_drop_filter (checks are deferred to commit).
             await ExecAsync(conn, tx, """
                 INSERT INTO subscription_filter (calendar_id, subscriber, preset_id, rules)
                 SELECT $1, subscriber, preset_id, rules FROM subscription_filter WHERE calendar_id = $2 AND subscriber = $3
+                ON CONFLICT (calendar_id, subscriber) DO NOTHING
+                """, ct, target[l.Hash], l.CalendarId, l.Subscriber);
+            await ExecAsync(conn, tx, """
+                INSERT INTO subscription_setting (calendar_id, subscriber, notify, label)
+                SELECT $1, subscriber, notify, label FROM subscription_setting WHERE calendar_id = $2 AND subscriber = $3
                 ON CONFLICT (calendar_id, subscriber) DO NOTHING
                 """, ct, target[l.Hash], l.CalendarId, l.Subscriber);
             // The target already has this subscriber's exact link: drop the duplicate instead of moving it.

@@ -61,14 +61,15 @@ sealed partial class Subscriptions(NpgsqlDataSource db, Fetcher fetcher, HostBud
         long? created;
         await using (var insert = new NpgsqlCommand("""
             INSERT INTO calendar (identity_hash, host, next_check_at, baseline_features, snapshot_hash, horizon_end,
-                                  last_checked_at, last_ok, last_event_count, last_change_count)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, 0)
+                                  last_checked_at, last_ok, last_event_count, last_change_count, feed_name)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, 0, $9)
             ON CONFLICT (identity_hash) DO NOTHING RETURNING id
             """, conn, tx))
         {
             foreach (var v in new object[] { identity, host, now + settings.Options.CheckInterval, settings.CanonicalFeaturesFor(host),
                                              Differ.SnapshotHash(states), horizon, now, states.Count })
                 insert.Parameters.Add(new() { Value = v });
+            insert.Parameters.Add(new() { Value = (object?)FeedParser.CleanName(parsed.FeedName) ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text });
             created = (long?)await insert.ExecuteScalarAsync(ct);
         }
         var calendarId = created ?? (long)(await Scalar(conn, tx, "SELECT id FROM calendar WHERE identity_hash = $1", ct, identity))!;

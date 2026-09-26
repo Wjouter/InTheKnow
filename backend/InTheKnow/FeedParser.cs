@@ -11,7 +11,7 @@ namespace InTheKnow;
 sealed record Occurrence(string Key, string Name, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string? Status,
                          DateTimeOffset? OccurrenceStart, string? Location, string? Description);
 
-sealed record ParseResult(IReadOnlyList<Occurrence>? Events, string? Error);
+sealed record ParseResult(IReadOnlyList<Occurrence>? Events, string? Error, string? FeedName = null);
 
 // Ical.Net → normalised occurrences with stable keys (research R2, R6, R7, R8, R8a, R10).
 static class FeedParser
@@ -94,10 +94,18 @@ static class FeedParser
                 }
                 result.Add(new(key, name, start, end, e.Status?.ToLowerInvariant(), original, e.Location, e.Description));
             }
-            return new(result, null);
+            return new(result, null, calendar.Properties["X-WR-CALNAME"]?.Value as string);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { return new(null, "unparseable"); }
+    }
+
+    // A feed name as stored (research R9): no control characters, trimmed, at most 100 characters, null when empty.
+    public static string? CleanName(string? s)
+    {
+        var clean = new string((s ?? "").Where(c => !char.IsControl(c)).ToArray()).Trim();
+        clean = clean.Length > 100 ? clean[..100].TrimEnd() : clean;
+        return clean.Length == 0 ? null : clean;
     }
 
     // Floating and date-only values are local time in the calendar's zone.

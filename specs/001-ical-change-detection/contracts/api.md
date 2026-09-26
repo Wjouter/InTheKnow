@@ -70,12 +70,17 @@ validation is stored.
     "lastError": null,
     "consecutiveFailures": 0,
     "nextCheckAt": "2026-09-24T19:40:00Z",
+    "notify": true,
+    "label": null,
+    "name": "Hogeschool Inholland - Rooster - ALTI26VT4ES1",
     "links": [ { "linkId": 40, "flagged": false, "createdAt": "2026-09-24T18:00:00Z" } ]
   }
 ]
 ```
 
-Links are listed by id only, never by URL (FR-032). An unknown subscriber gets `[]`.
+Links are listed by id only, never by URL (FR-032). An unknown subscriber gets `[]`. Since feature 003, each calendar
+also has its notification switch (`notify`), its `label` and the `name` emails use (label, else the feed's calendar
+name, else the host); see [003 contracts/api.md](../../003-notification-channels/contracts/api.md).
 
 ### `DELETE /api/subscribers/{subscriber}/calendars/{calendarId}`: remove a subscription (US5-4, FR-008)
 
@@ -119,7 +124,7 @@ Pagination is keyset-based:
 
 - `next` is `null` when there are no more items.
 - The values of `kind`, `field`, `oldValue` and `newValue` follow [detected-change.md](./detected-change.md).
-- This endpoint only reads. It never sets `notified_at`, which belongs to the notification feature.
+- This endpoint only reads. Delivery status lives in `delivery` (feature 003).
 - Since feature 002, each item also has `"outcome": "normal" | "lowPriority" | "hidden"` under the subscriber's
   filter, and hidden changes are left out unless `includeHidden=true` (any other value than `true`/`false` gets
   `400` `invalid_include_hidden`). A page is only short when no visible changes remain. See
