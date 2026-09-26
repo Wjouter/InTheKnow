@@ -713,4 +713,120 @@ public class CheckerTests
         Assert.NotEmpty(logs.Lines);
         Assert.DoesNotContain(logs.Lines, l => l.Contains("secret-token") || l.Contains("/ical") || l.Contains("https://"));
     }
+
+    // 003 research R1: fan-out at record time. Channels are inserted directly as active (FR-011).
+    internal static Task<long> ChannelAsync(TestDb db, string subscriber, string status = "active", DateTimeOffset? at = null, string? target = null,
+                                            string type = "email") =>
+        db.ScalarAsync("""
+            INSERT INTO channel (subscriber, type, target, status, status_since, failure_reason, activated_at, unsubscribe_token, created_at)
+            VALUES ($1, $6, $2, $3, $4, CASE WHEN $3 = 'failing' THEN 'smtp_550' END, CASE WHEN $3 = 'active' THEN $4 END, $5, $4)
+            RETURNING id
+            """, subscriber, target ?? $"{Guid.NewGuid():N}@example.nl", status, at ?? Harness.T0, Channels.NewToken(), type);
+
+    [Fact]
+    public async Task ChecksFanOutPendingDeliveries()
+    {
+        var (h, id, url) = await BaselineAsync();
+        await using var _h = h;
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM delivery")); // a baseline creates none
+        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, 's2', $2)", id, url + "&s2");
+        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, 's3', $2)", id, url + "&s3");
+        var active = await ChannelAsync(h.Db, "s1");
+        var second = await ChannelAsync(h.Db, "s1");
+        var s2 = await ChannelAsync(h.Db, "s2");
+        foreach (var status in new[] { "paused", "awaitingConfirmation" }) await ChannelAsync(h.Db, "s1", status);
+        foreach (var status in new[] { "unsubscribed", "failing" }) await ChannelAsync(h.Db, "s2", status);
+        await ChannelAsync(h.Db, "s3");
+        await ChannelAsync(h.Db, "nobody");
+        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify) VALUES ($1, 's3', false)", id);
+        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, label) VALUES ($1, 's2', 'Mine')", id);
+
+        h.Http.Map[url] = "mt-nl-edited.ics";
+        await NextIntervalAsync(h);
+        var changes = await h.Db.ScalarAsync("SELECT count(*) FROM detected_change");
+        Assert.Equal(KnownEdits.Length, changes);
+        var rows = await h.Db.RowsAsync("SELECT channel_id, count(*), bool_and(status = 'pending') FROM delivery GROUP BY channel_id ORDER BY channel_id");
+        Assert.Equal([[active, changes, true], [second, changes, true], [s2, changes, true]], rows);
+    }
+
+    [Fact]
+    public async Task FanOutUsesTheIdWatermark()
+    {
+        var (h, id, url) = await BaselineAsync();
+        await using var _h = h;
+        var early = await ChannelAsync(h.Db, "s1");
+        h.Http.Map[url] = "mt-nl-edited.ics";
+        h.Time.Advance(h.Settings.Options.CheckInterval);
+        await h.RunAsync();
+        var first = await h.Db.ScalarAsync("SELECT count(*) FROM detected_change");
+
+        // A second check at the same fake instant: the channel activated in between gets only its changes.
+        var late = await ChannelAsync(h.Db, "s1");
+        await h.Db.ExecAsync("UPDATE calendar SET next_check_at = $1 WHERE id = $2", h.Now, id);
+        h.Restart(); // a fresh host budget, so the host is not busy at this instant
+        h.Http.Map[url] = "mt-nl.ics";
+        await h.RunAsync();
+        var second = await h.Db.ScalarAsync("SELECT count(*) FROM detected_change") - first;
+        Assert.True(second > 0);
+        Assert.Equal(first + second, await h.Db.ScalarAsync("SELECT count(*) FROM delivery WHERE channel_id = $1", early));
+        Assert.Equal(second, await h.Db.ScalarAsync("SELECT count(*) FROM delivery WHERE channel_id = $1", late));
+        Assert.Equal(0, await h.Db.ScalarAsync("""
+            SELECT count(*) FROM delivery d JOIN detected_change c ON c.id = d.change_id
+            WHERE d.channel_id = $1 AND c.id <= (SELECT max(id) - $2 FROM detected_change)
+            """, late, second));
+    }
+
+    [Fact]
+    public async Task FeedNameIsStoredOnEverySuccessfulCheck()
+    {
+        var (h, id, url) = await BaselineAsync();
+        await using var _h = h;
+        async Task<string?> FeedName() => (string?)(await h.Db.RowsAsync("SELECT feed_name FROM calendar WHERE id = $1", id)).Single()[0];
+        Assert.Equal("Hogeschool Inholland - Rooster - ALET26VT4A", await FeedName());
+
+        // Only the name changes: no change is recorded, but the name is updated, cleaned and cut to 100 characters.
+        var renamed = Path.Combine(Path.GetTempPath(), $"itk-{Guid.NewGuid():N}.ics");
+        var ics = await File.ReadAllTextAsync(FakeHttp.FixturePath("mt-nl.ics"), Ct);
+        await File.WriteAllTextAsync(renamed, ics.Replace("X-WR-CALNAME:Hogeschool Inholland - Rooster - ALET26VT4A",
+            "X-WR-CALNAME:  Renamed\t" + new string('x', 120)), Ct);
+        try
+        {
+            h.Http.Map[url] = renamed;
+            await NextIntervalAsync(h);
+            Assert.Empty(await h.ChangesAsync(id));
+            Assert.Equal("Renamed" + new string('x', 93), await FeedName());
+        }
+        finally { File.Delete(renamed); }
+
+        await ChannelAsync(h.Db, "s1");
+        var (generic, _) = await h.SeedAsync("generic.ics", "calendar.example.com");
+        await h.RunAsync();
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM delivery")); // a baseline records nothing, so fans out nothing
+        Assert.Null((await h.Db.RowsAsync("SELECT feed_name FROM calendar WHERE id = $1", generic)).Single()[0]);
+    }
+
+    // 003 T031: notification settings follow a link through a regroup, like filters.
+    [Fact]
+    public async Task RegroupKeepsSubscriptionSettings()
+    {
+        await using var h = await Harness.CreateAsync();
+        var a = await SubscriptionsTests.AddAsync(h, "s1", LinkIdentityTests.MtLink(user: "1001"));
+        var b = await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "2002"));
+        await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "1001", hex: "03")); // stays with s1's link on a split
+        var original = a.CalendarId!.Value;
+        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify, label) VALUES ($1, 's1', true, 'One'), ($1, 's2', false, 'Two')", original);
+        Task<List<object?[]>> Rows() => h.Db.RowsAsync("SELECT calendar_id, subscriber, notify, label FROM subscription_setting ORDER BY subscriber, calendar_id");
+
+        h.Restart(("InTheKnow:MyTimetables:Domains:0:ClassGroupSharing", "false"));
+        await h.Checker.RegroupAsync(h.Now, Ct);
+        var split = await h.Db.ScalarAsync("SELECT calendar_id FROM calendar_link WHERE id = $1", b.LinkId!.Value);
+        Assert.NotEqual(original, split);
+        Assert.Equal([[original, "s1", true, "One"], [original, "s2", false, "Two"], [split, "s2", false, "Two"]], await Rows());
+
+        // Merge back: the target's own row wins over the moved link's.
+        await h.Db.ExecAsync("UPDATE subscription_setting SET notify = true, label = 'Other' WHERE calendar_id = $1", split);
+        h.Restart();
+        await h.Checker.RegroupAsync(h.Now, Ct);
+        Assert.Equal([[original, "s1", true, "One"], [original, "s2", false, "Two"]], await Rows());
+    }
 }

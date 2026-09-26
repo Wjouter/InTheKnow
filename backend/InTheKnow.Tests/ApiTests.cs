@@ -43,7 +43,10 @@ sealed class ApiHost : IAsyncDisposable
     public required HttpClient Client { get; init; }
     public Checker Checker => Factory.Services.GetRequiredService<Checker>();
 
-    public static async Task<ApiHost> CreateAsync(params (string Key, string Value)[] settings)
+    public static Task<ApiHost> CreateAsync(params (string Key, string Value)[] settings) => CreateAsync(null, settings);
+
+    // `services` runs after the fakes are in place, so a test can add or replace registrations (003 T002).
+    public static async Task<ApiHost> CreateAsync(Action<IServiceCollection>? services, params (string Key, string Value)[] settings)
     {
         var db = await TestDb.CreateAsync();
         var time = new FakeTimeProvider(Harness.T0);
@@ -62,6 +65,7 @@ sealed class ApiHost : IAsyncDisposable
                 s.AddSingleton<TimeProvider>(time);
                 s.RemoveAll<IHostedService>();
                 s.AddSingleton<ILoggerProvider>(logs);
+                services?.Invoke(s);
             });
         });
         var client = factory.CreateClient();
@@ -195,7 +199,7 @@ public class ApiTests
             var r = await h.Client.GetAsync($"/api/subscribers/s1/changes?limit={bad}", Ct);
             Assert.Equal((HttpStatusCode.BadRequest, "invalid_limit"), (r.StatusCode, await ReasonAsync(r)));
         }
-        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM detected_change WHERE notified_at IS NOT NULL"));
+        Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM delivery")); // the changes route never creates a delivery
 
         // Remove (US5-4)
         var removed = await h.Client.DeleteAsync($"/api/subscribers/s1/calendars/{calendarId}", Ct);
