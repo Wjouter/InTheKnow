@@ -1,0 +1,86 @@
+/* InTheKnow Design System tokens, copied verbatim from the claude.ai design project
+   (c2ef9d00-a246-4489-b5c3-2a49171b9a17): tokens/colors.css, typography.css, spacing.css, effects.css.
+   fonts.css (a Google Fonts @import) is dropped: Lato and JetBrains Mono are self-hosted (research R18). */
+
+/* tokens/colors.css */
+:root{
+/* Brand — Inholland magenta */
+--magenta-50:#fdeef6;--magenta-100:#fbd5e9;--magenta-200:#f6a9d1;--magenta-300:#ec51a7;--magenta-500:#e20e80;--magenta-600:#c70b70;--magenta-700:#a8095f;--magenta-800:#7d0747;--magenta-900:#4f052d;
+/* Warm secondary (from Inholland palette) */
+--bronze-500:#9e652d;--bronze-100:#f3e8dc;
+/* Neutrals */
+--white:#ffffff;--grey-50:#f7f7f7;--grey-100:#f0f0f0;--grey-200:#e3e3e3;--grey-300:#cccccc;--grey-400:#a3a3a3;--grey-500:#767676;--grey-600:#5a5a5a;--grey-700:#3d3d3d;--grey-900:#1d1d1b;
+/* Semantic status (timetable changes) */
+--green-500:#1e8a4c;--green-100:#e3f4ea;
+--amber-500:#b86e00;--amber-100:#fdf0d9;
+--red-500:#c8102e;--red-100:#fbe3e7;
+--blue-500:#1f5fa8;--blue-100:#e2ecf7;
+
+/* Semantic aliases */
+--brand:var(--magenta-500);--brand-hover:var(--magenta-600);--brand-press:var(--magenta-700);--brand-soft:var(--magenta-50);--brand-accent:var(--magenta-300);
+--text-strong:var(--grey-900);--text-body:var(--grey-700);--text-muted:var(--grey-500);--text-inverse:var(--white);--text-brand:var(--magenta-600);--text-link:var(--magenta-600);
+--surface-page:var(--white);--surface-subtle:var(--grey-50);--surface-section:var(--grey-100);--surface-card:var(--white);--surface-brand:var(--magenta-500);--surface-dark:var(--grey-900);
+--border-subtle:var(--grey-200);--border-default:var(--grey-300);--border-strong:var(--grey-600);--border-focus:var(--magenta-500);
+--status-cancelled:var(--red-500);--status-cancelled-soft:var(--red-100);
+--status-moved:var(--amber-500);--status-moved-soft:var(--amber-100);
+--status-new:var(--green-500);--status-new-soft:var(--green-100);
+--status-info:var(--blue-500);--status-info-soft:var(--blue-100);
+}
+
+/* Local additions (research R18): the 4.5:1 text shades for badges and notices on the soft status backgrounds.
+   --amber-500 on --amber-100 is 3.54:1 and --green-500 on --green-100 is 3.84:1. */
+:root{--amber-700:#8a5200;--green-700:#17693a;}
+
+/* tokens/typography.css */
+:root{
+--font-display:'Lato',Lato-fallback,sans-serif;
+--font-body:'Lato',Lato-fallback,sans-serif;
+--font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+--fw-regular:400; /* @kind font */
+--fw-semibold:600; /* @kind font */
+--fw-bold:700; /* @kind font */
+--fw-black:900; /* @kind font */
+--fs-12:12px;--fs-14:14px;--fs-16:16px;--fs-18:18px;--fs-20:20px;--fs-24:24px;--fs-28:28px;--fs-32:32px;--fs-40:40px;--fs-48:48px;--fs-64:64px;
+--lh-tight:1.1; /* @kind font */
+--lh-snug:1.25; /* @kind font */
+--lh-body:1.5; /* @kind font */
+--ls-caps:0.06em; /* @kind font */
+/* Roles */
+--type-hero:900 var(--fs-48)/1.05 var(--font-display);
+--type-h1:900 var(--fs-40)/1.1 var(--font-display);
+--type-h2:700 var(--fs-32)/1.15 var(--font-display);
+--type-h3:700 var(--fs-24)/1.2 var(--font-display);
+--type-h4:700 var(--fs-20)/1.25 var(--font-display);
+--type-body-lg:400 var(--fs-18)/1.55 var(--font-body);
+--type-body:400 var(--fs-16)/1.5 var(--font-body);
+--type-small:400 var(--fs-14)/1.45 var(--font-body);
+--type-label:600 var(--fs-14)/1.2 var(--font-body);
+--type-overline:700 var(--fs-12)/1.2 var(--font-body);
+--type-time:600 var(--fs-16)/1 var(--font-mono);
+}
+
+/* tokens/spacing.css */
+:root{
+--space-0:0;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;--space-12:48px;--space-16:64px;--space-20:80px;
+--radius-0:0;--radius-sm:2px;--radius-md:4px;--radius-lg:8px;--radius-pill:999px;
+--container-max:1200px;--gutter:24px;
+--header-h:72px;--tabbar-h:64px;
+--hit-min:44px;
+}
+
+/* tokens/effects.css */
+:root{
+--shadow-none:none;
+--shadow-1:0 1px 2px rgba(29,29,27,.08),0 1px 3px rgba(29,29,27,.06);
+--shadow-2:0 4px 12px rgba(29,29,27,.10);
+--shadow-3:0 12px 32px rgba(29,29,27,.16);
+--focus-ring:0 0 0 3px rgba(226,14,128,.35);
+--overlay-scrim:rgba(29,29,27,.55);
+--photo-protect:linear-gradient(180deg,rgba(29,29,27,0) 40%,rgba(29,29,27,.65) 100%); /* @kind color */
+--ease-standard:cubic-bezier(.2,0,0,1); /* @kind other */
+--dur-fast:120ms; /* @kind other */
+--dur-base:200ms; /* @kind other */
+--dur-slow:320ms; /* @kind other */
+--border-w:1px; /* @kind spacing */
+--border-w-strong:2px; /* @kind spacing */
+}

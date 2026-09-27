@@ -1,0 +1,31 @@
+/* tokens/base.css of the design system, with the focus style changed (research R18). */
+html,body{margin:0}
+body{font:var(--type-body);color:var(--text-body);background:var(--surface-page);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--font-display);color:var(--text-strong);margin:0}
+a{color:var(--text-link);text-decoration:underline;text-underline-offset:2px}
+a:hover{color:var(--brand-press)}
+/* The design's translucent box-shadow ring is about 1.8:1 and vanishes in forced-colours mode. The readme itself says
+   "2px magenta" for focus, so this is an outline (4.56:1, kept in forced colours). */
+:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(--focus-ring)}
+
+/* App-wide basics used by the components */
+*,*::before,*::after{box-sizing:border-box}
+p{margin:0}
+.muted{color:var(--text-muted)}
+.surface-subtle .muted{color:var(--grey-600)}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.stack{display:flex;flex-direction:column;gap:var(--space-4)}
+.row{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+.wrap{max-width:var(--container-max);margin:0 auto;padding:var(--space-8) var(--space-4) var(--space-12)}
+@media (min-width:768px){.wrap{padding:var(--space-8) var(--gutter) var(--space-16)}}
+.form-error{color:var(--status-cancelled);font:var(--type-small)}
+.notice{padding:var(--space-4);border-left:4px solid var(--status-info);background:var(--status-info-soft);color:var(--text-body)}
+.notice.error{border-color:var(--status-cancelled);background:var(--status-cancelled-soft)}
+.notice.success{border-color:var(--status-new);background:var(--status-new-soft);color:var(--green-700)}
+.notice.warning{border-color:var(--status-moved);background:var(--status-moved-soft);color:var(--amber-700)}
+.section{box-shadow:inset 0 0 0 1px var(--border-subtle);padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-4)}
+.section h2{font:var(--type-h4)}
+.choice{display:flex;align-items:center;gap:var(--space-3);min-height:var(--hit-min);color:var(--text-strong)}
+.choice input{width:22px;height:22px;accent-color:var(--brand);margin:0}
+.select{appearance:none;width:100%;min-height:48px;padding:0 var(--space-3);font:var(--type-body);color:var(--text-strong);background:var(--white);border:var(--border-w) solid var(--grey-500);border-radius:var(--radius-md)}

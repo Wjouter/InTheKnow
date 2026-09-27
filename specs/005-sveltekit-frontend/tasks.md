@@ -102,20 +102,20 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 **Purpose**: the SvelteKit project, its config and the design tokens.
 
-- [ ] T001 Create the `frontend/` SvelteKit project (research R1). Use `npx sv create frontend` with the minimal template, TypeScript, and no add-ons, or write the same files by hand. Then in `frontend/package.json`:
+- [X] T001 Create the `frontend/` SvelteKit project (research R1). Use `npx sv create frontend` with the minimal template, TypeScript, and no add-ons, or write the same files by hand. Then in `frontend/package.json`:
   - `"type": "module"`, `"private": true`, `"license": "GPL-3.0-only"`, `"engines": { "node": ">=24" }`;
   - scripts: `dev` (`vite dev`), `build` (`vite build`), `preview`, `check` (`svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings`), `test` (`vitest run`);
   - dependencies: `@lucide/svelte`, `uqr`, `@fontsource/lato`, `@fontsource/jetbrains-mono`;
   - devDependencies: `@sveltejs/kit` 2, `svelte` 5, `@sveltejs/adapter-node`, `@sveltejs/vite-plugin-svelte`, `vite`, `typescript`, `svelte-check`, `vitest`.
 
   No other package (plan § Technical Context). Run `npm install` so `frontend/package-lock.json` pins them, and commit it. Delete the starter's demo route and any `static/` favicon that the design system doesn't provide.
-- [ ] T002 Write `frontend/svelte.config.js`:
+- [X] T002 Write `frontend/svelte.config.js`:
   - `adapter: adapter-node()`;
   - `kit.csp`: `mode: 'auto'`, with directives giving exactly this policy (research R16): `default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com; frame-src https://challenges.cloudflare.com https://www.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'`;
   - SvelteKit's own origin check turned off (research R4). In Kit 2 that is `kit.csrf.checkOrigin: false`. **Check the installed `@sveltejs/kit` types** (`node_modules/@sveltejs/kit/types/index.d.ts`, `KitConfig.csrf`) for the current option name, and use the replacement if that one is deprecated. T010 proves it with the `Origin: null` case.
-- [ ] T003 [P] Write `frontend/vite.config.ts` with `sveltekit()` and a vitest `test` block (`environment: 'node'`, `include: ['src/**/*.test.ts']`), and `frontend/tsconfig.json` extending `./.svelte-kit/tsconfig.json` with `strict: true`.
-- [ ] T004 [P] Write `frontend/src/app.html` with `<html lang="%lang%">`, `%sveltekit.head%` and `%sveltekit.body%`, and no external link or script. Write `frontend/src/app.d.ts` with `Me`, `App.Locals` and `App.Error` exactly as in Shared signatures.
-- [ ] T005 [P] Port the design system tokens (research R18) into `frontend/src/lib/styles/tokens.css` and `frontend/src/lib/styles/base.css`.
+- [X] T003 [P] Write `frontend/vite.config.ts` with `sveltekit()` and a vitest `test` block (`environment: 'node'`, `include: ['src/**/*.test.ts']`), and `frontend/tsconfig.json` extending `./.svelte-kit/tsconfig.json` with `strict: true`.
+- [X] T004 [P] Write `frontend/src/app.html` with `<html lang="%lang%">`, `%sveltekit.head%` and `%sveltekit.body%`, and no external link or script. Write `frontend/src/app.d.ts` with `Me`, `App.Locals` and `App.Error` exactly as in Shared signatures.
+- [X] T005 [P] Port the design system tokens (research R18) into `frontend/src/lib/styles/tokens.css` and `frontend/src/lib/styles/base.css`.
   - **Source**: the claude.ai design project "InTheKnow Design System" (`c2ef9d00-a246-4489-b5c3-2a49171b9a17`), its `tokens/*.css` and `base.css`. Fetch them with the `DesignSync` tool (load it through ToolSearch). **If it can't be reached, stop and ask the user to export those files. Never invent token values.**
   - Copy colours, typography, spacing, radii, shadows and motion **verbatim**. Drop the Google Fonts `@import` from `fonts.css`. Keep the font-family names (`Lato`, `JetBrains Mono`).
   - Add `--amber-700: #8a5200;` and `--green-700: #17693a;` to `tokens.css`, with a comment that they are the 4.5:1 text shades for badges and notices (R18).
@@ -133,14 +133,14 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Tests for Phase 2 (write first)
 
-- [ ] T006 [P] `frontend/src/lib/next.test.ts`: `safeNext` keeps `/calendars/1`, `/calendars/1/notifications?x=1` and `/`. It turns each of these into `/`: `//evil.example`, `/\evil.example`, `https://evil.example`, `https:evil.example`, `javascript:alert(1)`, `%2F%2Fevil.example`, `/%5Cevil.example`, an empty string and `null` (FR-011, research R6).
-- [ ] T007 [P] `frontend/src/lib/server/format.test.ts` (research R12):
+- [X] T006 [P] `frontend/src/lib/next.test.ts`: `safeNext` keeps `/calendars/1`, `/calendars/1/notifications?x=1` and `/`. It turns each of these into `/`: `//evil.example`, `/\evil.example`, `https://evil.example`, `https:evil.example`, `javascript:alert(1)`, `%2F%2Fevil.example`, `/%5Cevil.example`, an empty string and `null` (FR-011, research R6).
+- [X] T007 [P] `frontend/src/lib/server/format.test.ts` (research R12):
   - Europe/Amsterdam: `2026-10-24T06:30:00Z` shows 08:30 and `2026-10-26T07:30:00Z` shows 08:30, across the DST change;
   - with `now` in 2026, a 2026 date has no year and a 2027 date has one;
   - a zone where the year boundary differs from UTC (`Pacific/Auckland`, `2026-12-31T12:00:00Z` is 2027 there);
   - times are 24-hour in `en` and `nl`, and `range` uses an en dash;
   - `wait(90)` and `wait(30)` in both languages.
-- [ ] T008 [P] `frontend/src/lib/server/api.test.ts` with a mocked `fetch` and a fake `RequestEvent` (cookies, `getClientAddress`, `request.headers`, `url`):
+- [X] T008 [P] `frontend/src/lib/server/api.test.ts` with a mocked `fetch` and a fake `RequestEvent` (cookies, `getClientAddress`, `request.headers`, `url`):
   - the request carries `Authorization: Bearer <itk_session>`, `X-Forwarded-For: <getClientAddress()>` (one address), and the browser's `User-Agent` (FR-007);
   - `401 { reason: 'not_signed_in' }` deletes `itk_session` and throws a `303` to `/sign-in?next=%2Fchanges%3FshowHidden%3D1`; with `on401: 'return'` it deletes the cookie and returns the failure (FR-006);
   - the same `401` during a form action on `/calendars/1?/remove` redirects with `next=%2Fcalendars%2F1`: query keys starting with `/` (action names) are dropped;
@@ -149,21 +149,21 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
   - `extra` carries other Problem members (for example `rule`);
   - a failing `GET /api/admin/accounts/7?q=alice@example.org` logs one line (spy on `console.log`/`console.error`) that contains `/api/admin/accounts/{id}` and none of `?`, `alice` or `example.org` (FR-047);
   - `setSession` sets `itk_session` with `httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 34560000`, and `setPending` sets `itk_pending` with `httpOnly: true, secure: true, sameSite: 'lax', path: '/sign-in', maxAge: 600` (FR-003, FR-004).
-- [ ] T009 [P] `frontend/src/lib/i18n/index.test.ts`: `pickLang` gives `nl` for `nl-NL,en;q=0.8`, `en` for `en-US,nl;q=0.5`, `nl` for `de,nl;q=0.9,en;q=0.8`, `en` for `de` and for `null`. `itk_lang=nl` beats `Accept-Language: en`, and `itk_lang=de` is ignored (R9).
-- [ ] T010 [P] `frontend/src/hooks.server.test.ts`. Call the exported `handle` with a stub `resolve` and a mocked API `fetch` (quickstart § 1):
+- [X] T009 [P] `frontend/src/lib/i18n/index.test.ts`: `pickLang` gives `nl` for `nl-NL,en;q=0.8`, `en` for `en-US,nl;q=0.5`, `nl` for `de,nl;q=0.9,en;q=0.8`, `en` for `de` and for `null`. `itk_lang=nl` beats `Accept-Language: en`, and `itk_lang=de` is ignored (R9).
+- [X] T010 [P] `frontend/src/hooks.server.test.ts`. Call the exported `handle` with a stub `resolve` and a mocked API `fetch` (quickstart § 1):
   - **Gate**: signed out, `GET /changes` → `303 /sign-in?next=%2Fchanges`. `/`, `/sign-in`, `/sign-in/code`, `/account/reset`, `/language` and `/_app/x.js` pass. `GET /account/reset?token=T` with an `itk_session` that the API answers `401` for: the cookie is deleted and the page resolves (R3).
   - **CSRF**: `POST` with `Sec-Fetch-Site: cross-site` → `403`. `Sec-Fetch-Site: same-site` → `403`. `Sec-Fetch-Site: same-origin` with `Origin: null` passes. No `Sec-Fetch-Site`, with `Origin` equal to the app origin, passes, and with another `Origin` → `403` (FR-005, R4).
   - **Headers**: a page response and a `/changes/__data.json` response both carry `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` and `Cache-Control: no-store` (FR-008, FR-009, FR-013).
   - **Log** (FR-047): spy on `console.log`. For `GET /account/reset?token=SECRET` with `Cookie: itk_session=TOKEN`, `X-Forwarded-For: 203.0.113.9` and `User-Agent: UA-X`, the single line matches `^\S+Z GET /account/reset \d{3} \d+ms$` and contains none of `SECRET`, `TOKEN`, `203.0.113.9` or `UA-X`.
   - **Language**: a visitor with `Accept-Language: nl` gets `<html lang="nl">` via `transformPageChunk`. A signed-in user whose `/api/me` says `en` gets `en`.
-- [ ] T011 [P] `frontend/src/no-raw-html.test.ts`: walk `src/` recursively with `node:fs`, and fail when any `.svelte` or `.ts` file other than this test contains `{@html` (FR-010, SC-010).
-- [ ] T012 [P] `frontend/src/lib/codes.test.ts` (SC-009, research R10):
+- [X] T011 [P] `frontend/src/no-raw-html.test.ts`: walk `src/` recursively with `node:fs`, and fail when any `.svelte` or `.ts` file other than this test contains `{@html` (FR-010, SC-010).
+- [X] T012 [P] `frontend/src/lib/codes.test.ts` (SC-009, research R10):
   - Read `../specs/001-ical-change-detection/contracts/api.md`, and the `contracts/api.md` of 002, 003, 004 and 005, with paths relative to `frontend/`.
   - The contracts write reasons in three shapes: a `reason` column (`` `invalid_email`, `invalid_language` ``, several per cell), a status inside the backticks (`` `409 demote_first` `` in 004's 2FA and Account actions tables, whose headers have no reason column), and inline or prose (`` `reason`: `invalid_url` `` in 001, `` `429 too_many_requests` `` in 004 § Authentication). So: in every table row or bullet line that mentions a 4xx or 5xx status, take **every** backticked token, strip a leading `\d{3} `, and keep those matching `^[a-z]+(_[a-z0-9]+)+$` (plus the `validation_failed:<code>` form, mapped to its `CheckFailure`). Assert that each of the five files yields a non-zero count.
   - Assert each is in the runtime list `reasons` exported from `codes.ts`, apart from an explicit, commented `excluded` list (for example `invalid_subscriber`, gone since 004; reasons of `/n/…` pages and of routes the frontend doesn't call).
   - Assert that `dicts.en.reasons` and `dicts.nl.reasons` have a non-empty message for every entry of `reasons`, and for every `checkFailures` entry.
   - The pattern codes (research R10), in `en`: `checkFailureMessage` gives the "no longer exists" message for `http_404` and `http_410`, "refused the link" for `http_401` and `http_403`, the generic server-error message for `http_500`, and the `CheckFailure` message for `validation_failed:empty_feed`. `channelFailureMessage` gives "rejected this address" for `smtp_550`, "refused it for now" for `smtp_421`, and "can't be reached" for `unreachable`. An unknown code (`bogus`) gives the generic message in all three functions.
-- [ ] T013 [P] `frontend/src/lib/server/actions.test.ts`, with a fake `RequestEvent` whose `locals.t` is `dicts.en`:
+- [X] T013 [P] `frontend/src/lib/server/actions.test.ts`, with a fake `RequestEvent` whose `locals.t` is `dicts.en`:
   - `refuse()` on `429 too_many_attempts` with `retryAfter: 120` gives a message ending in the "2 minutes" wait; without `retryAfter` it has no wait;
   - `403 reauthentication_required` gives `stepUp: true`;
   - `extra.rule: 2` gives `rule: 2`, and `extra.rule: '2'` or no `rule` gives none;
@@ -172,18 +172,18 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Implementation for Phase 2
 
-- [ ] T014 Write `frontend/src/lib/codes.ts`:
+- [X] T014 Write `frontend/src/lib/codes.ts`:
   - `export const reasons = [...] as const; export type Reason = typeof reasons[number];` Start it with the frontend's own `unavailable` and `unknown`. T021 fills in the rest.
   - `export const checkFailures = [...] as const; export type CheckFailure` from 001 data-model `last_error` and the `validation_failed:<code>` codes: `network`, `timeout`, `too_large`, `unparseable`, `empty_feed`, `too_many_occurrences`, `blocked_address`, and the rest listed there.
   - `checkFailureMessage`, `channelFailureMessage` and `reasonMessage` from Shared signatures, with the pattern codes of research R10: `http_404`/`http_410` → "the link no longer exists", `http_401`/`http_403` → "the calendar server refused the link", other `http_*` → "the calendar server answered with an error", `smtp_5xx` → "the mail server rejected this address", `smtp_4xx` → "the mail server refused it for now", `unreachable` → "the mail server can't be reached". An unknown code gives the generic message, and the caller logs only the code.
-- [ ] T015 Write `frontend/src/lib/i18n/en.ts`, `frontend/src/lib/i18n/nl.ts` and `frontend/src/lib/i18n/index.ts` (research R10):
+- [X] T015 Write `frontend/src/lib/i18n/en.ts`, `frontend/src/lib/i18n/nl.ts` and `frontend/src/lib/i18n/index.ts` (research R10):
   - `en.ts` is `export const en = { … }`. It holds `reasons: Record<Reason, string>`, `checkFailures: Record<CheckFailure, string>`, the pattern-code messages, and the shared UI strings: nav (Changes, Calendars, Settings, Admin, Sign out), wordmark aria label, `close`, `back`, `loading`, the `wait` phrase, and the error page texts for `locked`, `notAllowed`, `notInAccount` (a function taking the email), `unavailable` and `notFound`.
   - `nl.ts` is `export const nl: Dict = { … }`, so a missing or extra key fails `svelte-check`.
   - `index.ts` defines `Widen<T>`, `Dict`, `Lang`, `dicts` and `pickLang` per Shared signatures.
   - Plain-language wording, no status codes (FR-041).
-- [ ] T016 [P] Write `frontend/src/lib/next.ts`: `export function safeNext(next: string | null | undefined, origin: string): string`. Keep `next` only when it starts with `/`, doesn't start with `//` or `/\`, and `new URL(next, origin).origin === origin`. Otherwise return `/` (R6).
-- [ ] T017 [P] Write `frontend/src/lib/server/format.ts`: `formatter()` per Shared signatures, using `Intl.DateTimeFormat` with `timeZone` and locale `en-GB` or `nl-NL`, `hourCycle: 'h23'`. Compare the year of the date and of `now` *in that zone* (R12).
-- [ ] T018 Write `frontend/src/lib/server/api.ts` per Shared signatures and research R7:
+- [X] T016 [P] Write `frontend/src/lib/next.ts`: `export function safeNext(next: string | null | undefined, origin: string): string`. Keep `next` only when it starts with `/`, doesn't start with `//` or `/\`, and `new URL(next, origin).origin === origin`. Otherwise return `/` (R6).
+- [X] T017 [P] Write `frontend/src/lib/server/format.ts`: `formatter()` per Shared signatures, using `Intl.DateTimeFormat` with `timeZone` and locale `en-GB` or `nl-NL`, `hourCycle: 'h23'`. Compare the year of the date and of `now` *in that zone* (R12).
+- [X] T018 Write `frontend/src/lib/server/api.ts` per Shared signatures and research R7:
   - the base URL from `$env/dynamic/private` `API_URL`, default `http://localhost:5000`;
   - headers: `Authorization` from `opts.token`, else the `itk_session` cookie; `X-Forwarded-For: event.getClientAddress()`; `User-Agent: event.request.headers.get('user-agent') ?? ''`; `Content-Type: application/json` when there's a body;
   - `signal: AbortSignal.timeout(30_000)`;
@@ -191,8 +191,8 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
   - `401` with `not_signed_in` handling as in Shared signatures. Use `event.url.pathname` plus `event.url.search` for `next`, without the query keys that start with `/` (form action names such as `?/remove`);
   - on failure, log only `method`, the path template, `status` and `reason` (FR-047). The template is the path **with everything from `?` removed** (queries can hold part of an email address, for example the admin search `q`), and numeric segments replaced by `{id}`;
   - the cookie helpers with the exact attributes of data-model.md: `itk_session` → `httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 34560000`; `itk_pending` → `httpOnly: true, secure: true, sameSite: 'lax', path: '/sign-in', maxAge: 600`. SvelteKit drops `secure` itself on `http://localhost`.
-- [ ] T019 [P] Write `frontend/src/lib/server/actions.ts` with `Refusal`, `refuse` and `formValues` per Shared signatures (`reauthenticate`, `loadBotCheck` and `botCheckValue` come in US5 and US1). `refuse` uses `event.locals.t`, `reasonMessage`, and `formatter(...).wait` for `retryAfter`. `formValues` always drops `password`, `newPassword`, `code` and `token`, even when they are listed. Make T013 pass.
-- [ ] T020 Write `frontend/src/hooks.server.ts` (research R3 to R6, R9, R16, R17). One exported `handle`, in this order:
+- [X] T019 [P] Write `frontend/src/lib/server/actions.ts` with `Refusal`, `refuse` and `formValues` per Shared signatures (`reauthenticate`, `loadBotCheck` and `botCheckValue` come in US5 and US1). `refuse` uses `event.locals.t`, `reasonMessage`, and `formatter(...).wait` for `retryAfter`. `formValues` always drops `password`, `newPassword`, `code` and `token`, even when they are listed. Make T013 pass.
+- [X] T020 Write `frontend/src/hooks.server.ts` (research R3 to R6, R9, R16, R17). One exported `handle`, in this order:
   1. Start a timer.
   2. **CSRF**: for `POST`/`PUT`/`PATCH`/`DELETE`, answer `403` unless `Sec-Fetch-Site === 'same-origin'`, or `Sec-Fetch-Site` is absent and `Origin === event.url.origin`.
   3. **Me**: with an `itk_session` cookie, call `GET /api/me` and `GET /api/me/notification-settings` in parallel through `api(…, { on401: 'return' })`. On success, set `locals.me` (`homePage` included) and `locals.tz = effectiveTimeZone`. On `401`, `locals.me = null` (the cookie is already deleted). On `unavailable`, set `locals.unavailable = true` and keep `locals.me = null`. Set `locals.token`. **Don't throw `error()` from `handle`**: SvelteKit then renders the static fallback `src/error.html` (which prints the status), not `+error.svelte`. Check this against the installed Kit's docs.
@@ -205,28 +205,28 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
   The early exits (the CSRF `403`, the gate `303`) are built as `Response`s that also go through steps 7 and 8, so every response gets the headers and one log line.
 
   Also export `handleError`: `console.error(`${iso} ${event.url.pathname} ${error.name}: ${error.message}`)`, and return `{ message: t.errors.generic }` without details.
-- [ ] T021 Complete the code sets. Make `npm test` pass `codes.test.ts` (T012): add to `reasons` every code the test extracts (using the same three-shape rule as T012, so 004's `` `409 demote_first` `` rows and 001's inline `` `reason`: `` rows are included), and give every `reasons` and `checkFailures` entry a message in both dictionaries. Every story after this only adds UI strings. Mark any code that the tables list but the frontend never receives in the test's `excluded` list, with a comment naming the route.
-- [ ] T022 Add `must()` to `frontend/src/lib/server/api.ts` per Shared signatures: `403 two_factor_required` → `error(403, { kind: 'locked', message })`, `403 admin_required` → `kind: 'notAllowed'`, `404` → `kind: opts.notFound ?? 'notFound'` (with `email: locals.me?.email` for `notInAccount`), `unavailable` → `error(503, { kind: 'unavailable' })`, anything else → `error(status, { message: generic })`.
-- [ ] T023 [P] Write the base components in `frontend/src/lib/components/` (research R18), each keeping the design system's look and states (hover, press, focus-visible, disabled):
+- [X] T021 Complete the code sets. Make `npm test` pass `codes.test.ts` (T012): add to `reasons` every code the test extracts (using the same three-shape rule as T012, so 004's `` `409 demote_first` `` rows and 001's inline `` `reason`: `` rows are included), and give every `reasons` and `checkFailures` entry a message in both dictionaries. Every story after this only adds UI strings. Mark any code that the tables list but the frontend never receives in the test's `excluded` list, with a comment naming the route.
+- [X] T022 Add `must()` to `frontend/src/lib/server/api.ts` per Shared signatures: `403 two_factor_required` → `error(403, { kind: 'locked', message })`, `403 admin_required` → `kind: 'notAllowed'`, `404` → `kind: opts.notFound ?? 'notFound'` (with `email: locals.me?.email` for `notInAccount`), `unavailable` → `error(503, { kind: 'unavailable' })`, anything else → `error(status, { message: generic })`.
+- [X] T023 [P] Write the base components in `frontend/src/lib/components/` (research R18), each keeping the design system's look and states (hover, press, focus-visible, disabled):
   - `Button.svelte`: `variant` primary/secondary/dark/ghost/inverse, `size` sm/md/lg; renders `<a>` when `href` is set, else `<button>` (default `type="submit"`); a trailing Lucide `ArrowRight` only on `<a>` links; `disabled` passes through.
   - `Card.svelte` and `Badge.svelte` (`tone` neutral/green/amber/red/blue/magenta). Amber and green badge text uses `--amber-700` and `--green-700`.
   - `PageIntro.svelte`: the magenta title band of the web kit, with `title` and an optional intro line.
-- [ ] T024 [P] Write `frontend/src/lib/components/Field.svelte` and `frontend/src/lib/components/Switch.svelte`:
+- [X] T024 [P] Write `frontend/src/lib/components/Field.svelte` and `frontend/src/lib/components/Switch.svelte`:
   - `Field`: a `<label for>`, the input or a slotted `<select>`/`<textarea>`, a hint and an error, both linked with `aria-describedby`, `aria-invalid` when there's an error, and a 1px `--grey-500` border;
   - `Switch`: a native `<input type="checkbox" role="switch">` with a label, styled as the design's switch. It posts with forms.
-- [ ] T025 [P] Write `frontend/src/lib/components/Dialog.svelte` and `frontend/src/lib/components/Toast.svelte`:
+- [X] T025 [P] Write `frontend/src/lib/components/Dialog.svelte` and `frontend/src/lib/components/Toast.svelte`:
   - `Dialog`: a native `<dialog>` opened with `showModal()` through a bound `open` prop, closed on Esc (native), with a close button labelled from the dictionary. Title, body and actions go in slots or snippets.
   - `Toast`: `role="status"`, shows the `message` prop and fades out after a few seconds.
-- [ ] T026 [P] Write `frontend/src/lib/components/TabNav.svelte`: a `<nav aria-label>` of links, `aria-current="page"` on the active one (from `page.url.pathname`), a side list at ≥ 768 px, wrapping below that and never `overflow-x: auto` (FR-043, FR-048).
-- [ ] T027 Write `frontend/src/lib/enhance.svelte.ts`: `submitter()` per Shared signatures. `pending` is `$state`. `enhance` sets `pending = true` on submit, calls SvelteKit's `update()` (default reset and invalidation behaviour), sets `pending = false`, then calls `opts.onResult`. The step-up handling is added in US5 (T072).
-- [ ] T028 Write `frontend/src/lib/components/Header.svelte` and `frontend/src/lib/components/PhoneNav.svelte` (research R18):
+- [X] T026 [P] Write `frontend/src/lib/components/TabNav.svelte`: a `<nav aria-label>` of links, `aria-current="page"` on the active one (from `page.url.pathname`), a side list at ≥ 768 px, wrapping below that and never `overflow-x: auto` (FR-043, FR-048).
+- [X] T027 Write `frontend/src/lib/enhance.svelte.ts`: `submitter()` per Shared signatures. `pending` is `$state`. `enhance` sets `pending = true` on submit, calls SvelteKit's `update()` (default reset and invalidation behaviour), sets `pending = false`, then calls `opts.onResult`. The step-up handling is added in US5 (T072).
+- [X] T028 Write `frontend/src/lib/components/Header.svelte` and `frontend/src/lib/components/PhoneNav.svelte` (research R18):
   - `Header`: the wordmark ("InThe" + magenta "Know") linking to `/`. For signed-in users: nav links Changes (`/changes`), Calendars (`/calendars`), Settings (`/settings/account`), and Admin (`/admin/accounts`) only when `me.role === 'admin'` (US8-2), plus a sign-out `<form method="POST" action="/sign-out">` (route in T036). For visitors: sign in and sign up links, and a slot for the language switch (US9).
   - `PhoneNav`: the same signed-in items as a fixed bottom bar below 768 px, using Lucide icons with visible labels. `Header` hides its nav links below 768 px.
-- [ ] T029 Write the root layout and error page:
+- [X] T029 Write the root layout and error page:
   - `frontend/src/routes/+layout.server.ts`: returns `{ lang: locals.lang, me: locals.me, unavailable }` (no tokens, no functions), where `unavailable` is `locals.unavailable` on a non-public path. **Don't throw `error()` here**: an error in the root layout's load has no `+error.svelte` above it, so SvelteKit renders the static `src/error.html` (the same trap as in T020; check it against the installed Kit's docs);
   - `frontend/src/routes/+layout.svelte`: imports `@fontsource/lato/400.css`, `700.css`, `900.css`, `@fontsource/jetbrains-mono/600.css`, `$lib/styles/tokens.css` and `base.css`. Renders `Header`, `<main>`, and `PhoneNav` for signed-in users. When `data.unavailable` is set, `<main>` shows the "try again later" view instead of the child page, and the response status stays 200 (only the text matters to the user);
   - `frontend/src/routes/+error.svelte`: one view per `page.error.kind`. `locked`: why admin pages are locked, a link to `/settings/security/two-factor`, and a sign-out-and-sign-in-with-code link (US8-1). `notAllowed` (US8-2). `notInAccount`: "this calendar is not in the account `<email>`". `unavailable`: try again later. Otherwise a generic message and a link home. Never print the status or technical details (FR-041).
-- [ ] T030 Write the settings tab layout and redirect (FR-048, plan § Structure Decision):
+- [X] T030 Write the settings tab layout and redirect (FR-048, plan § Structure Decision):
   - `frontend/src/routes/(settings)/+layout.svelte`: a `PageIntro` ("Settings") and `TabNav` with Account (`/settings/account`), Sign-in & security (`/settings/security`), Preferences (`/settings/preferences`) and Notifications (`/notifications`), then the child page;
   - `frontend/src/routes/(settings)/settings/+page.server.ts`: `load` throws `redirect(303, '/settings/account')`.
 
