@@ -81,29 +81,33 @@ at `http://localhost:8025`. `curl` stands in for the frontend's server.
 Expected: each step matches the acceptance scenarios in [spec.md](./spec.md). Also, the app log has no address,
 token or code (`grep -E '@|token=' app.log` finds nothing from the app).
 
-**Walkthrough notes (T080, 2026-09-27)**: run against Mailpit and a throwaway database, with 003's local email
-settings and `TrustedProxies` empty. The built app listened on `http://localhost:5000`; a small script stood in for
-the frontend's server, reading the emails through Mailpit's API and computing the authenticator codes. Steps 1–10
-matched, with one gap:
+**Walkthrough notes (T080, 2026-09-27, second run)**: run against Mailpit and a throwaway database, with 003's
+local email settings and `TrustedProxies` empty. The built app listened on `http://localhost:5000`; a small script
+stood in for the frontend's server, reading the emails through Mailpit's API and computing the authenticator codes.
+All steps 1–10 matched (40 scripted checks for steps 1–8, plus 9 and 10 by hand). This run closes the first run's
+gap: the calendar link was a public HTTPS feed (Google's Dutch holidays calendar), which passes the SSRF guard, so no
+fetch transport was swapped:
 1. `make-admin admin@example.nl` printed `invite queued` while the server ran (an invalid address printed the usage
    and exited `1`). Accepting the invite returned a token; `GET /api/admin/calendars` → `403 two_factor_required`.
 2. Setup, then enable with a code → 10 recovery codes and a `twoFactorOn` email; the admin routes → `200`.
 3. With `example.nl` allowed: `student@example.nl` → `202` and a confirmation email; `student@gmail.com` →
    `403 sign_up_by_invitation`.
 4. Confirm → `204`, sign-in → `200`, and one channel: the address, `active`, `accountAddress: true`. **Sign-up →
-   confirm → sign-in took 0.8 s scripted, email delivery included (SC-001: under 3 minutes).** A second channel was
-   added. *Gap*: no calendar link was added, because the SSRF guard refuses a local feed and 003's replacement fetch
-   transport was not rebuilt for this run; the link and channel flows themselves are covered by the automated suites.
+   confirm → sign-in took 1.3 s scripted, email delivery included (SC-001: under 3 minutes).** The calendar link →
+   `201`, and `calendar_link` had 1 row. A second channel → `201 awaitingConfirmation` and its confirmation email.
 5. Signing up again → the same `202`, and a "someone tried to sign up" email.
 6. Six wrong passwords → `401` ×5, then `429` with `Retry-After: 30`.
-7. Reset request and completion → `204`; the old token → `401`; a `passwordChanged` email.
-8. Disable → the student's token `401`, sign-in `403 account_disabled`; enable; delete → `204` and a `deleted` email.
-   `SELECT count(*) FROM calendar_link` → `0` (trivially, see step 4).
+7. Reset request → `202`, completion → `204`; the old token → `401`; a `passwordChanged` email. The reset cleared
+   the throttle, so the new password signed in at once.
+8. Disable → the student's token `401`, sign-in `403 account_disabled`; enable → sign-in `200`; delete → `204` and a
+   `deleted` email. `calendar_link` went from 1 to `0`, the orphaned `calendar` was deleted too, and no account row
+   was left.
 9. With Cloudflare's Turnstile test keys: `GET /api/auth/bot-check` gave the provider and site key only; no
    `botCheck` → `400 bot_check_failed`; the dummy token with the always-pass secret → `202`; with the `2x…AA`
    secret → `400 bot_check_failed`.
-10. The security log had an event for every step (`adminMadeFromServer` with no source, admin actions with
-    `actor_id`, `signInFailed` ×5 and one `throttled`), and no `detail` held an address.
+10. The security log had 20 events, one for every step (`adminMadeFromServer` with no source, admin actions with
+    `actor_id`, `signInFailed` ×5 and one `throttled`). No `detail` held an address, and the deleted student's
+    events remained (SC-008).
 
-The app log (74 lines over the three runs) had no `@` and no `token=`. Its only warning was the expected
+The app log (72 lines over the three runs) had no `@` and no `token=`. Its only warning was the expected
 `TrustedProxies is empty` line; the bot check logged `Failed missing-input-response` / `invalid-input-response`.
