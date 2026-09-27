@@ -24,6 +24,8 @@ and [003](../../003-notification-channels/contracts/api.md). Their conventions s
 | `403` | `two_factor_required` | Admin route, and the session has not proved a second factor (US7-3, US7-11) |
 | `403` | `reauthentication_required` | A step-up route (marked ⬆ below) with no re-authentication in the last 10 minutes (R6) |
 
+- Deny by default also covers paths that match no route: without a session they get `401 not_signed_in`, not `404`.
+
 - The client address and `User-Agent` are taken from `X-Forwarded-For`, and only from trusted proxies
   ([configuration.md](./configuration.md), R3).
 - **Bot check** (FR-037): when a provider is configured, the routes marked 🤖 need `"botCheck": "<provider
@@ -274,7 +276,7 @@ queued. `404` if the method is not this account's.
 | `POST /api/me/2fa/setup` | none | `200 { "secret": "BASE32…", "uri": "otpauth://totp/…" }`, `409 two_factor_on` |
 | `POST /api/me/2fa/enable` | `{ "code" }` | `200 { "recoveryCodes": ["abcd-efgh-ijkl-mnop", … 10] }`. This session now counts as having proved a second factor (US7-11). A notice is queued. `400 code_invalid`, `409 setup_not_started`, `409 two_factor_on`. |
 | `DELETE /api/me/2fa` ⬆ | none | `204`. The re-authentication must have included a code (FR-018). Other sessions end and a notice is queued. `409 demote_first` for admins (US7-10), `409 two_factor_off`. |
-| `POST /api/me/2fa/recovery-codes` | `{ "code" }` | `200 { "recoveryCodes": [...] }`. The earlier codes stop working (US4-7). `400 code_invalid`, `409 two_factor_off`. |
+| `POST /api/me/2fa/recovery-codes` | `{ "code" }` | `200 { "recoveryCodes": [...] }`. The earlier codes stop working (US4-7). `400 code_invalid`, `409 two_factor_off`, `429 too_many_attempts` (failures are throttled like the code step). |
 
 The setup `secret` and the `recoveryCodes` appear in these responses only (FR-034).
 
@@ -295,7 +297,7 @@ Every action here queues the email the spec names and writes a security event wi
 | Route | Body | Result and reasons |
 |---|---|---|
 | `PUT /api/admin/accounts/{id}/role` | `{ "role": "admin" \| "user" }` | `200` with the account. `400 invalid_role`, `409 two_factor_required` (US7-9), `409 not_confirmed`, `409 account_disabled`, `409 last_admin` (US7-7) |
-| `POST /api/admin/accounts/{id}/disable` | none | `200`. Sessions end, and messages queued for its channels are dropped. `409 demote_first` for an admin or for oneself (US7-15) |
+| `POST /api/admin/accounts/{id}/disable` | none | `200`. Sessions end, and messages queued for its channels are dropped. `409 demote_first` for an admin or for oneself (US7-15), `409 not_confirmed` for an unconfirmed account |
 | `POST /api/admin/accounts/{id}/enable` | none | `200` |
 | `DELETE /api/admin/accounts/{id}` | none | `204`, as `DELETE /api/me`. `409 demote_first` for an admin or oneself |
 | `DELETE /api/admin/accounts/{id}/2fa` | none | `204`. 2FA and recovery codes are removed and every session ends (FR-019). `409 two_factor_off`. `409 demote_first` for one's own id (FR-032a point 3) |
@@ -310,7 +312,7 @@ Every action here queues the email the spec names and writes a security event wi
 
 | Status | `reason` |
 |---|---|
-| `400` | `invalid_domain` (not a host name), `too_many_domains` (over 100) |
+| `400` | `invalid_settings` (a field is missing), `invalid_domain` (not a host name), `too_many_domains` (over 100) |
 
 ### Invites (FR-001c, FR-001e, US8-5 to US8-9)
 

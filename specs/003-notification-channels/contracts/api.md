@@ -2,9 +2,10 @@
 
 Extends [001 contracts/api.md](../../001-ical-change-detection/contracts/api.md) and
 [002 contracts/api.md](../../002-subscriber-change-filters/contracts/api.md). Everything there applies to `/api`:
-camelCase JSON, ISO 8601 UTC, Problem Details with a `reason`, the operator key on every request, and the
-subscriber id pattern (`invalid_subscriber`). The public routes under `/n/` (at the end of this file) are the only
-exception (FR-030).
+camelCase JSON, ISO 8601 UTC, Problem Details with a `reason`. Since 004 every `/api` request needs a signed-in
+session, and the user routes are under `/api/me/…` for that account
+([004 contracts/api.md](../../004-accounts-login/contracts/api.md) § Moved routes). The public routes under `/n/` (at
+the end of this file) are the only exception (FR-030).
 
 `Channel` in responses:
 
@@ -16,26 +17,28 @@ exception (FR-030).
   "status": "failing",
   "failureReason": "smtp_550",
   "lastMessageAt": "2026-10-02T08:05:12Z",
-  "createdAt": "2026-09-30T12:00:00Z"
+  "createdAt": "2026-09-30T12:00:00Z",
+  "accountAddress": false
 }
 ```
 
 - `status` is one of `awaitingConfirmation`, `active`, `paused`, `unsubscribed` or `failing`.
 - `failureReason` is `null` unless the status is `failing`.
 - `target` is returned only on this subscriber's own routes (FR-020).
+- `accountAddress` (004 FR-028) is `true` for the account's own address channel, created when the account is confirmed.
 
 ## Notification settings (FR-017, FR-018a)
 
-### `GET /api/subscribers/{s}/notification-settings`
+### `GET /api/me/notification-settings`
 
 ```json
 { "language": "en", "timeZone": null, "effectiveTimeZone": "Europe/Amsterdam" }
 ```
 
-`timeZone: null` means the operator default applies (`effectiveTimeZone`). A subscriber who has never set anything
-gets this default body.
+`timeZone: null` means the operator default applies (`effectiveTimeZone`). Since 004 these are the account's
+`language` (chosen at sign-up) and `time_zone`.
 
-### `PUT /api/subscribers/{s}/notification-settings`
+### `PUT /api/me/notification-settings`
 
 Body: `{ "language"?: "en" | "nl", "timeZone"?: string | null }`. At least one field is required. `null` clears the
 time zone. `200` returns the same body as `GET`. If the request is rejected, the previous values stay.
@@ -46,7 +49,7 @@ time zone. `200` returns the same body as `GET`. If the request is rejected, the
 
 ## Subscription notifications (FR-008, FR-019a)
 
-### `GET /api/subscribers/{s}/calendars/{calendarId}/notifications`
+### `GET /api/me/calendars/{calendarId}/notifications`
 
 ```json
 { "notify": true, "label": "Minor robotics", "name": "Minor robotics" }
@@ -55,7 +58,7 @@ time zone. `200` returns the same body as `GET`. If the request is rejected, the
 `name` is what emails show: the `label`, else the feed's calendar name, else the calendar's host. `404` if the
 subscriber has no subscription to the calendar.
 
-### `PUT /api/subscribers/{s}/calendars/{calendarId}/notifications`
+### `PUT /api/me/calendars/{calendarId}/notifications`
 
 Body: `{ "notify"?: boolean, "label"?: string | null }`. At least one field is required. `null` clears the label.
 
@@ -70,20 +73,20 @@ Body: `{ "notify"?: boolean, "label"?: string | null }`. At least one field is r
 | `400` | `invalid_label` (empty, over 100 characters, or containing control characters), `invalid_notify`, `empty_body` |
 | `404` | no such subscription |
 
-### `GET /api/subscribers/{s}/calendars` (001, extended)
+### `GET /api/me/calendars` (001, extended)
 
 Each calendar object gains `"notify": true, "label": null, "name": "Hogeschool Inholland - Rooster - ALTI26VT4ES1"`,
 with the same meaning as above (FR-028).
 
 ## Channel types
 
-### `GET /api/subscribers/{s}/channel-types` (US6-3)
+### `GET /api/me/channel-types` (US6-3)
 
 `{ "items": [ { "type": "email" } ] }`: the types a subscriber can add now, which means registered and configured.
 In production this is `email` only, or nothing when no mail server is configured. The test-only type exists only in
 the tests.
 
-### `GET /api/channel-types` (operator, FR-030a)
+### `GET /api/admin/channel-types` (admins, FR-030a; was `/api/channel-types` before 004)
 
 ```json
 {
@@ -111,11 +114,11 @@ the tests.
 
 A `{channelId}` that does not belong to `{s}` returns `404` on every route below.
 
-### `GET /api/subscribers/{s}/channels`
+### `GET /api/me/channels`
 
 `{ "items": [Channel] }`, ordered by `id`.
 
-### `POST /api/subscribers/{s}/channels`
+### `POST /api/me/channels`
 
 Body: `{ "type": "email", "target": "student@example.nl" }`. Creates the channel as `awaitingConfirmation` and
 queues its confirmation email (FR-005). `201` returns the `Channel`.
@@ -126,11 +129,11 @@ queues its confirmation email (FR-005). `201` returns the `Channel`.
 | `409` | `target_taken` (already one of this subscriber's channels), `channel_limit` (5), `target_declined` (its recipient chose "this wasn't me", FR-006) |
 | `503` | `type_unavailable` (the type is not configured, edge case "Channel type configured off") |
 
-### `DELETE /api/subscribers/{s}/channels/{channelId}`
+### `DELETE /api/me/channels/{channelId}`
 
 `204`. Deletes the channel, its address and its delivery records (FR-029). Pending sends are dropped.
 
-### `POST /api/subscribers/{s}/channels/{channelId}/pause` and `…/resume`
+### `POST /api/me/channels/{channelId}/pause` and `…/resume`
 
 `200` returns the `Channel`.
 - **Pause**: only from `active`. Pending changes become `skipped` (`channelNotActive`).
@@ -140,7 +143,7 @@ queues its confirmation email (FR-005). `201` returns the `Channel`.
 |---|---|
 | `409` | `invalid_status` (the channel is in another status) |
 
-### `POST /api/subscribers/{s}/channels/{channelId}/confirmation`
+### `POST /api/me/channels/{channelId}/confirmation`
 
 Queues a new confirmation email. This is allowed from `awaitingConfirmation`, `unsubscribed` and `failing`
 (FR-006). `202` with no body.
@@ -151,7 +154,7 @@ Queues a new confirmation email. This is allowed from `awaitingConfirmation`, `u
 | `429` | `confirmation_limit` (3 confirmation emails per channel per 24 h, **including the initial one**, research R10) |
 | `503` | `type_unavailable` |
 
-### `POST /api/subscribers/{s}/channels/{channelId}/test` (FR-023)
+### `POST /api/me/channels/{channelId}/test` (FR-023)
 
 Queues a test message. The channel must be `active`. `202` with no body.
 
@@ -161,7 +164,7 @@ Queues a test message. The channel must be `active`. `202` with no body.
 | `429` | `test_limit` (5 per channel per 24 h) |
 | `503` | `type_unavailable` |
 
-## Public routes (no operator key, FR-007, FR-010, FR-030)
+## Public routes (no session, FR-007, FR-010, FR-030)
 
 These are served by the same app at `{PublicBaseUrl}/n/…`, outside `/api` (research R8). They return
 `text/html; charset=utf-8`: a minimal page with one button, or a result page. The page language is the language of

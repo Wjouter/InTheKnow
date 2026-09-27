@@ -30,13 +30,7 @@ static class Db
             await create.ExecuteNonQueryAsync();
 
         var asm = typeof(Db).Assembly;
-        const string prefix = "InTheKnow.Migrations.";
-        var migrations = asm.GetManifestResourceNames()
-            .Where(n => n.StartsWith(prefix) && n.EndsWith(".sql"))
-            .Select(n => (Version: int.Parse(n[prefix.Length..].Split('_')[0]), Name: n))
-            .OrderBy(m => m.Version);
-
-        foreach (var (version, name) in migrations)
+        foreach (var (version, name) in Migrations())
         {
             await using var tx = await conn.BeginTransactionAsync();
             await using var check = new NpgsqlCommand("SELECT 1 FROM schema_migration WHERE version = $1 FOR UPDATE", conn, tx)
@@ -50,5 +44,24 @@ static class Db
                 await record.ExecuteNonQueryAsync();
             await tx.CommitAsync();
         }
+    }
+
+    // The embedded migrations, in version order.
+    static IEnumerable<(int Version, string Name)> Migrations()
+    {
+        const string prefix = "InTheKnow.Migrations.";
+        return typeof(Db).Assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith(prefix) && n.EndsWith(".sql"))
+            .Select(n => (Version: int.Parse(n[prefix.Length..].Split('_')[0]), Name: n))
+            .OrderBy(m => m.Version);
+    }
+
+    // Whether the database has every embedded migration (004 research R13): the server command never migrates.
+    public static async Task<bool> SchemaCurrentAsync(NpgsqlDataSource db)
+    {
+        await using var conn = await db.OpenConnectionAsync();
+        await using var cmd = new NpgsqlCommand("SELECT max(version) FROM schema_migration", conn);
+        try { return await cmd.ExecuteScalarAsync() is int version && version >= Migrations().Max(m => m.Version); }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UndefinedTable) { return false; }
     }
 }

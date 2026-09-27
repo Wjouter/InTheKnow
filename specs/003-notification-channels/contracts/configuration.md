@@ -3,6 +3,9 @@
 Extends [001 contracts/configuration.md](../../001-ical-change-detection/contracts/configuration.md). The same
 sources and precedence apply, and configuration is read at startup.
 
+Feature 004 adds `InTheKnow:Accounts:*` and retires `InTheKnow:ApiKey`; account emails use the settings below
+([004 contracts/configuration.md](../../004-accounts-login/contracts/configuration.md)).
+
 ## Shape (added to the shipped `appsettings.json`)
 
 ```json

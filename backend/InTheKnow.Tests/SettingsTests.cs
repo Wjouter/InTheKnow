@@ -27,14 +27,21 @@ public class SettingsTests
     [Fact]
     public void RequiredValues()
     {
-        var empty = Assert.Throws<InvalidOperationException>(() => TestDb.LoadSettings(NullLogger.Instance,
-            ("ConnectionStrings:Default", ""), ("InTheKnow:ApiKey", TestDb.ApiKey)));
+        var empty = Assert.Throws<InvalidOperationException>(() => TestDb.LoadSettings(NullLogger.Instance, ("ConnectionStrings:Default", "")));
         Assert.Contains("ConnectionStrings:Default", empty.Message);
+    }
+
+    // 004 FR-033: the operator key is no longer needed, and a leftover one only warns.
+    [Fact]
+    public void ApiKeyIsRetired()
+    {
+        var logs = new CapturingLogs();
+        TestDb.LoadSettings(logs.CreateLogger("Settings"), ("ConnectionStrings:Default", "Host=x"));
+        Assert.DoesNotContain(logs.Lines, l => l.Contains("ApiKey"));
         var shortKey = new string('k', 31);
-        var key = Assert.Throws<InvalidOperationException>(() => TestDb.LoadSettings(NullLogger.Instance,
-            ("ConnectionStrings:Default", "Host=x"), ("InTheKnow:ApiKey", shortKey)));
-        Assert.Contains("InTheKnow:ApiKey", key.Message);
-        Assert.DoesNotContain(shortKey, key.Message);
+        TestDb.LoadSettings(logs.CreateLogger("Settings"), ("ConnectionStrings:Default", "Host=x"), ("InTheKnow:ApiKey", shortKey));
+        Assert.Contains(logs.Lines, l => l.Contains("InTheKnow:ApiKey is retired and ignored"));
+        Assert.DoesNotContain(logs.Lines, l => l.Contains(shortKey));
     }
 
     [Fact]
@@ -56,7 +63,7 @@ public class SettingsTests
     }
 
     static Settings Load(ILogger log, params (string, string?)[] o) =>
-        TestDb.LoadSettings(log, [("ConnectionStrings:Default", "Host=x"), ("InTheKnow:ApiKey", TestDb.ApiKey), .. o]);
+        TestDb.LoadSettings(log, [("ConnectionStrings:Default", "Host=x"), .. o]);
 
     [Fact]
     public void IntervalsAreClampedWithAWarning()
@@ -140,5 +147,55 @@ public class SettingsTests
         Assert.Throws<InvalidOperationException>(() => Load(NullLogger.Instance, (N + "Email:FromName", new string('x', 101))));
         Load(NullLogger.Instance, WithEmail((N + "Email:Host", "localhost"), (N + "Email:StartTls", "false"), (N + "PublicBaseUrl", "http://localhost:5000")));
         Load(NullLogger.Instance, WithEmail((N + "Email:Username", "u"), (N + "Email:Password", "p")));
+    }
+
+    // 004 contracts/configuration.md § Settings: each rule fails startup with a message naming the key.
+    const string A = "InTheKnow:Accounts:";
+
+    [Theory]
+    [InlineData("SessionIdleLifetime", "00:59:00", "SessionIdleLifetime")]
+    [InlineData("SessionIdleLifetime", "366.00:00:00", "SessionIdleLifetime")]
+    [InlineData("SourceFailuresPerHour", "19", "SourceFailuresPerHour")]
+    [InlineData("SourceRequestsPerHour", "9", "SourceRequestsPerHour")]
+    [InlineData("TrustedProxies:0", "not-an-ip", "TrustedProxies")]
+    [InlineData("TrustedProxies:0", "10.0.0.0/33", "TrustedProxies")]
+    [InlineData("BotCheck:Provider", "hcaptcha", "BotCheck:Provider")]
+    public void InvalidAccountSettingsFailStartup(string key, string value, string named)
+    {
+        var e = Assert.Throws<InvalidOperationException>(() => Load(NullLogger.Instance, (A + key, value)));
+        Assert.Contains(A + named, e.Message);
+    }
+
+    [Theory]
+    [InlineData("", "secret-key")]
+    [InlineData("site-key", "")]
+    public void BotCheckProviderNeedsBothKeys(string siteKey, string secretKey)
+    {
+        var e = Assert.Throws<InvalidOperationException>(() => Load(NullLogger.Instance,
+            (A + "BotCheck:Provider", "turnstile"), (A + "BotCheck:SiteKey", siteKey), (A + "BotCheck:SecretKey", secretKey)));
+        Assert.Contains(A + "BotCheck:SiteKey", e.Message);
+        Assert.DoesNotContain("secret-key", e.Message);
+    }
+
+    [Fact]
+    public void AccountDefaultsAndProxies()
+    {
+        var logs = new CapturingLogs();
+        var s = Load(logs.CreateLogger("Settings"));
+        var o = s.Options.Accounts;
+        Assert.Equal(TimeSpan.FromDays(30), o.SessionIdleLifetime);
+        Assert.Equal((3000, 1000), (o.SourceFailuresPerHour, o.SourceRequestsPerHour));
+        Assert.Equal("", o.BotCheck.Provider);
+        Assert.Empty(s.TrustedProxyAddresses);
+        Assert.Empty(s.TrustedProxyNetworks);
+        Assert.Contains(logs.Lines, l => l.Contains("TrustedProxies") && l.Contains("share one throttling source"));
+
+        logs = new CapturingLogs();
+        s = Load(logs.CreateLogger("Settings"), (A + "TrustedProxies:0", "10.0.0.1"), (A + "TrustedProxies:1", "fd00::/8"),
+            (A + "SessionIdleLifetime", "01:00:00"), (A + "SourceFailuresPerHour", "20"), (A + "SourceRequestsPerHour", "10"),
+            (A + "BotCheck:Provider", "recaptcha"), (A + "BotCheck:SiteKey", "site"), (A + "BotCheck:SecretKey", "secret"));
+        Assert.Equal([System.Net.IPAddress.Parse("10.0.0.1")], s.TrustedProxyAddresses);
+        Assert.Equal([System.Net.IPNetwork.Parse("fd00::/8")], s.TrustedProxyNetworks);
+        Assert.DoesNotContain(logs.Lines, l => l.Contains("TrustedProxies"));
     }
 }

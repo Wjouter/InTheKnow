@@ -21,6 +21,7 @@ public sealed class TemplateDb : IAsyncDisposable
 // A per-test database copied from a migrated template: RunDueChecksAsync claims every due calendar, so tests never share one.
 sealed class TestDb : IAsyncDisposable
 {
+    // The retired operator key (004): tests send it to show that it opens nothing.
     public const string ApiKey = "test-api-key-0123456789-abcdefghijklmnopqrstuvw";
     static readonly SemaphoreSlim gate = new(1, 1);
     internal static string? TemplateName;
@@ -73,11 +74,11 @@ sealed class TestDb : IAsyncDisposable
     public Settings Settings(params (string Key, string? Value)[] overrides) => Settings(NullLogger.Instance, overrides);
 
     public Settings Settings(ILogger log, params (string Key, string? Value)[] overrides) =>
-        LoadSettings(log, [("ConnectionStrings:Default", ConnectionString), ("InTheKnow:ApiKey", ApiKey), .. overrides]);
+        LoadSettings(log, [("ConnectionStrings:Default", ConnectionString), .. overrides]);
 
     // Settings for tests without a database.
     public static Settings Offline(params (string Key, string? Value)[] overrides) =>
-        LoadSettings(NullLogger.Instance, [("ConnectionStrings:Default", "Host=unused"), ("InTheKnow:ApiKey", ApiKey), .. overrides]);
+        LoadSettings(NullLogger.Instance, [("ConnectionStrings:Default", "Host=unused"), .. overrides]);
 
     public static Settings LoadSettings(ILogger log, params (string Key, string? Value)[] values) =>
         InTheKnow.Settings.Load(new ConfigurationBuilder()
@@ -115,8 +116,9 @@ sealed class TestDb : IAsyncDisposable
     }
 
     public async Task<(long CalendarId, long[] LinkIds)> SeedCalendarAsync(
-        string host, string[] urls, string subscriber = "s1", DateTimeOffset? nextCheckAt = null)
+        string host, string[] urls, long? subscriber = null, DateTimeOffset? nextCheckAt = null)
     {
+        var owner = subscriber ?? await TestHost.AccountAsync(DataSource);
         var calendarId = await ScalarAsync(
             "INSERT INTO calendar (identity_hash, host, next_check_at) VALUES ($1, $2, $3) RETURNING id",
             RandomNumberGenerator.GetBytes(32), host, nextCheckAt ?? DateTimeOffset.UnixEpoch);
@@ -124,7 +126,7 @@ sealed class TestDb : IAsyncDisposable
         for (var i = 0; i < urls.Length; i++)
             links[i] = await ScalarAsync(
                 "INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, $2, $3) RETURNING id",
-                calendarId, subscriber, urls[i]);
+                calendarId, owner, urls[i]);
         return (calendarId, links);
     }
 }

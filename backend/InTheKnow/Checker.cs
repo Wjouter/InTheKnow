@@ -329,6 +329,7 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
             FROM detected_change c
             JOIN subscription s ON s.calendar_id = c.calendar_id
             JOIN channel ch ON ch.subscriber = s.subscriber AND ch.status = 'active'
+            JOIN account a ON a.id = s.subscriber AND a.disabled_at IS NULL -- 004 FR-033c: a disabled account gets nothing
             LEFT JOIN subscription_setting ss ON ss.calendar_id = c.calendar_id AND ss.subscriber = s.subscriber
             WHERE c.calendar_id = $1 AND c.id > $2 AND coalesce(ss.notify, true)
             """, ct, claim.Id, watermark);
@@ -371,13 +372,13 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) calendars[r.GetInt64(0)] = Convert.ToHexString((byte[])r[1]);
 
-        var links = new List<(long Id, long CalendarId, string Subscriber, string Url, string Host, string Hash)>();
+        var links = new List<(long Id, long CalendarId, long Subscriber, string Url, string Host, string Hash)>();
         await using (var cmd = new NpgsqlCommand("SELECT id, calendar_id, subscriber, url FROM calendar_link ORDER BY id", conn, tx))
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct))
             {
                 var uri = new Uri(r.GetString(3));
-                links.Add((r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), uri.IdnHost.ToLowerInvariant(),
+                links.Add((r.GetInt64(0), r.GetInt64(1), r.GetInt64(2), r.GetString(3), uri.IdnHost.ToLowerInvariant(),
                            Convert.ToHexString(LinkIdentity.Hash(LinkIdentity.KeyFor(uri, settings).Key))));
             }
 

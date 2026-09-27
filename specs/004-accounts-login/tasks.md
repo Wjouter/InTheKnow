@@ -145,9 +145,9 @@ static class TestHost
 
 **Purpose**: the package, the password list and the schema, so every later task can run against the test database.
 
-- [ ] T001 In `InTheKnow/InTheKnow.csproj`, add `<PackageReference Include="Otp.NET" Version="1.4.1" />` and `<EmbeddedResource Include="Resources/*" />` beside the migrations glob. Run `dotnet restore` so `InTheKnow/packages.lock.json` records Otp.NET (and the test project's lock file, if it changes). No other package (plan § Technical Context).
-- [ ] T002 [P] Create `InTheKnow/Resources/common-passwords.txt` (research R4). Take SecLists' `Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt` or its "top 100,000" equivalent (MIT). Keep only entries 12 to 128 characters long, lowercase them, deduplicate them, and write one per line. Put the SecLists commit hash and licence in a first line starting with `#`, which the loader skips.
-- [ ] T003 Create `InTheKnow/Migrations/004_accounts.sql` per data-model.md § Migration. Every CHECK, default and index is copied **verbatim** from data-model.md § Tables. In order:
+- [X] T001 In `InTheKnow/InTheKnow.csproj`, add `<PackageReference Include="Otp.NET" Version="1.4.1" />` and `<EmbeddedResource Include="Resources/*" />` beside the migrations glob. Run `dotnet restore` so `InTheKnow/packages.lock.json` records Otp.NET (and the test project's lock file, if it changes). No other package (plan § Technical Context).
+- [X] T002 [P] Create `InTheKnow/Resources/common-passwords.txt` (research R4). Take SecLists' `Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt` or its "top 100,000" equivalent (MIT). Keep only entries 12 to 128 characters long, lowercase them, deduplicate them, and write one per line. Put the SecLists commit hash and licence in a first line starting with `#`, which the loader skips.
+- [X] T003 Create `InTheKnow/Migrations/004_accounts.sql` per data-model.md § Migration. Every CHECK, default and index is copied **verbatim** from data-model.md § Tables. In order:
   1. **Delete the rows the spec does not carry over** (R1): `DELETE FROM delivery; DELETE FROM channel_message; DELETE FROM channel; DELETE FROM declined_address; DELETE FROM subscription_setting; DELETE FROM subscription_filter; DELETE FROM calendar_link; DELETE FROM calendar; DELETE FROM subscriber_setting; DELETE FROM preset WHERE owner IS NOT NULL;`. `subscription_filter` goes before `preset` because of its `RESTRICT`. The global presets, including `Default`, stay.
   2. **Create the tables**, in FK order: `account`, `sign_in_method`, `session`, `two_factor`, `recovery_code`, `invite`, `account_message`, `signup_settings`, `security_event`. Specifics:
      - `account`: the `lower(email)` unique index and the partial `(created_at) WHERE confirmed_at IS NULL` index.
@@ -175,7 +175,7 @@ static class TestHost
      - `account_keep_admin()`: `PERFORM pg_advisory_xact_lock(hashtext('admins'))`. Then, if `NOT EXISTS (SELECT 1 FROM account WHERE role = 'admin')`, `RAISE … USING ERRCODE = '23514', CONSTRAINT = 'last_admin'`. Attach it with `CREATE TRIGGER account_keep_admin AFTER UPDATE OF role OR DELETE ON account FOR EACH ROW WHEN (OLD.role = 'admin')`.
 
   From this task until T030, the existing suite is red: the C# code still passes `string` owners.
-- [ ] T004 Create `InTheKnow.Tests/TestHost.cs` with `SignedIn`, `TestHost.Password` and the database-level `TestHost.AccountAsync` from the shared signatures. It hashes with `new PasswordHasher<object>(Options.Create(new PasswordHasherOptions { IterationCount = 1 }))`, because `Account` does not exist until T015. The v3 hash format does not depend on the type parameter, so the hash verifies later under `PasswordHasher<Account>`. and its default email is `$"a{Guid.NewGuid():N}@example.nl"`. Then rewrite and extend `InTheKnow.Tests/DbTests.cs`.
+- [X] T004 Create `InTheKnow.Tests/TestHost.cs` with `SignedIn`, `TestHost.Password` and the database-level `TestHost.AccountAsync` from the shared signatures. It hashes with `new PasswordHasher<object>(Options.Create(new PasswordHasherOptions { IterationCount = 1 }))`, because `Account` does not exist until T015. The v3 hash format does not depend on the type parameter, so the hash verifies later under `PasswordHasher<Account>`. and its default email is `$"a{Guid.NewGuid():N}@example.nl"`. Then rewrite and extend `InTheKnow.Tests/DbTests.cs`.
   - **The rewrite comes first.** Replace every subscriber string (18 uses) with an account id from `TestHost.AccountAsync`. The existing assertions stay unchanged.
   - Then assert that each of these is rejected:
     - **`account`**:
@@ -261,7 +261,7 @@ static class TestHost
 
 ### Tests first
 
-- [ ] T005 [P] Extend `InTheKnow.Tests/SettingsTests.cs` with each rule of contracts/configuration.md § Settings. Each case fails startup with a message naming the key.
+- [X] T005 [P] Extend `InTheKnow.Tests/SettingsTests.cs` with each rule of contracts/configuration.md § Settings. Each case fails startup with a message naming the key.
   - `SessionIdleLifetime` `00:59:00` or `366.00:00:00`;
   - `SourceFailuresPerHour` 19;
   - `SourceRequestsPerHour` 9;
@@ -273,7 +273,7 @@ static class TestHost
   - the shipped defaults start, with empty `TrustedProxies` logging a warning that all users share one throttling source;
   - `10.0.0.1` and `fd00::/8` are accepted.
   - **Flip the `ApiKey` case**: startup no longer needs `InTheKnow:ApiKey`, and when it is set a warning says it is ignored. Remove `ApiKey` from every other case in the file.
-- [ ] T006 [P] Create `InTheKnow.Tests/ThrottleTests.cs` (unit, `FakeTimeProvider`, a `Settings` from configuration) per research R8.
+- [X] T006 [P] Create `InTheKnow.Tests/ThrottleTests.cs` (unit, `FakeTimeProvider`, a `Settings` from configuration) per research R8.
   - **Per (key, source)**: failures 1–5 are free. After the 5th, `Wait` returns 30 s, then after each further failure 1, 2, 4, 8, 15, 15 min, each measured from that failure. A refused attempt is not counted. Another source for the same key gets `null`.
   - **Per key, all sources**: 20 failures spread over 5 sources give a 15-minute wait for every source, including a new one. When it ends, one attempt is allowed. If it fails while the hourly count is ≥ 20, another 15 minutes follow. Across all sources, a single wait is never longer than 15 minutes.
   - **SC-005 worst case**: an attacker who fails every allowed attempt from fresh sources gets exactly 23 evaluated failures in any rolling hour.
@@ -287,7 +287,7 @@ static class TestHost
     - `192.0.2.1` stays as it is;
     - an IPv4-mapped IPv6 address maps to its IPv4 form;
     - `null` gives `"unknown"`.
-- [ ] T007 [P] Create `InTheKnow.Tests/AccountEmailTests.cs` (`FakeSmtp`, `ApiHost` configured for email the way `DeliveryTests.cs`'s email harness does, with rows queued through `Accounts.QueueAsync` in a transaction on `h.Db.DataSource`).
+- [X] T007 [P] Create `InTheKnow.Tests/AccountEmailTests.cs` (`FakeSmtp`, `ApiHost` configured for email the way `DeliveryTests.cs`'s email harness does, with rows queued through `Accounts.QueueAsync` in a transaction on `h.Db.DataSource`).
   - **SC-010**: every kind of contracts/account-emails.md renders in `en` and `nl`, with:
     - no missing `Texts` key;
     - no `List-Unsubscribe` or `List-Unsubscribe-Post` header;
@@ -317,7 +317,7 @@ static class TestHost
     - an expired unsent row, 24 h after `expired_at`;
     - a session idle for `SessionIdleLifetime` + 1 s and an awaiting session 10 min + 1 s old are deleted, while an active session and an awaiting one 9 min old are kept;
     - a `security_event` 90 days + 1 s old is deleted, also when its account no longer exists, and one 89 days old is kept (FR-035, SC-008).
-- [ ] T008 [P] Create `InTheKnow.Tests/TestSignIn.cs`, the test-only `test` method of contracts/sign-in-method.md.
+- [X] T008 [P] Create `InTheKnow.Tests/TestSignIn.cs`, the test-only `test` method of contracts/sign-in-method.md.
   - `public static void Register(IServiceCollection s)` adds an `IStartupFilter`. Before `next(app)`, its `Configure` calls `app.Map("/api/test-auth", branch => { branch.UseRouting(); branch.UseAuthentication(); branch.UseAuthorization(); branch.UseEndpoints(…); })`. `Map` strips the `/api/test-auth` prefix, so even if the branch's endpoints appear in the shared `EndpointDataSource`, their patterns (`/sign-in`, …) do not start with `/api`, and the route enumerations of T021, T038 and T057, which filter by prefix, skip them.
   - `POST /sign-in {key}` (anonymous):
     - find `sign_in_method WHERE type = 'test' AND key = lower($key)`;
@@ -329,37 +329,37 @@ static class TestHost
 
 ### Implementation
 
-- [ ] T009 In `InTheKnow/Settings.cs`, add `AccountsOptions` and `BotCheckOptions` per the shared signatures, and `InTheKnowOptions.Accounts`.
+- [X] T009 In `InTheKnow/Settings.cs`, add `AccountsOptions` and `BotCheckOptions` per the shared signatures, and `InTheKnowOptions.Accounts`.
   - Remove the `ApiKey` length requirement. When `ApiKey` is non-empty, `log.LogWarning("InTheKnow:ApiKey is retired and ignored")`.
   - Validate each rule of contracts/configuration.md § Settings with `Require`, with the message prefixed by the key, e.g. `InTheKnow:Accounts:SessionIdleLifetime must be between 1 hour and 365 days`.
   - Parse each `TrustedProxies` entry with `IPAddress.TryParse` or `IPNetwork.TryParse`. Keep the parsed lists on `Settings` as `IReadOnlyList<IPAddress> TrustedProxyAddresses` and `IReadOnlyList<IPNetwork> TrustedProxyNetworks`. When both are empty, warn.
   - In `InTheKnow/appsettings.json`, remove `"ApiKey"` and add the `Accounts` section of contracts/configuration.md § Shape, with its empty placeholders.
   - Makes T005 pass.
-- [ ] T010 [P] Create `InTheKnow/SecurityLog.cs` per the shared signature.
+- [X] T010 [P] Create `InTheKnow/SecurityLog.cs` per the shared signature.
   - It inserts into `security_event (occurred_at, type, account_id, actor_id, source, detail)`. `source` is `inet` (Npgsql maps `IPAddress`), and `detail` is serialized with `JsonSerializer` as `jsonb`, defaulting to `{}`.
   - With `tx == null` it runs on `conn` alone.
   - The type strings are data-model.md § Security event types.
-- [ ] T011 [P] Create `InTheKnow/Throttle.cs` per the shared signature and research R8.
+- [X] T011 [P] Create `InTheKnow/Throttle.cs` per the shared signature and research R8.
   - One `Lock`-guarded pair of dictionaries: `(key, source) → (count, lastFailure, waitUntil)`, and `key → (Queue<DateTimeOffset> failures, waitUntil)`. The `source → Queue<DateTimeOffset>` window uses `SourceFailuresPerHour`.
   - The per-(key, source) wait schedule after the 5th failure is `[30 s, 1 min, 2 min, 4 min, 8 min]`, then 15 min.
   - `SourceKey` maps IPv4-mapped addresses with `MapToIPv4`, and masks IPv6 to its first 8 bytes, formatted as `x:x:x:x::/64`.
   - Add `ponytail:` in-memory counters; the instance lock guarantees one process, so move them to PostgreSQL only if the app ever runs as several instances (research R8).
   - Makes T006 pass.
-- [ ] T012 [P] In `InTheKnow/Texts.cs`, add every account-email key in `en` and `nl` (contracts/account-emails.md, FR-025):
+- [X] T012 [P] In `InTheKnow/Texts.cs`, add every account-email key in `en` and `nl` (contracts/account-emails.md, FR-025):
   - `account.{kind}.subject` and `account.{kind}.body` for every kind;
   - `account.{kind}.action`, the link button text, for `confirm`, `reset`, `emailChange` and `invite`;
   - the variants `account.roleChanged.body.admin` / `.body.user` and `account.invite.body.admin` / `.body.user`, chosen by `args.role` / `args.admin`;
   - `account.footer`, the "if this was not you" sentence of account-emails.md § Rules.
 
   `args` values are the `string.Format` arguments `{0}`: `remaining` for `recoveryCodeUsed`, and `type` for `methodAdded`/`methodRemoved`. Bodies of link kinds state the validity (24 hours, 1 hour, or the invite's expiry date via `Texts.Date`). Use the example subjects of account-emails.md § Rules verbatim. No body contains a password, a code, a key, another person's address or a network address.
-- [ ] T013 In `InTheKnow/ChannelType.cs` and `InTheKnow/EmailChannel.cs`, add `MessageKind.Account` and the three optional trailing `Message` parameters per the shared signatures. Every existing `new Message(…)` call compiles unchanged.
+- [X] T013 In `InTheKnow/ChannelType.cs` and `InTheKnow/EmailChannel.cs`, add `MessageKind.Account` and the three optional trailing `Message` parameters per the shared signatures. Every existing `new Message(…)` call compiles unchanged.
   - In `EmailChannel.Build`, `Account` renders:
     - the subject `account.{AccountKind}.subject`;
     - the body key with its variant, formatted with `Args`;
     - when `Link` is set, the link as a button in HTML and as a bare line in text, with the `action` text;
     - then `account.footer`.
   - Every inserted value is HTML-encoded in the HTML part, as 003 does. There are **no `List-Unsubscribe` headers** for `Account`.
-- [ ] T014 Create `InTheKnow/SignIn.cs` per the shared signatures, research R2, R3 and R6, and contracts/sign-in-method.md.
+- [X] T014 Create `InTheKnow/SignIn.cs` per the shared signatures, research R2, R3 and R6, and contracts/sign-in-method.md.
   - **`NewToken`/`Hash`**: 32 bytes from `RandomNumberGenerator`, `Base64Url.EncodeToString`, and `SHA256.HashData(Encoding.ASCII.GetBytes(token))`.
   - **`Device`**: browser tokens checked in the order `Edg/` → Edge, `OPR/` → Opera, `Firefox/` → Firefox, `Chrome/` → Chrome, `Safari/` → Safari. Systems: `Windows`, `Android`, `iPhone`/`iPad` → iOS, `Mac OS X` → macOS, `Linux`. The result is `"{browser} on {os}"`, or `"Unknown browser"` when neither is known, and is at most 60 characters. Add a `ponytail:` comment: two token tables; use a UA parser only if owners cannot recognise their devices.
   - **`CompleteAsync`**, in one transaction:
@@ -387,7 +387,7 @@ static class TestHost
     - **`admin`**: authenticated, then `ReasonRequirement("admin_required", role == admin)`, then `ReasonRequirement("two_factor_required", SecondFactor claim)`;
     - **`stepUp`**: authenticated and not awaiting, then `ReasonRequirement("reauthentication_required", Reauthenticated claim within 10 min of now)`;
     - **`awaitingOrSignedIn`**: authenticated only, for sign-out and the code step.
-- [ ] T015 Create `InTheKnow/Accounts.cs` with `Account`, the constructor of the shared signature, `QueueAsync` and the first part of `CleanupAsync`.
+- [X] T015 Create `InTheKnow/Accounts.cs` with `Account`, the constructor of the shared signature, `QueueAsync` and the first part of `CleanupAsync`.
   - `QueueAsync` inserts an `account_message` row with `requested_at = now` and `args` as `jsonb`.
   - `CleanupAsync(now)` (R16, R9) deletes:
     - sessions idle past `SessionIdleLifetime`, and awaiting sessions older than 10 minutes;
@@ -397,7 +397,7 @@ static class TestHost
     - security events older than 90 days.
 
     Then it calls `throttle.Forget(now)`. US1 and US8 add their parts.
-- [ ] T016 In `InTheKnow/Notifier.cs`, drain `account_message` and replace `subscriber_setting` (R9, R12).
+- [X] T016 In `InTheKnow/Notifier.cs`, drain `account_message` and replace `subscriber_setting` (R9, R12).
   - **(a) The switch**: the joins on `subscriber_setting ss ON ss.subscriber = ch.subscriber` (the queued-message query ~line 157 and the digest query ~line 209) become `JOIN account a ON a.id = ch.subscriber`, reading `a.language` and `a.time_zone`.
   - **(b) Constructor and cleanup**: the constructor gains `Accounts accounts`. The cleanup pass calls `accounts.CleanupAsync(now, ct)` right after `channels.CleanupAsync`.
   - **(c) The drain**: in `RunTypeAsync`, when `type.Name == "email"`, before the `channel_message` loop, send `SendAccountAsync` for each id of `SELECT id FROM account_message WHERE sent_at IS NULL AND expired_at IS NULL ORDER BY requested_at LIMIT 100`. Each send takes the same rate slot (`s.NextFree`) as other messages. Rows older than `RetryWindow` get `expired_at = now`, next to the existing expiry in `ExpireAsync`.
@@ -416,26 +416,26 @@ static class TestHost
       - `TypeUnavailable` rolls back and applies the email type's outage backoff exactly as the channel-message path does, without touching any channel row, and ends this type's pass.
   - Logs carry the row id, kind and reason code only.
   - Makes T007 pass once T012, T013, T015 and T020 are done.
-- [ ] T017 Switch owners from `string` to `long` in `InTheKnow/Subscriptions.cs`, `InTheKnow/Presets.cs`, `InTheKnow/Channels.cs` and `InTheKnow/Checker.cs` (R1).
+- [X] T017 Switch owners from `string` to `long` in `InTheKnow/Subscriptions.cs`, `InTheKnow/Presets.cs`, `InTheKnow/Channels.cs` and `InTheKnow/Checker.cs` (R1).
   - Every `string subscriber` / `string? owner` parameter becomes `long` / `long?`, including `Channels.DeclinedHash(long subscriber, string address)`, which hashes `subscriber.ToString(CultureInfo.InvariantCulture)`.
   - Delete `Subscriptions.SubscriberPattern()` and every `invalid_subscriber` check.
   - `Channels.GetSettingsAsync`/`SetSettingsAsync` read and write `account.language` and `account.time_zone` by `id` instead of `subscriber_setting`, and never insert.
   - In `Checker.cs`, the regroup reader of `SELECT id, calendar_id, subscriber, url FROM calendar_link` (~line 375) reads `subscriber` with `GetInt64`.
   - Every SQL string that names `subscriber`/`owner` stays as it is.
-- [ ] T018 Move the 001–003 routes in `InTheKnow/Api.cs`, `InTheKnow/FilterApi.cs` and `InTheKnow/NotificationApi.cs` per contracts/api.md § Moved routes.
+- [X] T018 Move the 001–003 routes in `InTheKnow/Api.cs`, `InTheKnow/FilterApi.cs` and `InTheKnow/NotificationApi.cs` per contracts/api.md § Moved routes.
   - Delete the operator-key middleware, `HasKey`, and the `Valid(subscriber)` helpers.
   - User routes are mapped on `app.MapGroup("/api/me")` with the `{subscriber}` segment removed. Each delegate takes `ClaimsPrincipal user` and uses `user.AccountId()`.
   - `GET /api/calendars`, the global `GET/POST /api/presets` and `PUT/DELETE /api/presets/{id}`, and `GET /api/channel-types` move to `app.MapGroup("/api/admin").RequireAuthorization("admin")` as `/calendars`, `/presets…` and `/channel-types`.
   - `GET /api/me/channel-types` keeps its body.
   - 003's `/n/{action}/{token}` routes get `.AllowAnonymous()` (FR-030).
   - Bodies, responses and reasons are otherwise unchanged. Update the header comment of `Api.cs`: sessions replace the operator key (004).
-- [ ] T019 Create `InTheKnow/AccountApi.cs` with `public static void MapAccountApi(this WebApplication app)`, a `static int StatusFor(string reason)` table built from contracts/api.md, and the first route.
+- [X] T019 Create `InTheKnow/AccountApi.cs` with `public static void MapAccountApi(this WebApplication app)`, a `static int StatusFor(string reason)` table built from contracts/api.md, and the first route.
   - `POST /api/me/reauthenticate {password, code?}` (R6):
     - `CheckAsync("account:{id}")` → `429 too_many_attempts` with `Retry-After`;
     - load the account's `password` method; if there is none, or `hasher.VerifyHashedPassword` fails, `FailAsync("account:{id}", http, id)` and `401 invalid_credentials`;
     - on success, `SignIn.ReauthenticatedAsync(sessionId, methodId)` → `204`.
   - T048 adds `code`.
-- [ ] T020 Wire `InTheKnow/Program.cs`:
+- [X] T020 Wire `InTheKnow/Program.cs`:
   - **Services**:
     - `IPasswordHasher<Account>` as `PasswordHasher<Account>`, with `Configure<PasswordHasherOptions>(o => { o.CompatibilityMode = IdentityV3; o.IterationCount = 210_000; })`;
     - singletons `Throttle`, `SignIn` and `Accounts`;
@@ -444,7 +444,7 @@ static class TestHost
     - `Configure<ForwardedHeadersOptions>` with `ForwardedHeaders = XForwardedFor` and `ForwardLimit = null`. Clear the default known proxies and networks, then add `Settings.TrustedProxyAddresses`/`TrustedProxyNetworks`. Use the non-obsolete `KnownIPNetworks` on .NET 10. Resolve `Settings` through an `IConfigureOptions` so overrides stay visible.
   - **Middleware**, in this order after `Build()`: `UseForwardedHeaders()`, `UseAuthentication()`, `UseAuthorization()`. T037 adds `UseRateLimiter()` after them.
   - **Routes**: `app.MapAccountApi()` next to the existing `Map*` calls.
-- [ ] T021 Finish `InTheKnow.Tests/TestHost.cs` (`SignInAsync` per the shared signature), change `ApiHost`, and rewrite `InTheKnow.Tests/ApiTests.cs`.
+- [X] T021 Finish `InTheKnow.Tests/TestHost.cs` (`SignInAsync` per the shared signature), change `ApiHost`, and rewrite `InTheKnow.Tests/ApiTests.cs`.
   - **`SignInAsync`**:
     - insert a confirmed account, with role `admin` when asked;
     - a method: `password` hashed with `TestHost.Password`, or `test` with `key = lower(email)`;
@@ -470,18 +470,18 @@ static class TestHost
 
       Each gets `401` with `reason = not_signed_in`. The list is non-empty, and it contains `/api/me/links` and `/api/admin/calendars`.
   - Keep `TestDb.ApiKey` only as the retired key these tests send.
-- [ ] T022 [P] Rewrite `InTheKnow.Tests/NotificationApiTests.cs` (46 uses) to signed-in accounts and `/api/me/…`, and the operator channel-types test to `/api/admin/channel-types` with an admin client. `notification-settings` reads and writes the account row. Assertions unchanged. Delete the `invalid_subscriber` cases.
-- [ ] T023 [P] Rewrite `InTheKnow.Tests/PresetsTests.cs` (8 uses): owners become `TestHost.AccountAsync` ids, and global presets keep `null`. Assertions unchanged.
-- [ ] T024 [P] Rewrite `InTheKnow.Tests/ChannelsTests.cs` (6 uses) to `TestHost.AccountAsync` ids. Settings tests read `account.language`/`time_zone`. Assertions unchanged.
-- [ ] T025 [P] Rewrite `InTheKnow.Tests/DeliveryTests.cs` (37 uses).
+- [X] T022 [P] Rewrite `InTheKnow.Tests/NotificationApiTests.cs` (46 uses) to signed-in accounts and `/api/me/…`, and the operator channel-types test to `/api/admin/channel-types` with an admin client. `notification-settings` reads and writes the account row. Assertions unchanged. Delete the `invalid_subscriber` cases.
+- [X] T023 [P] Rewrite `InTheKnow.Tests/PresetsTests.cs` (8 uses): owners become `TestHost.AccountAsync` ids, and global presets keep `null`. Assertions unchanged.
+- [X] T024 [P] Rewrite `InTheKnow.Tests/ChannelsTests.cs` (6 uses) to `TestHost.AccountAsync` ids. Settings tests read `account.language`/`time_zone`. Assertions unchanged.
+- [X] T025 [P] Rewrite `InTheKnow.Tests/DeliveryTests.cs` (37 uses).
   - `SubscribeAsync`, `AddActiveChannelAsync` and the other helpers take a `SignedIn` (app) or an account id (SQL).
   - `AddActiveChannelAsync` inserts `channel` with the `bigint` subscriber.
   - Assertions unchanged. Both theory types still build identical `Message`s.
-- [ ] T026 [P] Rewrite `InTheKnow.Tests/CheckerTests.cs` (11 uses): links, filters, settings and channels inserted with account ids from `TestHost.AccountAsync`. The regroup tests still copy filters and settings.
-- [ ] T027 [P] Rewrite `InTheKnow.Tests/PublicPagesTests.cs` (6 uses): channels belong to an account. Add that every `/n/` page works with **no** Authorization header (FR-030).
-- [ ] T028 [P] Rewrite `InTheKnow.Tests/SubscriptionsTests.cs` (6 uses) to account ids, and delete its `invalid_subscriber` case.
-- [ ] T029 [P] Rewrite the one subscriber use in `InTheKnow.Tests/EmailChannelTests.cs` to an account id.
-- [ ] T030 Run `dotnet build && dotnet test` from `backend/`. All pre-existing tests and T004–T008 pass.
+- [X] T026 [P] Rewrite `InTheKnow.Tests/CheckerTests.cs` (11 uses): links, filters, settings and channels inserted with account ids from `TestHost.AccountAsync`. The regroup tests still copy filters and settings.
+- [X] T027 [P] Rewrite `InTheKnow.Tests/PublicPagesTests.cs` (6 uses): channels belong to an account. Add that every `/n/` page works with **no** Authorization header (FR-030).
+- [X] T028 [P] Rewrite `InTheKnow.Tests/SubscriptionsTests.cs` (6 uses) to account ids, and delete its `invalid_subscriber` case.
+- [X] T029 [P] Rewrite the one subscriber use in `InTheKnow.Tests/EmailChannelTests.cs` to an account id.
+- [X] T030 Run `dotnet build && dotnet test` from `backend/`. All pre-existing tests and T004–T008 pass.
 
 **Checkpoint**: the suite is green again. Every 001–003 route answers only to a session. Admin routes need `admin` plus a second factor. The operator key opens nothing. Account emails queue, render in both languages, and send.
 
@@ -495,7 +495,7 @@ static class TestHost
 
 ### Tests for User Story 1
 
-- [ ] T031 [P] [US1] Create `InTheKnow.Tests/SignUpTests.cs` (`ApiHost` with `FakeSmtp` email, as T007). Every test sets `UPDATE signup_settings SET open = true` unless stated otherwise.
+- [X] T031 [P] [US1] Create `InTheKnow.Tests/SignUpTests.cs` (`ApiHost` with `FakeSmtp` email, as T007). Every test sets `UPDATE signup_settings SET open = true` unless stated otherwise.
   - **US1-1**: `POST /api/auth/sign-up {email, password, language: "nl"}` → `202`, empty body. An unconfirmed account exists with language `nl` and `time_zone` NULL. After a notifier pass, a Dutch `confirm` email is captured.
   - **US1-2**:
     - `GET` of the link's frontend URL is not an API route, and the account stays unconfirmed;
@@ -524,7 +524,7 @@ static class TestHost
 
     With `open = false` and no domains, everything is `403`. Invites and the SC-012 matrix are in T065.
   - **FR-005**: an unconfirmed account 30 days + 1 s old is deleted by `Accounts.CleanupAsync`, and one 29 days old is kept.
-- [ ] T032 [P] [US1] Create `InTheKnow.Tests/SignInTests.cs`, with its tests as xunit theories over `"password"` and `"test"` (SC-006), and add `SignInViaAsync` to `InTheKnow.Tests/TestHost.cs`. For `password` it posts `/api/auth/sign-in`, and for `test` it posts `/api/test-auth/sign-in`. Accounts are created with `TestHost.SignInAsync(method: m)`, and the direct session is discarded.
+- [X] T032 [P] [US1] Create `InTheKnow.Tests/SignInTests.cs`, with its tests as xunit theories over `"password"` and `"test"` (SC-006), and add `SignInViaAsync` to `InTheKnow.Tests/TestHost.cs`. For `password` it posts `/api/auth/sign-in`, and for `test` it posts `/api/test-auth/sign-in`. Accounts are created with `TestHost.SignInAsync(method: m)`, and the direct session is discarded.
   - Signing in returns `200 {token, secondFactorRequired: false}` with a 43-character token, and `GET /api/me` with it returns the account.
   - **US1-6**: `POST /api/auth/sign-out` → `204`, and the token then gets `401 not_signed_in`.
   - **Two devices**: two sign-ins give two working sessions, and signing out of one leaves the other.
@@ -541,10 +541,10 @@ static class TestHost
 
 ### Implementation for User Story 1
 
-- [ ] T033 [P] [US1] Create `InTheKnow/Passwords.cs` (research R4, FR-007):
+- [X] T033 [P] [US1] Create `InTheKnow/Passwords.cs` (research R4, FR-007):
   - `static string? Check(string? password, string email)` returns `password_length` unless `password.Length is >= 12 and <= 128`, `password_common` when `Common.Contains(password.ToLowerInvariant())`, `password_is_email` when it equals `email.Trim()` ignoring case, and null otherwise;
   - `Common` is a `FrozenSet<string>` loaded once from the embedded `Resources/common-passwords.txt`, skipping `#` lines.
-- [ ] T034 [US1] In `InTheKnow/Accounts.cs`, add the sign-up and confirmation flows (FR-001 to FR-006, research R10):
+- [X] T034 [US1] In `InTheKnow/Accounts.cs`, add the sign-up and confirmation flows (FR-001 to FR-006, research R10):
   - **`static string? NormalizeEmail(string? s)`**: trim, at most 254 characters, `MailAddress.TryCreate` succeeds and its `Address` equals the input (no display name), else null.
   - **`SignUpAsync(email, password, language, http)`**, in this order: `invalid_email`, `invalid_language` (`en`/`nl`), `Passwords.Check`, then the settings rule. The settings rule allows the address when `signup_settings.open`, or when the part after the last `@`, lowercased, is in `allowed_domains`; otherwise it returns `sign_up_by_invitation`, decided without reading `account`. Then:
     - `hasher.HashPassword` always, even when the result is discarded (SC-003);
@@ -562,7 +562,7 @@ static class TestHost
     - verify the password (wrong → `FailAsync` and `password_incorrect`, the token untouched);
     - then in one transaction: `UPDATE account_message SET used_at = $now WHERE id = $id AND used_at IS NULL` (0 rows → `token_invalid`), set `confirmed_at = now`, write `accountConfirmed`, and call `OnConfirmedAsync(conn, tx, account)`. That hook is a no-op here and gains the address channel in T040.
   - **`CleanupAsync`**: also delete unconfirmed accounts with `created_at < now − 30 days` (FR-005).
-- [ ] T035 [US1] In `InTheKnow/SignIn.cs`, add `PasswordAsync(string? email, string? password, HttpContext http)` (FR-011, R4, R8):
+- [X] T035 [US1] In `InTheKnow/SignIn.cs`, add `PasswordAsync(string? email, string? password, HttpContext http)` (FR-011, R4, R8):
   - the key is `email.Trim().ToLowerInvariant()`;
   - a wait from `CheckAsync` → `429 too_many_attempts` with `Retry-After` in whole seconds, rounded up;
   - look up the account and its `password` method;
@@ -572,7 +572,7 @@ static class TestHost
   - then `return CompleteAsync(accountId, methodId, http, throttleKey: key)`.
 
   `SignIn`'s constructor gains `IPasswordHasher<Account>`.
-- [ ] T036 [US1] In `InTheKnow/AccountApi.cs`, add the routes of contracts/api.md:
+- [X] T036 [US1] In `InTheKnow/AccountApi.cs`, add the routes of contracts/api.md:
   - `POST /api/auth/sign-up`, `POST /api/auth/confirmation`, `POST /api/auth/confirm` and `POST /api/auth/sign-in`, each `.AllowAnonymous()`;
   - `POST /api/auth/sign-out`, which deletes this session → `204`, with `.RequireAuthorization("awaitingOrSignedIn").WithMetadata(new AllowAwaitingCode())`;
   - `POST /api/auth/sign-out-everywhere`, which deletes every session of the account → `204` and writes `signedOutEverywhere`;
@@ -584,7 +584,7 @@ static class TestHost
     - `createdAt`.
 
   Bodies bind as nullable DTO records, so a missing field gives the field's reason rather than a framework `400`. Sign-out writes `signedOut`.
-- [ ] T037 [US1] In `InTheKnow/Program.cs`, add the per-source request limiter (FR-012a, R8).
+- [X] T037 [US1] In `InTheKnow/Program.cs`, add the per-source request limiter (FR-012a, R8).
   - `AddRateLimiter` with a policy `"public"`: `PartitionedRateLimiter` on `Throttle.SourceKey(RemoteIpAddress)`, with a `SlidingWindowLimiter` of `SourceRequestsPerHour` per hour in 6 segments and no queue.
   - `OnRejected` writes `429` Problem Details with `reason = too_many_requests` and `Retry-After` from the lease's `RetryAfter` metadata, or 600 s when absent.
   - Add `app.UseRateLimiter()` after `UseAuthorization()`.
@@ -603,7 +603,7 @@ static class TestHost
 
 ### Tests for User Story 2
 
-- [ ] T038 [P] [US2] Create `InTheKnow.Tests/OwnershipTests.cs`, a theory over `"password"` and `"test"` (SC-002, SC-006). Sign A and B in with `SignInViaAsync`.
+- [X] T038 [P] [US2] Create `InTheKnow.Tests/OwnershipTests.cs`, a theory over `"password"` and `"test"` (SC-002, SC-006). Sign A and B in with `SignInViaAsync`.
   - **Enumeration**: list every `RouteEndpoint` whose pattern starts with `/api/me` from `EndpointDataSource`. Keep a hand-written table of each route's request, with `{calendarId}`, `{id}` and `{channelId}` filled from A's items (a calendar, a personal preset, a channel, and a session id for `/api/me/sessions/{id}`). **Fail if a route has no table entry**, so a new route cannot escape.
   - **As B**:
     - every call with A's ids gets the same status and body as the same call with id `999999999`;
@@ -617,8 +617,8 @@ static class TestHost
 
 ### Implementation for User Story 2
 
-- [ ] T039 [US2] In `InTheKnow/Channels.cs`, add `static Task AddAccountAddressAsync(NpgsqlConnection conn, NpgsqlTransaction tx, long accountId, string email, DateTimeOffset now, CancellationToken ct)` (R15). It inserts `channel (subscriber, type, target, status, status_since, activated_at, unsubscribe_token, created_at, is_account_address)` as `email`, the trimmed address, `active`, `now`, `now`, a new 43-character token (the existing token helper) and `true`. Add `bool AccountAddress` to `ChannelRow`, read it in every channel query, and emit `"accountAddress"` in the `Channel` JSON in `InTheKnow/NotificationApi.cs`.
-- [ ] T040 [US2] In `InTheKnow/Accounts.cs`, make `OnConfirmedAsync` call `Channels.AddAccountAddressAsync(conn, tx, account.Id, account.Email, now, ct)`. Every confirmation path (T034, T042, T068) goes through `OnConfirmedAsync`. Makes T038 pass.
+- [X] T039 [US2] In `InTheKnow/Channels.cs`, add `static Task AddAccountAddressAsync(NpgsqlConnection conn, NpgsqlTransaction tx, long accountId, string email, DateTimeOffset now, CancellationToken ct)` (R15). It inserts `channel (subscriber, type, target, status, status_since, activated_at, unsubscribe_token, created_at, is_account_address)` as `email`, the trimmed address, `active`, `now`, `now`, a new 43-character token (the existing token helper) and `true`. Add `bool AccountAddress` to `ChannelRow`, read it in every channel query, and emit `"accountAddress"` in the `Channel` JSON in `InTheKnow/NotificationApi.cs`.
+- [X] T040 [US2] In `InTheKnow/Accounts.cs`, make `OnConfirmedAsync` call `Channels.AddAccountAddressAsync(conn, tx, account.Id, account.Email, now, ct)`. Every confirmation path (T034, T042, T068) goes through `OnConfirmedAsync`. Makes T038 pass.
 
 **Checkpoint**: US1 + US2 are the first deployable increment. Every user route is proven to be scoped to its account.
 
@@ -632,7 +632,7 @@ static class TestHost
 
 ### Tests for User Story 3
 
-- [ ] T041 [P] [US3] Add a reset section to `InTheKnow.Tests/SignInTests.cs` (`password` theory rows, plus a `test`-only account for FR-009's "adds one"):
+- [X] T041 [P] [US3] Add a reset section to `InTheKnow.Tests/SignInTests.cs` (`password` theory rows, plus a `test`-only account for FR-009's "adds one"):
   - **US3-1**: `POST /api/auth/password-reset {email}` → `202` for known, unknown and disabled addresses alike, with identical bodies. Only the known, not-disabled account queues `reset`. The 4th request in 24 h queues nothing and still answers `202` (FR-012a).
   - **US3-2**: `POST /api/auth/password-reset/complete {token, password}` → `204`:
     - the old password → `401`;
@@ -649,7 +649,7 @@ static class TestHost
 
 ### Implementation for User Story 3
 
-- [ ] T042 [US3] In `InTheKnow/Accounts.cs`, add the reset flow (FR-009, FR-010):
+- [X] T042 [US3] In `InTheKnow/Accounts.cs`, add the reset flow (FR-009, FR-010):
   - `RequestResetAsync(email)` queues `reset` for a not-disabled account under its cap of 3 per 24 h. Always null.
   - `CompleteResetAsync(token, password, http)`:
     - `Passwords.Check(password, account.Email)`;
@@ -661,7 +661,7 @@ static class TestHost
     - queue `passwordChanged` and write `passwordReset`.
 
     `two_factor` is never touched.
-- [ ] T043 [US3] In `InTheKnow/AccountApi.cs`, add `POST /api/auth/password-reset` and `POST /api/auth/password-reset/complete`, both `.AllowAnonymous().RequireRateLimiting("public")`. Makes T041 pass.
+- [X] T043 [US3] In `InTheKnow/AccountApi.cs`, add `POST /api/auth/password-reset` and `POST /api/auth/password-reset/complete`, both `.AllowAnonymous().RequireRateLimiting("public")`. Makes T041 pass.
 
 **Checkpoint**: a forgotten password no longer means a lost account.
 
@@ -675,7 +675,7 @@ static class TestHost
 
 ### Tests for User Story 4
 
-- [ ] T044 [P] [US4] Create `InTheKnow.Tests/TwoFactorTests.cs` (`ApiHost`, fake clock, codes computed with Otp.NET's `Totp` from the returned secret at `h.Time`).
+- [X] T044 [P] [US4] Create `InTheKnow.Tests/TwoFactorTests.cs` (`ApiHost`, fake clock, codes computed with Otp.NET's `Totp` from the returned secret at `h.Time`).
   - **US4-1**:
     - `POST /api/me/2fa/setup` → `200 {secret, uri}`. The `uri` matches `^otpauth://totp/InTheKnow:.+\?secret=[A-Z2-7]+&issuer=InTheKnow&algorithm=SHA1&digits=6&period=30$`, and the secret decodes to 20 bytes;
     - `GET /api/me` still shows `twoFactor: false`;
@@ -715,7 +715,7 @@ static class TestHost
 
 ### Implementation for User Story 4
 
-- [ ] T045 [P] [US4] Create `InTheKnow/TwoFactor.cs` per the shared signature (research R5):
+- [X] T045 [P] [US4] Create `InTheKnow/TwoFactor.cs` per the shared signature (research R5):
   - `NewSecret` returns `RandomNumberGenerator.GetBytes(20)`;
   - `Uri` uses `OtpNet.Base32Encoding.ToString(secret)` and `Uri.EscapeDataString(address)`;
   - `NewRecoveryCodes` builds each code from 10 random bytes as base32 (16 characters), formatted in 4 groups;
@@ -725,7 +725,7 @@ static class TestHost
 
     Enabling uses the same TOTP check without the `enabled_at` condition.
   - Add `ponytail:` plain key storage; encrypt with Data Protection if database backups leave the server (research R5).
-- [ ] T046 [US4] In `InTheKnow/Accounts.cs`, add the 2FA actions:
+- [X] T046 [US4] In `InTheKnow/Accounts.cs`, add the 2FA actions:
   - **`StartTwoFactorAsync(accountId)`**: `two_factor_on` when enabled. Otherwise upsert `two_factor (secret = NewSecret(), enabled_at = NULL, last_step = 0)`, and return the base32 secret and `TwoFactor.Uri(email, secret)`.
   - **`EnableTwoFactorAsync(accountId, sessionId, code)`**: `setup_not_started` / `two_factor_on`, and `code_invalid` when the TOTP fails. Then, in one transaction:
     - set `enabled_at` and `last_step`;
@@ -736,13 +736,13 @@ static class TestHost
     Return the codes.
   - **`DisableTwoFactorAsync(accountId, sessionId)`**: `two_factor_off`, and `demote_first` when the account is an admin (US7-10). Delete `two_factor`, which cascades the codes, delete the other sessions, queue `twoFactorOff`, and write `twoFactorOff`.
   - **`RenewRecoveryCodesAsync(accountId, code)`**: `two_factor_off`, `code_invalid`, then replace all codes in one transaction and write `recoveryCodesRenewed`.
-- [ ] T047 [US4] In `InTheKnow/SignIn.cs`, add `CodeAsync(long sessionId, long accountId, string? code, HttpContext http)` for the code step:
+- [X] T047 [US4] In `InTheKnow/SignIn.cs`, add `CodeAsync(long sessionId, long accountId, string? code, HttpContext http)` for the code step:
   - `CheckAsync("account:{id}")` → `429`;
   - `TwoFactor.VerifyAsync` fails → `FailAsync("account:{id}", http, id)`, a `codeFailed` event and `400 code_invalid`;
   - success → `UPDATE session SET awaiting_code = false, second_factor = true`, `throttle.Succeed`, and a `signIn` event with `detail {secondFactor: true}`. A recovery code also queues `recoveryCodeUsed {remaining}` and writes `recoveryCodeUsed`.
 
   It returns `200 {secondFactorRequired: false}`.
-- [ ] T048 [US4] In `InTheKnow/AccountApi.cs`, add the 2FA routes and the code step, and extend both re-authentication routes.
+- [X] T048 [US4] In `InTheKnow/AccountApi.cs`, add the 2FA routes and the code step, and extend both re-authentication routes.
   - `POST /api/auth/sign-in/code`: `.RequireAuthorization("awaitingOrSignedIn").WithMetadata(new AllowAwaitingCode())`. A session that is not awaiting gets `400 code_invalid`.
   - `POST /api/me/2fa/setup`, `POST /api/me/2fa/enable`, `DELETE /api/me/2fa` (`.RequireAuthorization("stepUp")`) and `POST /api/me/2fa/recovery-codes`.
   - In `POST /api/me/reauthenticate`, after the password is verified and 2FA is on:
@@ -763,7 +763,7 @@ static class TestHost
 
 ### Tests for User Story 5
 
-- [ ] T049 [P] [US5] Create `InTheKnow.Tests/AccountTests.cs`, a theory over `"password"` and `"test"` (SC-006). A `Reauth(signedIn)` helper posts `/api/me/reauthenticate {password}` or `/api/test-auth/reauthenticate {key}`.
+- [X] T049 [P] [US5] Create `InTheKnow.Tests/AccountTests.cs`, a theory over `"password"` and `"test"` (SC-006). A `Reauth(signedIn)` helper posts `/api/me/reauthenticate {password}` or `/api/test-auth/reauthenticate {key}`.
   - Extend the route table of `InTheKnow.Tests/OwnershipTests.cs` (T038) with `PUT /api/me/password`, `POST /api/me/email`, `GET /api/me/sessions`, `DELETE /api/me/sessions/{id}` and `DELETE /api/me`.
   - **Step-up (R6)**:
     - each ⬆ route that exists by now (`PUT /api/me/password`, `POST /api/me/email`, `DELETE /api/me`, `DELETE /api/me/2fa`) without step-up → `403 reauthentication_required`;
@@ -813,10 +813,10 @@ static class TestHost
 
 ### Implementation for User Story 5
 
-- [ ] T050 [P] [US5] In `InTheKnow/Channels.cs`, add `static Task MoveAccountAddressAsync(NpgsqlConnection conn, NpgsqlTransaction tx, long accountId, string newEmail, CancellationToken ct)` (R15, FR-023):
+- [X] T050 [P] [US5] In `InTheKnow/Channels.cs`, add `static Task MoveAccountAddressAsync(NpgsqlConnection conn, NpgsqlTransaction tx, long accountId, string newEmail, CancellationToken ct)` (R15, FR-023):
   - `DELETE FROM channel WHERE subscriber = $a AND NOT is_account_address AND type = 'email' AND lower(target) = lower($new)`;
   - then `UPDATE channel SET target = $new WHERE subscriber = $a AND is_account_address`.
-- [ ] T051 [US5] In `InTheKnow/Accounts.cs`, add:
+- [X] T051 [US5] In `InTheKnow/Accounts.cs`, add:
   - **`ChangePasswordAsync(accountId, sessionId, password)`**: `Passwords.Check` against the account's address. Update the `password` method's `secret` in place, or insert one when there is none (US6-4: queue `methodAdded {type: password}` and write `methodAdded`). Delete the other sessions, queue `passwordChanged` and write `passwordChanged`.
   - **`RequestEmailChangeAsync(accountId, email)`**: `invalid_email`, and `same_email` when it equals the current address ignoring case. When another account has `lower(email)`, return null without changes. Otherwise queue `emailChange` (to the new address) and `emailChangeNotice` (to the old), and write `emailChangeRequested` with no address in `detail`.
   - **`ConfirmEmailChangeAsync(token)`**:
@@ -832,7 +832,7 @@ static class TestHost
     - write `accountDeleted` with `actor_id`;
     - `DELETE FROM account WHERE id = $a`, mapping `23514` with constraint `last_admin` to `last_admin`;
     - `DELETE FROM calendar WHERE id = ANY($ids) AND NOT EXISTS (SELECT 1 FROM calendar_link WHERE calendar_id = calendar.id)`.
-- [ ] T052 [US5] In `InTheKnow/AccountApi.cs`, add:
+- [X] T052 [US5] In `InTheKnow/AccountApi.cs`, add:
   - `PUT /api/me/password`, `POST /api/me/email` and `DELETE /api/me`, each `.RequireAuthorization("stepUp")`;
   - `GET /api/me/sessions` and `DELETE /api/me/sessions/{id:long}`;
   - `POST /api/auth/email-change/confirm`, `.AllowAnonymous().RequireRateLimiting("public")`.
@@ -851,7 +851,7 @@ static class TestHost
 
 ### Tests for User Story 6
 
-- [ ] T053 [P] [US6] Add a methods section to `InTheKnow.Tests/AccountTests.cs` (SC-014). Add `DELETE /api/me/methods/{id}` to its step-up case, and `GET /api/me/methods` and `DELETE /api/me/methods/{id}` to the route table of `InTheKnow.Tests/OwnershipTests.cs`.
+- [X] T053 [P] [US6] Add a methods section to `InTheKnow.Tests/AccountTests.cs` (SC-014). Add `DELETE /api/me/methods/{id}` to its step-up case, and `GET /api/me/methods` and `DELETE /api/me/methods/{id}` to the route table of `InTheKnow.Tests/OwnershipTests.cs`.
   - **US6-1**: `GET /api/me/methods` lists `{id, type, createdAt, lastUsedAt}`, and no value is a hash. `lastUsedAt` changes after a sign-in or step-up with that method.
   - **US6-2**:
     - with step-up, `POST /api/test-auth/add {key}` adds a `test` method to a password account → `204`;
@@ -878,15 +878,15 @@ static class TestHost
 
 ### Implementation for User Story 6
 
-- [ ] T054 [US6] In `InTheKnow/Accounts.cs`, add, per contracts/sign-in-method.md:
+- [X] T054 [US6] In `InTheKnow/Accounts.cs`, add, per contracts/sign-in-method.md:
   - **`AddMethodAsync(accountId, type, key, secret)`**: insert the row; a unique violation on `(type, key)` → `method_in_use`. Queue `methodAdded {type}` and write `methodAdded`. The caller has already checked step-up through its route's policy.
   - **`RemoveMethodAsync(accountId, methodId)`**:
     - `not_found` when it is not the account's;
     - a pre-check for the count gives `last_method` with a reason;
     - `DELETE`, then commit, mapping the deferred `23514` / `last_method` at commit to `last_method`. The cascade ends its sessions;
     - queue `methodRemoved {type}` and write `methodRemoved`.
-- [ ] T055 [US6] In `InTheKnow/AccountApi.cs`, add `GET /api/me/methods` and `DELETE /api/me/methods/{id:long}` (`.RequireAuthorization("stepUp")`).
-- [ ] T056 [US6] In `InTheKnow.Tests/TestSignIn.cs`, add `POST /add {key}` with `.RequireAuthorization("stepUp")`, calling `Accounts.AddMethodAsync(accountId, "test", lower(key), null)` → `204` or `409 method_in_use`. Makes T053 pass.
+- [X] T055 [US6] In `InTheKnow/AccountApi.cs`, add `GET /api/me/methods` and `DELETE /api/me/methods/{id:long}` (`.RequireAuthorization("stepUp")`).
+- [X] T056 [US6] In `InTheKnow.Tests/TestSignIn.cs`, add `POST /add {key}` with `.RequireAuthorization("stepUp")`, calling `Accounts.AddMethodAsync(accountId, "test", lower(key), null)` → `204` or `409 method_in_use`. Makes T053 pass.
 
 **Checkpoint**: a later method type is only new rows plus its own routes (FR-026), as the test type shows.
 
@@ -900,7 +900,7 @@ static class TestHost
 
 ### Tests for User Story 7
 
-- [ ] T057 [P] [US7] Create `InTheKnow.Tests/AdminTests.cs` (`ApiHost`, with `FakeSmtp` email for the notification cases).
+- [X] T057 [P] [US7] Create `InTheKnow.Tests/AdminTests.cs` (`ApiHost`, with `FakeSmtp` email for the notification cases).
   - **SC-013**: enumerate every `RouteEndpoint` under `/api/admin` from `EndpointDataSource`, and fail if the list lacks `/api/admin/calendars`, `/api/admin/presets`, `/api/admin/channel-types` or `/api/admin/accounts`. T066 adds `/api/admin/signup-settings` and `/api/admin/invites` to that list. For each route:
     - a regular user → `403 admin_required`;
     - an admin session without a second factor → `403 two_factor_required`;
@@ -933,7 +933,7 @@ static class TestHost
     - `twoFactorOffByAdmin` is queued, also while the account is disabled;
     - `twoFactorRemovedByAdmin` is written with `actor_id`;
     - with 2FA off → `409 two_factor_off`.
-- [ ] T058 [P] [US7] Create `InTheKnow.Tests/MakeAdminTests.cs` (database via `TestDb`, calling `Accounts.MakeAdminAsync` and `Db.SchemaCurrentAsync` directly).
+- [X] T058 [P] [US7] Create `InTheKnow.Tests/MakeAdminTests.cs` (database via `TestDb`, calling `Accounts.MakeAdminAsync` and `Db.SchemaCurrentAsync` directly).
   - **Empty database**: `MakeAdminAsync("admin@example.nl", "en")` returns `"invite queued"`. There is a named invite with `grants_admin`, `created_by` NULL and `expires_at = now + 7 days`, an `invite` `account_message`, and an `adminMadeFromServer` event with `source` NULL and `detail {via: "server"}`.
   - **Again for the same address**: the existing invite gets `grants_admin = true`, `expires_at = now + 7 days` and a new `invite` message, and no second invite is created.
   - **After the invite lapsed**: 8 days later on the fake clock, `MakeAdminAsync` for the same address → `"invite queued"`, without an exception. There is exactly one named invite for the address, with `expires_at = now + 7 days`, and after a notifier pass its new link can be accepted.
@@ -945,7 +945,7 @@ static class TestHost
 
 ### Implementation for User Story 7
 
-- [ ] T059 [US7] In `InTheKnow/Accounts.cs`, add the admin actions (FR-019, FR-033a, FR-033c, research R12). Each writes its security event with `actor_id` and queues the email of contracts/account-emails.md.
+- [X] T059 [US7] In `InTheKnow/Accounts.cs`, add the admin actions (FR-019, FR-033a, FR-033c, research R12). Each writes its security event with `actor_id` and queues the email of contracts/account-emails.md.
   - **`ListAccountsAsync(q, after, limit)`**: `WHERE lower(email) LIKE '%' || lower($q) || '%'`, with `%` and `_` escaped, and `id > $after ORDER BY id LIMIT $limit + 1`. It joins `two_factor` for `twoFactor`.
   - **`SetRoleAsync(actorId, id, role)`**:
     - `not_found`;
@@ -962,16 +962,16 @@ static class TestHost
     - otherwise `CreateNamedInviteAsync(…, grantsAdmin: true, validDays: 7, createdBy: null)` → `"invite queued"`.
 
     Either way it writes `adminMadeFromServer` with `source` NULL and `detail {via: "server"}`.
-- [ ] T060 [P] [US7] In `InTheKnow/Db.cs`, add `static Task<bool> SchemaCurrentAsync(NpgsqlDataSource db)`: true when `max(version)` in `schema_migration` is at least the highest embedded migration version. Reuse the version parsing of `MigrateAsync` by extracting it into one private helper.
-- [ ] T061 [P] [US7] In `InTheKnow/Checker.cs`, add `JOIN account a ON a.id = s.subscriber AND a.disabled_at IS NULL` to the fan-out `INSERT INTO delivery … SELECT` (~line 327). Add a `CheckerTests` case: a disabled account's active channel gets no delivery rows, and an enabled account's channel on the same calendar does.
-- [ ] T062 [US7] In `InTheKnow/Notifier.cs`, in the digest step's per-change reason (~line 251), check first: when the channel's account has `disabled_at` set (join `account` in the channel query), the reason is `accountDisabled`. Those rows become `skipped` like the other reasons, and nothing is sent.
-- [ ] T063 [US7] In `InTheKnow/AccountApi.cs`, add the admin account routes of api.md § Account actions under `app.MapGroup("/api/admin").RequireAuthorization("admin")`:
+- [X] T060 [P] [US7] In `InTheKnow/Db.cs`, add `static Task<bool> SchemaCurrentAsync(NpgsqlDataSource db)`: true when `max(version)` in `schema_migration` is at least the highest embedded migration version. Reuse the version parsing of `MigrateAsync` by extracting it into one private helper.
+- [X] T061 [P] [US7] In `InTheKnow/Checker.cs`, add `JOIN account a ON a.id = s.subscriber AND a.disabled_at IS NULL` to the fan-out `INSERT INTO delivery … SELECT` (~line 327). Add a `CheckerTests` case: a disabled account's active channel gets no delivery rows, and an enabled account's channel on the same calendar does.
+- [X] T062 [US7] In `InTheKnow/Notifier.cs`, in the digest step's per-change reason (~line 251), check first: when the channel's account has `disabled_at` set (join `account` in the channel query), the reason is `accountDisabled`. Those rows become `skipped` like the other reasons, and nothing is sent.
+- [X] T063 [US7] In `InTheKnow/AccountApi.cs`, add the admin account routes of api.md § Account actions under `app.MapGroup("/api/admin").RequireAuthorization("admin")`:
   - `GET /accounts`;
   - `PUT /accounts/{id:long}/role`. A `role` other than `admin`/`user` → `400 invalid_role`;
   - `POST /accounts/{id:long}/disable` and `/enable` → `200` with the account JSON;
   - `DELETE /accounts/{id:long}` → `204`;
   - `DELETE /accounts/{id:long}/2fa` → `204`.
-- [ ] T064 [US7] In `InTheKnow/Program.cs`, before `WebApplication.CreateBuilder(args)`, add the verb: `if (args is ["make-admin", var address, ..])`.
+- [X] T064 [US7] In `InTheKnow/Program.cs`, before `WebApplication.CreateBuilder(args)`, add the verb: `if (args is ["make-admin", var address, ..])`.
   - Parse `--language en|nl` (default `en`), otherwise print the usage and `return 1`.
   - Build configuration with `WebApplication.CreateBuilder([])`, so the verb's arguments never reach the command-line provider, and load `Settings`.
   - `Db.Create`. When `!await Db.SchemaCurrentAsync(db)`, print "the database schema is behind this build; start the server once first" and `return 1`.
@@ -992,7 +992,7 @@ static class TestHost
 
 ### Tests for User Story 8
 
-- [ ] T065 [P] [US8] In `InTheKnow.Tests/SignUpTests.cs`, add:
+- [X] T065 [P] [US8] In `InTheKnow.Tests/SignUpTests.cs`, add:
   - **SC-012**, the full matrix: `open` ∈ {on, off} × `allowed_domains` ∈ {none, `{example.nl}`, `{other.nl}`} × invite ∈ {none, named, shareable} for the address `x@example.nl`. Sign-up is allowed exactly when `open`, the domain matches, or a valid invite is used. The named case goes through `POST /api/auth/invite/accept` and the shareable one through `POST /api/auth/sign-up {invite}`. Assert the account's existence and state per case.
   - A shareable invite with `max_uses = 30`:
     - 30 sign-ups with distinct addresses succeed and each account is unconfirmed;
@@ -1002,7 +1002,7 @@ static class TestHost
   - **Route split (R10)**: a shareable token to `invite/accept` → `410 invite_invalid`, and a named token to sign-up's `invite` → `410 invite_invalid`. So are a revoked, an expired and an unknown token.
   - **Named invite, address confirmed since (U1)**: create a named invite for `x@example.nl`, then sign `x@example.nl` up through the domain rule and confirm it. Accepting the invite → `410 invite_invalid`, the invite row is gone, and the existing account is unchanged.
   - **Cleanup (T068)**: `Accounts.CleanupAsync` deletes a used-up shareable invite and a named invite 30 days + 1 s past `expires_at`, and keeps one 29 days past it.
-- [ ] T066 [P] [US8] In `InTheKnow.Tests/AdminTests.cs`, add `/api/admin/signup-settings` and `/api/admin/invites` to the SC-013 required list of T057, then add the settings and invite routes:
+- [X] T066 [P] [US8] In `InTheKnow.Tests/AdminTests.cs`, add `/api/admin/signup-settings` and `/api/admin/invites` to the SC-013 required list of T057, then add the settings and invite routes:
   - **US8-10**:
     - `GET/PUT /api/admin/signup-settings` round-trips, with domains trimmed, lowercased and deduplicated;
     - `400 invalid_domain` for `exa mple.nl` and `-x.nl`, and `400 too_many_domains` for 101;
@@ -1027,11 +1027,11 @@ static class TestHost
     - resend for a shareable invite → `409 not_named`;
     - resend renews the validity: 8 days after a 7-day named invite, resend → `202`, and after a pass the new link can be accepted;
     - a new named invite to an address whose earlier invite expired → `201`, and the expired invite is gone.
-- [ ] T067 [P] [US8] In `InTheKnow.Tests/MakeAdminTests.cs`, add (US7-5): after `MakeAdminAsync` on an empty database, a notifier pass and `POST /api/auth/invite/accept {token, password}` → `200 {token, secondFactorRequired: false}`. The new account is confirmed, `admin`, and has its address channel. `GET /api/admin/calendars` with the token → `403 two_factor_required`. After setup, enable → `200`.
+- [X] T067 [P] [US8] In `InTheKnow.Tests/MakeAdminTests.cs`, add (US7-5): after `MakeAdminAsync` on an empty database, a notifier pass and `POST /api/auth/invite/accept {token, password}` → `200 {token, secondFactorRequired: false}`. The new account is confirmed, `admin`, and has its address channel. `GET /api/admin/calendars` with the token → `403 two_factor_required`. After setup, enable → `200`.
 
 ### Implementation for User Story 8
 
-- [ ] T068 [US8] In `InTheKnow/Accounts.cs`, add (FR-001a to FR-001e, research R10):
+- [X] T068 [US8] In `InTheKnow/Accounts.cs`, add (FR-001a to FR-001e, research R10):
   - **`GetSignupSettingsAsync()` / `SetSignupSettingsAsync(actorId, open, domains)`**:
     - each domain is trimmed and lowercased, and must be a valid host name: `Uri.CheckHostName(d) == UriHostNameType.Dns`, contains a `.`, and no label starts or ends with `-`. Otherwise `invalid_domain`;
     - deduplicate, then `too_many_domains` over 100;
@@ -1052,7 +1052,7 @@ static class TestHost
     - apply `role = 'admin'` when `grants_admin`, call `OnConfirmedAsync`, delete the invite, and write `inviteUsed` and `accountConfirmed`;
     - then return `signIn.CompleteAsync(accountId, methodId, http)`.
   - **`CleanupAsync`**: also delete invites with `used >= max_uses`, or `expires_at < now − 30 days`.
-- [ ] T069 [US8] In `InTheKnow/AccountApi.cs`, add:
+- [X] T069 [US8] In `InTheKnow/AccountApi.cs`, add:
   - under the admin group: `GET/PUT /signup-settings`, `POST /invites` → `201`, `GET /invites`, `DELETE /invites/{id:long}` → `204` and `POST /invites/{id:long}/resend` → `202`;
   - public: `POST /api/auth/invite/accept`, `.AllowAnonymous().RequireRateLimiting("public")`;
   - the optional `invite` field on `POST /api/auth/sign-up`.
@@ -1071,7 +1071,7 @@ static class TestHost
 
 ### Tests for User Story 9
 
-- [ ] T070 [P] [US9] Create `InTheKnow.Tests/BotCheckTests.cs` (SC-015, contracts/bot-check.md § Test provider).
+- [X] T070 [P] [US9] Create `InTheKnow.Tests/BotCheckTests.cs` (SC-015, contracts/bot-check.md § Test provider).
   - **Unit, against `FakeHttp`**, with `new BotCheck(new("test", new Uri("https://bot.test/verify")), "site", "secret", httpClient, log)`:
     - a token that answers `{"success": true}` then `{"success": false, "error-codes": ["timeout-or-duplicate"]}` gives `Passed`, then `Failed`;
     - `invalid-input-response` → `Failed`;
@@ -1095,7 +1095,7 @@ static class TestHost
 
 ### Implementation for User Story 9
 
-- [ ] T071 [P] [US9] Create `InTheKnow/BotCheck.cs` per contracts/bot-check.md.
+- [X] T071 [P] [US9] Create `InTheKnow/BotCheck.cs` per contracts/bot-check.md.
   - `static readonly Dictionary<string, Uri> Providers` holds `turnstile` and `recaptcha` with their siteverify URLs.
   - `VerifyAsync`:
     - an empty response → `Failed`;
@@ -1103,7 +1103,7 @@ static class TestHost
     - map per the outcome table;
     - log `Failed` and `Unavailable` with the provider name and the error codes only.
   - In `InTheKnow/Program.cs`, register the singleton from `Settings.Options.Accounts.BotCheck`, with a null provider when `Provider` is empty, and an `HttpClient` from `IHttpClientFactory`.
-- [ ] T072 [US9] In `InTheKnow/AccountApi.cs`:
+- [X] T072 [US9] In `InTheKnow/AccountApi.cs`:
   - add `GET /api/auth/bot-check`, `.AllowAnonymous()`;
   - add `string? BotCheck` to the sign-in, sign-up, confirmation-request and reset-request DTOs;
   - add one helper, `static async Task<IResult?> BotGateAsync(BotCheck bot, string? response, bool isSignIn, CancellationToken ct)`, called as the **first statement** of those four handlers:
@@ -1119,7 +1119,7 @@ static class TestHost
 
 ## Phase 12: Polish & Cross-Cutting
 
-- [ ] T073 [P] Create `InTheKnow.Tests/LogHygieneTests.cs` (SC-007, FR-034). One `ApiHost` with `CapturingLogs`, `FakeSmtp`, the test bot check provider and `TestSignIn` runs every flow:
+- [X] T073 [P] Create `InTheKnow.Tests/LogHygieneTests.cs` (SC-007, FR-034). One `ApiHost` with `CapturingLogs`, `FakeSmtp`, the test bot check provider and `TestSignIn` runs every flow:
   - sign-up, confirm, sign-in with and without 2FA, code, recovery code;
   - reset, password change, email change, sessions, methods;
   - admin actions, invites, deletion.
@@ -1130,25 +1130,25 @@ static class TestHost
   - addresses, bot check results.
 
   Assert that no captured log line contains any of them, and that no response body contains any of them, except the secret in the setup response, the codes in the enable/renew responses and the tokens in the sign-in responses. Also assert that no `security_event.detail` contains an address.
-- [ ] T074 [P] Create `InTheKnow.Tests/SignInLoadTest.cs` (SC-011).
+- [X] T074 [P] Create `InTheKnow.Tests/SignInLoadTest.cs` (SC-011).
   - An `ApiHost` whose services callback sets `PasswordHasherOptions.IterationCount = 210_000`.
   - 500 confirmed accounts created with hashes made at 210,000 iterations.
   - Then 500 sign-ins spread over 60 s: a `Task.Delay`-paced loop on the real clock, with the fake clock only for session times.
   - Assert every sign-in completes in < 2 s, and log the p50 and p95.
   - Mark it `[Trait("Category", "Load")]`, and start it with `Assert.SkipUnless(Environment.GetEnvironmentVariable("ITK_LOAD") == "1", "set ITK_LOAD=1 to run the SC-011 load test")`, so a normal `dotnet test` reports it as skipped instead of spending about 2 minutes on it. T079 runs it explicitly.
-- [ ] T075 [P] Update `specs/001-ical-change-detection/contracts/api.md`:
+- [X] T075 [P] Update `specs/001-ical-change-detection/contracts/api.md`:
   - § Authentication and § Subscriber id point to `specs/004-accounts-login/contracts/api.md`;
   - the paths move to `/api/me/…` and `/api/admin/calendars`;
   - `invalid_subscriber` is gone.
-- [ ] T076 [P] Update `specs/001-ical-change-detection/contracts/configuration.md`: `InTheKnow:ApiKey` is retired (link `specs/004-accounts-login/contracts/configuration.md`).
-- [ ] T077 [P] Update `specs/002-subscriber-change-filters/contracts/api.md`: the paths move to `/api/me/…` and `/api/admin/presets…`, and global presets are admin-managed (004).
-- [ ] T078 [P] Update `specs/003-notification-channels/contracts/api.md`, with the paths `/api/me/…` and `/api/admin/channel-types`, and `Channel.accountAddress`. Update `specs/003-notification-channels/contracts/configuration.md` with a pointer to 004's additions.
-- [ ] T079 Run `dotnet build && dotnet test` from `backend/`, and fix warnings and failures.
+- [X] T076 [P] Update `specs/001-ical-change-detection/contracts/configuration.md`: `InTheKnow:ApiKey` is retired (link `specs/004-accounts-login/contracts/configuration.md`).
+- [X] T077 [P] Update `specs/002-subscriber-change-filters/contracts/api.md`: the paths move to `/api/me/…` and `/api/admin/presets…`, and global presets are admin-managed (004).
+- [X] T078 [P] Update `specs/003-notification-channels/contracts/api.md`, with the paths `/api/me/…` and `/api/admin/channel-types`, and `Channel.accountAddress`. Update `specs/003-notification-channels/contracts/configuration.md` with a pointer to 004's additions.
+- [X] T079 Run `dotnet build && dotnet test` from `backend/`, and fix warnings and failures.
   - Run `env ITK_LOAD=1 dotnet test --filter Category=Load` once, and record the p50 and p95 (SC-011).
   - Confirm that the only added package is Otp.NET, and that both `packages.lock.json` files are committed.
   - Grep `InTheKnow/` for `ApiKey`: only the retirement warning in `Settings.cs` remains.
   - Grep for `ponytail:`: the comments of T011 (in-memory throttle), T014 (device tables) and T045 (plain TOTP key) are present.
-- [ ] T080 Run the manual walkthrough of quickstart.md § 2 against Mailpit and a throwaway database, including the security-log query and `grep -E '@|token=' app.log`. **Time step 3 → 4** (sign-up, confirm, sign-in) for one new address without counting email delivery, and record that it is under 3 minutes (SC-001). Record anything that differs from the acceptance scenarios in a follow-up, not here.
+- [X] T080 Run the manual walkthrough of quickstart.md § 2 against Mailpit and a throwaway database, including the security-log query and `grep -E '@|token=' app.log`. **Time step 3 → 4** (sign-up, confirm, sign-in) for one new address without counting email delivery, and record that it is under 3 minutes (SC-001). Record anything that differs from the acceptance scenarios in a follow-up, not here.
 
 ---
 
