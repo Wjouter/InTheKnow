@@ -581,7 +581,7 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 - [X] T093 [P] Update `README.md` (plan § Project Structure): add the frontend to Features and to "Run it" (`cd frontend`, `npm ci`, `npm run dev`, the environment of contracts/configuration.md for production, and the reverse proxy rules), and remove the "frontend doesn't exist yet" workaround.
 - [X] T094 [P] Add a one-line pointer to `specs/005-sveltekit-frontend/contracts/api.md` in `specs/001-ical-change-detection/contracts/api.md` (under `GET /api/me/changes`) and in `specs/002-subscriber-change-filters/contracts/api.md` (under the changes and presets sections).
 - [X] T095 Run every check from `frontend/` and the repository root, and fix what fails: `npm run check`, `npm test`, `npm run build` (in `frontend/`) and `dotnet test`. Then `grep -rn "{@html" frontend/src` finds nothing besides the test file.
-- [ ] T096 Run the quickstart § 2 manual walkthrough (`specs/005-sveltekit-frontend/quickstart.md`), steps 1 to 14, against the running API, Mailpit and `npm run dev`. That includes the 360 px and keyboard-only pass over every address in pages.md (SC-007), the token checks in devtools (SC-003), and the log check (FR-047). Tick each row of pages.md's coverage table as it is exercised (SC-002). Record the results and any fixes in `specs/005-sveltekit-frontend/quickstart.md` under a dated "Walkthrough results" note.
+- [ ] T096 (partly run on 2026-09-27: see the "Walkthrough results" note in quickstart.md for what is still open) Run the quickstart § 2 manual walkthrough (`specs/005-sveltekit-frontend/quickstart.md`), steps 1 to 14, against the running API, Mailpit and `npm run dev`. That includes the 360 px and keyboard-only pass over every address in pages.md (SC-007), the token checks in devtools (SC-003), and the log check (FR-047). Tick each row of pages.md's coverage table as it is exercised (SC-002). Record the results and any fixes in `specs/005-sveltekit-frontend/quickstart.md` under a dated "Walkthrough results" note.
 
 ---
 
@@ -672,6 +672,26 @@ After T085: Task: "T086 admin/accounts"   Task: "T087 admin/sign-up"   Task: "T0
 7. Polish: README, the contract pointers, all checks, and the full walkthrough.
 
 ---
+
+## Implementation notes (2026-09-27)
+
+Where the implementation differs from a task as written:
+- **T030/T068**: `GET /api/me/notification-settings` has no `defaultTimeZone` (003 contract). Preferences names the
+  default zone ("Default (Europe/Amsterdam)") only while the account has no zone of its own, and says "Default"
+  otherwise. Adding the field would be a fifth API addition, which FR-045 rules out.
+- **T057**: the premise that A's `subscription_filter` row survives when A removes a shared calendar is wrong. 002's
+  `calendar_link_drop_filter` trigger drops it with A's last link. The test checks the real behaviour (the calendar
+  stays for B, and A's followers drop to 0). `FollowersAsync` keeps its `EXISTS` guard.
+- **T087**: the `Invite` object has no token. The page shows the `link` that `POST /api/admin/invites` returns for
+  a shareable invite (004 contract), instead of building it from `url.origin`.
+- **T089**: `GET /api/admin/calendars` returns no `name` (the admin query selects none), so rows show
+  "Calendar {id}". Adding the name would be a fifth API addition.
+- **T011/T012**: the tests read files through Vite's `import.meta.glob(…, { query: '?raw' })` instead of `node:fs`,
+  so no `@types/node` package is needed (plan: no other package).
+- **T027/T072**: the step-up part of `submitter()` was written with T027. `StepUp` handles its own action result, so
+  a wrong password shows in the dialog and the page's result stays.
+- **T001**: npm reports 3 low-severity advisories in `cookie` < 0.7 through `@sveltejs/kit` 2.70.3 (the latest Kit).
+  Its only fix is a downgrade to Kit 0.0.30. The app sets only fixed cookie names, paths and domains.
 
 ## Notes
 

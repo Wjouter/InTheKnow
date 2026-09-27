@@ -53,7 +53,7 @@ describe('gate', () => {
 		]) {
 			const thrown = (await Promise.resolve(run(o).response).catch((e: unknown) => e)) as { location: string };
 			expect(isRedirect(thrown)).toBe(true);
-			expect(thrown.location).toMatch(/^\/sign-in\?next=/);
+			expect(thrown.location).toMatch(/^\/sign-in\?next=%2F(changes|calendars)$/);
 		}
 	});
 

@@ -140,3 +140,34 @@ Open `http://localhost:5173` and use Mailpit at `http://localhost:8025`. Each st
     "Fast 4G" throttling.
 14. **Logs** (FR-047): the frontend terminal shows `time METHOD path status ms` lines, with no query strings,
     addresses, tokens or emails.
+
+## Walkthrough results (2026-09-27)
+
+Run by Claude against `npm run dev`, the API on a separate database (`intheknow_005`) and Mailpit, in the desktop
+app's built-in browser. What was exercised, and what wasn't:
+
+| Step | Result |
+|---|---|
+| 1. Sign-up and sign-in | Done: a password-rule refusal (rule marked, email kept), "sign-up is by invitation only", sign-up through a shareable invite ("check your email"), a wrong password (one generic message), sign-in with password + code and with a recovery code. **Not done**: the two-address page diff (SC-005), opening a confirmation link, the bot check (no provider configured). |
+| 2. First calendar | Partly: the `http://` refusal shows its message. **Not done**: adding a real feed. The walkthrough calendars were seeded in the database, so no outside feed was fetched on purpose. The API's background checker still fetched the seeded placeholder links once, before their next check was pushed back. |
+| 3. Changes | Done on seeded changes: newest first, grouped per event, "Event confirmed" + "Low priority", the hidden change only with the switch, a year only on the 2027 date, and the time zone applied after a change on Preferences. The label `<b>x</b>` shows literally (SC-010). **Not done**: "Older changes" paging (fewer than 50 changes). |
+| 4. Session hygiene | Done: `document.cookie` is empty, no storage holds a token, and neither the page nor a `__data.json` response mentions a bearer token or `itk_session`. Back after sign-out lands on sign-in. A cross-site `POST /calendars?/addLink` gets `403`, and a no-script `POST /account/forgot-password` with `Origin: null` works. Frame denial is checked on the response headers (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), not with a real iframe. |
+| 5. Email links | Done: signed out, `/calendars/3/notifications` leads to sign-in and back to that tab after the code step. A calendar of another account shows "not in the account". **Not done**: the next change sending no email. |
+| 6. Filters and presets | Partly: a rule without conditions is refused under that rule and the edits stay. A group rule is saved, and the calendar then says it has its own rules. **Not done**: picking from the list (the seed has no current events), save as preset, apply to a second calendar, the followers confirmation. |
+| 7. Notifications tab | Done: add a second address (waiting for confirmation, only resend and remove), pause, resume, send a test, and remove through the dialog. **Not done**: confirming from Mailpit, and the sixth-test refusal. |
+| 8. Account management | Partly: an email change asks for step-up (password + code) and then continues without retyping. 2FA turned on with the QR code, the key and a wrong code first; the recovery codes show once, and a recovery-code sign-in drops the count to 9. **Not done**: password reset, signing out another device, deleting the account. |
+| 9. Invites and admin | Partly: `make-admin` → "Accept your invite" → "admin pages unlock after two-step verification". A shareable invite link is shown once, and opening it drops the token from the address and shows the invite notice. Accounts, calendars, email status and presets (Default without Delete) load. **Not done**: the locked page before 2FA, promoting an account. |
+| 10. Language | Done with direct requests: `Accept-Language: nl` gives `lang="nl"` and "Inloggen"; the switch sets `itk_lang=en` and returns to the page. **Not done**: an account set to English after sign-in. |
+| 11. Phone and keyboard | Done at 360 × 740: every signed-in, admin and `/account/…` page has `scrollWidth` 360 (no horizontal scroll), and the tabs wrap. Keyboard: a spot check only (visible magenta focus outline, a dialog opened from the keyboard with focus inside, Esc closes it and focus returns). **Not done**: the full keyboard-only pass of steps 1, 2, 6 and 8. |
+| 12. Coverage | Marked in the [coverage table](./contracts/pages.md#coverage-every-api-action-and-the-page-that-offers-it-sc-002). |
+| 13. Speed | **Not measured** with throttling. The access log shows server times of 1 to 170 ms per page on loopback. |
+| 14. Logs | Done: lines are `time METHOD path status ms`, with no query strings, addresses, tokens or emails. The API client logs refusals as `api POST /api/auth/sign-in 401 invalid_credentials`. |
+
+Fixes made during the walkthrough:
+- A global `.notice` style leaked into the change groups. The component class is now `change`.
+- The dashed "hidden" border also applied to list items. It is now scoped to the group.
+- A group took its icon from its first normal item. It now takes the icon of the change that sets its tone.
+- The settings tabs marked nothing on `/settings/security/two-factor`. The longest matching tab is now current.
+- The browser pane asks for `/favicon.ico` on every page. The gate sent it to sign-in, which rendered the sign-in page each time. `handle` now answers it with a plain `404`.
+- After a session ended, client-side navigation reached sign-in, but the header kept the signed-in nav. The root layout load skipped reading `url` (a short-circuited `&&`), so it never reran. It now always reads the path.
+- The gate's `next` kept form action keys (`?/addLink`). It now uses the same `returnPath()` as the API client.
