@@ -8,7 +8,12 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ConnectionStrings__Default": "Host=localhost;Username=intheknow;Password=intheknow;Database=intheknow",
-        "InTheKnow__ApiKey": "CHANGE-ME"
+        "InTheKnow__Notifications__Email__Host": "localhost",
+        "InTheKnow__Notifications__Email__Port": "1025",
+        "InTheKnow__Notifications__Email__StartTls": "false",
+        "InTheKnow__Notifications__Email__FromAddress": "intheknow@localhost",
+        "InTheKnow__Notifications__PublicBaseUrl": "http://localhost:5000",
+        "InTheKnow__Notifications__FrontendBaseUrl": "http://localhost:5173"
       }
     }
   }

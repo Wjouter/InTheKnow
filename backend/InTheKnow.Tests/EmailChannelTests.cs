@@ -48,7 +48,7 @@ public partial class EmailChannelTests
         new(MessageKind.Test, language, Amsterdam, null, null, $"{Public}/n/unsubscribe/UNSUB", $"{Frontend}/notifications", [], 0);
 
     // The text and HTML parts of a built mail, and its raw headers.
-    static (string Text, string Html, MailMessage Mail) Render(Message m, string target = "student@example.nl")
+    internal static (string Text, string Html, MailMessage Mail) Render(Message m, string target = "student@example.nl")
     {
         var mail = EmailChannel.Build(target, m, Options);
         string Part(int i)

@@ -9,29 +9,18 @@ SvelteKit frontend will use it later, **from its server side only**.
 - **Errors**: RFC 9457 Problem Details (`application/problem+json`), with an extra `reason` field that holds a
   machine-readable code.
 
-## Authentication (FR-031)
+## Authentication and the account (changed by 004)
 
-Until the login feature exists, every `/api` request must send:
-
-```
-Authorization: Bearer <operator key>
-```
-
-- The key is configured as `InTheKnow:ApiKey` ([configuration.md](./configuration.md)).
-- The key is compared in constant time: `CryptographicOperations.FixedTimeEquals` on the SHA-256 of both values.
-- A missing or wrong key gets `401`, with no body detail. Nothing is read or changed.
-
-When login arrives, `{subscriber}` in the paths below becomes the signed-in user. The route shapes stay the same,
-and the operator-only routes stay operator-only.
-
-## Subscriber id
-
-`{subscriber}` must match `^[A-Za-z0-9._@-]{1,100}$`. Anything else gets `400` with the reason
-`invalid_subscriber`.
+The operator key is retired. Every `/api` request now needs a session of a signed-in account, and the user routes act
+for that account: see [004 contracts/api.md](../../004-accounts-login/contracts/api.md) § Authentication and § Moved
+routes.
+- `/api/me/…` became **`/api/me/…`**, with the same bodies and responses.
+- The operator overview moved to **`GET /api/admin/calendars`**, which needs an admin with a second factor.
+- The `invalid_subscriber` reason is gone, because there is no subscriber id in the path any more.
 
 ## Endpoints
 
-### `POST /api/subscribers/{subscriber}/links`: add a link (US5-1, FR-001, FR-003 to FR-007)
+### `POST /api/me/links`: add a link (US5-1, FR-001, FR-003 to FR-007)
 
 Request body:
 
@@ -52,11 +41,11 @@ validation is stored.
 |---|---|
 | `201` | `{ "calendarId": 12, "linkId": 40, "calendarIsNew": false }` |
 | `200` | The same shape. The subscriber already had this exact link, so nothing changed. |
-| `400` | `reason`: `invalid_subscriber`, `invalid_url`, `unsupported_scheme` (anything other than `https`, including `http`), `url_too_long`, `blocked_address` |
+| `400` | `reason`: `invalid_url`, `unsupported_scheme` (anything other than `https`, including `http`), `url_too_long`, `blocked_address` |
 | `422` | `reason`: `validation_failed:<code>`, where `<code>` is one of the check failure codes in [data-model.md](../data-model.md), for example `validation_failed:empty_feed` |
 | `429` | `reason`: `host_budget_exhausted`. The validation waits up to 5 s for the host's next free request slot (FR-012a). This status means more than 5 s of requests were already queued for that host. The response carries `Retry-After: 5`; the client retries after that many seconds. |
 
-### `GET /api/subscribers/{subscriber}/calendars`: the subscriber's calendars (FR-030)
+### `GET /api/me/calendars`: the subscriber's calendars (FR-030)
 
 `200`:
 
@@ -82,7 +71,7 @@ Links are listed by id only, never by URL (FR-032). An unknown subscriber gets `
 also has its notification switch (`notify`), its `label` and the `name` emails use (label, else the feed's calendar
 name, else the host); see [003 contracts/api.md](../../003-notification-channels/contracts/api.md).
 
-### `DELETE /api/subscribers/{subscriber}/calendars/{calendarId}`: remove a subscription (US5-4, FR-008)
+### `DELETE /api/me/calendars/{calendarId}`: remove a subscription (US5-4, FR-008)
 
 This deletes the subscriber's links to that calendar. If no links remain, the calendar and all its data are
 deleted in the same transaction.
@@ -92,7 +81,7 @@ deleted in the same transaction.
 | `204` | Removed |
 | `404` | The subscriber has no subscription to this calendar |
 
-### `GET /api/subscribers/{subscriber}/changes?after={id}&limit={n}`: recorded changes (US5-3)
+### `GET /api/me/changes?after={id}&limit={n}`: recorded changes (US5-3)
 
 Returns the changes of the calendars this subscriber currently subscribes to, ordered by `id` ascending.
 Pagination is keyset-based:
@@ -130,7 +119,7 @@ Pagination is keyset-based:
   `400` `invalid_include_hidden`). A page is only short when no visible changes remain. See
   [002 contracts/api.md](../../002-subscriber-change-filters/contracts/api.md) § Changes.
 
-### `GET /api/calendars?status={ok|failing}&overdue={true}&after={id}&limit={n}`: operator overview (US5-5, FR-027)
+### `GET /api/admin/calendars?status={ok|failing}&overdue={true}&after={id}&limit={n}`: operator overview (US5-5, FR-027)
 
 `status` and `overdue` are both optional filters. `status` other than `ok` or `failing` gets `400` with the reason
 `invalid_status`. `overdue=true` returns only calendars with `nextCheckAt < now - 1 min`, which shows when the
@@ -146,15 +135,15 @@ No links or subscriber ids are included.
 
 ## Not in this feature
 
-- CORS: not configured, because the browser never calls the API directly while it uses an operator key.
+- CORS: not configured, because the browser never calls the API directly; the frontend's server sends the session (004).
 - OpenAPI document generation and a health endpoint: to be added when the frontend or deployment needs them.
-- User login: the next feature.
+- User login: feature 004.
 
 ## Transport
 
 - The app listens on plain HTTP on the same host only: loopback (the ASP.NET Core default `http://localhost:5000`)
   or a host-internal container network. It never listens on an address reachable across a physical network.
 - **Outside local development it MUST run behind a TLS-terminating reverse proxy on the same host.** The
-  constitution's HTTPS rule applies, and the operator key must never travel unencrypted.
+  constitution's HTTPS rule applies, and session tokens must never travel unencrypted.
 - The API does not log request bodies. ASP.NET Core does not log them by default, and HTTP logging middleware is
   not enabled.

@@ -110,6 +110,10 @@ sealed class DeliveryHost : IAsyncDisposable
 {
     public required ApiHost H { get; init; }
     public required IChannelUnderTest[] Types { get; init; }
+    // Three signed-in accounts (004): the subscribers of 003's stories.
+    public required SignedIn S1 { get; init; }
+    public required SignedIn S2 { get; init; }
+    public required SignedIn S3 { get; init; }
     public IChannelUnderTest C => Types[0];
     public TestDb Db => H.Db;
     public Notifier Notifier => H.Factory.Services.GetRequiredService<Notifier>();
@@ -123,29 +127,35 @@ sealed class DeliveryHost : IAsyncDisposable
     public static async Task<DeliveryHost> CreateAsync(string type, params (string Key, string Value)[] extra) =>
         await CreateAsync([await UnderAsync(type)], extra);
 
-    public static async Task<DeliveryHost> CreateAsync(IChannelUnderTest[] types, params (string Key, string Value)[] extra)
+    public static Task<DeliveryHost> CreateAsync(IChannelUnderTest[] types, params (string Key, string Value)[] extra) =>
+        CreateWithAsync(types, null, extra);
+
+    // With extra registrations, such as the test-only sign-in method (004).
+    public static async Task<DeliveryHost> CreateWithAsync(IChannelUnderTest[] types, Action<IServiceCollection>? services,
+                                                           params (string Key, string Value)[] extra)
     {
         var h = await ApiHost.CreateAsync(s =>
         {
             s.RemoveAll<IChannelType>();
             foreach (var t in types) t.Register(s);
+            services?.Invoke(s);
         }, [.. types.SelectMany(t => t.Settings), .. extra]);
-        var d = new DeliveryHost { H = h, Types = types };
+        var d = new DeliveryHost { H = h, Types = types, S1 = await h.SignInAsync(), S2 = await h.SignInAsync(), S3 = await h.SignInAsync() };
         _ = d.Notifier; // resolves the channel types
         return d;
     }
 
     // A link through the API (validation through FakeHttp); returns the calendar id.
-    public async Task<long> SubscribeAsync(string subscriber, string url, string fixture = "mt-nl.ics")
+    public async Task<long> SubscribeAsync(SignedIn who, string url, string fixture = "mt-nl.ics")
     {
-        var r = await H.AddAsync(subscriber, url, fixture);
+        var r = await H.AddAsync(who, url, fixture);
         Assert.True(r.IsSuccessStatusCode, r.StatusCode.ToString());
         return JsonNode.Parse(await r.Content.ReadAsStringAsync(Ct))!["calendarId"]!.GetValue<long>();
     }
 
     // Inserted directly as active, for the stories that do not test consent.
-    public Task<long> AddActiveChannelAsync(string subscriber, string target, string? type = null) =>
-        CheckerTests.ChannelAsync(Db, subscriber, "active", Now, target, type ?? C.Type);
+    public Task<long> AddActiveChannelAsync(SignedIn who, string target, string? type = null) =>
+        CheckerTests.ChannelAsync(Db, who.AccountId, "active", Now, target, type ?? C.Type);
 
     // Swaps the feed and runs a real check: the only way changes (and so deliveries) are recorded (research R1).
     public async Task RecordChangesAsync(string url, string fixture)
@@ -177,8 +187,8 @@ sealed class DeliveryHost : IAsyncDisposable
             .ToDictionary(r => (long)r[0]!, r => ((string)r[1]!, (string?)r[2]));
 
     // Change id → outcome under the subscriber's filter now, from 002's changes route.
-    public async Task<List<(long Id, string Outcome)>> OutcomesAsync(string subscriber) =>
-        [.. (await H.JsonAsync($"/api/subscribers/{subscriber}/changes?includeHidden=true&limit=500"))["items"]!.AsArray()
+    public async Task<List<(long Id, string Outcome)>> OutcomesAsync(SignedIn who) =>
+        [.. (await who.JsonAsync("/api/me/changes?includeHidden=true&limit=500"))["items"]!.AsArray()
             .Select(i => (i!["id"]!.GetValue<long>(), i["outcome"]!.GetValue<string>()))];
 
     public List<Message> To(string target) => [.. C.Delivered.Where(d => d.Target == target).Select(d => d.Message)];
@@ -187,12 +197,12 @@ sealed class DeliveryHost : IAsyncDisposable
 
     public async Task<string> TextAsync(string sql, params object[] args) => (string)(await Db.RowsAsync(sql, args)).Single()[0]!;
 
-    public Task<HttpResponseMessage> PutAsync(string path, string json) =>
-        H.Client.PutAsync(path, new StringContent(json, Encoding.UTF8, "application/json"), Ct);
+    public Task<HttpResponseMessage> PutAsync(SignedIn who, string path, string json) =>
+        who.Client.PutAsync(path, new StringContent(json, Encoding.UTF8, "application/json"), Ct);
 
-    public Task<HttpResponseMessage> PostAsync(string path, object? body = null) => H.Client.PostAsJsonAsync(path, body ?? new { }, Ct);
+    public Task<HttpResponseMessage> PostAsync(SignedIn who, string path, object? body = null) => who.Client.PostAsJsonAsync(path, body ?? new { }, Ct);
 
-    // A public /n/ page, posted without the operator key.
+    // A public /n/ page, posted without a session.
     public async Task<HttpResponseMessage> PostPageAsync(string url, HttpContent? body = null)
     {
         using var bare = H.Factory.CreateClient();
@@ -200,9 +210,9 @@ sealed class DeliveryHost : IAsyncDisposable
     }
 
     // The confirmation flow through the API and the confirmation email: add, send, confirm. Returns the channel id.
-    public async Task<long> AddConfirmedChannelAsync(string subscriber, string target)
+    public async Task<long> AddConfirmedChannelAsync(SignedIn who, string target)
     {
-        var r = await PostAsync($"/api/subscribers/{subscriber}/channels", new { type = C.Type, target });
+        var r = await PostAsync(who, "/api/me/channels", new { type = C.Type, target });
         Assert.Equal(HttpStatusCode.Created, r.StatusCode);
         var id = JsonNode.Parse(await r.Content.ReadAsStringAsync(Ct))!["id"]!.GetValue<long>();
         await ConfirmLatestAsync(target);
@@ -237,10 +247,10 @@ public class DeliveryTests
     public async Task OneMessageWithTheVisibleChanges(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var channel = await d.AddActiveChannelAsync("s1", A);
+        await d.SubscribeAsync(d.S1, Url1);
+        var channel = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        var outcomes = await d.OutcomesAsync("s1");
+        var outcomes = await d.OutcomesAsync(d.S1);
         Assert.Equal(["hidden", "lowPriority", "normal"], outcomes.Select(o => o.Outcome).Distinct().Order());
 
         await d.AdvanceAndNotifyAsync(d.Window);
@@ -260,8 +270,8 @@ public class DeliveryTests
     public async Task CollectionWindow(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        await d.AddActiveChannelAsync("s1", A);
+        await d.SubscribeAsync(d.S1, Url1);
+        await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.AdvanceAndNotifyAsync(d.Window - TimeSpan.FromSeconds(2));
         Assert.Empty(d.To(A));
@@ -270,7 +280,7 @@ public class DeliveryTests
         await d.RecordChangesAsync(Url1, "mt-nl.ics");
         await d.AdvanceAndNotifyAsync(TimeSpan.FromSeconds(1));
         var m = Assert.Single(d.To(A));
-        var both = (await d.OutcomesAsync("s1")).Where(o => o.Outcome != "hidden").Select(o => o.Id);
+        var both = (await d.OutcomesAsync(d.S1)).Where(o => o.Outcome != "hidden").Select(o => o.Id);
         Assert.Equal(both, DeliveryHost.Ids(m));
 
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
@@ -285,12 +295,12 @@ public class DeliveryTests
     public async Task FilterIsAppliedAtSendTime(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var calendar = await d.SubscribeAsync("s1", Url1);
-        var channel = await d.AddActiveChannelAsync("s1", A);
+        var calendar = await d.SubscribeAsync(d.S1, Url1);
+        var channel = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        var put = await d.PutAsync($"/api/subscribers/s1/calendars/{calendar}/filter", """{"rules":[{"outcome":"hide","when":{"changeKind":["name"]}}]}""");
+        var put = await d.PutAsync(d.S1, $"/api/me/calendars/{calendar}/filter", """{"rules":[{"outcome":"hide","when":{"changeKind":["name"]}}]}""");
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
-        var outcomes = await d.OutcomesAsync("s1");
+        var outcomes = await d.OutcomesAsync(d.S1);
         var name = Assert.Single(outcomes, o => o.Outcome == "hidden").Id;
 
         await d.AdvanceAndNotifyAsync(d.Window);
@@ -305,8 +315,8 @@ public class DeliveryTests
     public async Task OnlyTheConfirmationBeforeConsent(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var r = await d.PostAsync("/api/subscribers/s1/channels", new { type = d.C.Type, target = A });
+        await d.SubscribeAsync(d.S1, Url1);
+        var r = await d.PostAsync(d.S1, "/api/me/channels", new { type = d.C.Type, target = A });
         Assert.Equal(HttpStatusCode.Created, r.StatusCode);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.AdvanceAndNotifyAsync(d.Window);
@@ -330,21 +340,21 @@ public class DeliveryTests
     public async Task SharedCalendarAndLateSubscribers(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var calendar = await d.SubscribeAsync("s1", Url1);
-        await d.AddActiveChannelAsync("s1", A);
-        await d.AddActiveChannelAsync("s2", B);
-        await d.AddActiveChannelAsync("s3", "c@example.nl");
-        Assert.Equal(calendar, await d.SubscribeAsync("s2", Url2));
-        var put = await d.PutAsync($"/api/subscribers/s2/calendars/{calendar}/filter", """{"rules":[{"outcome":"hide","when":{"changeKind":["name"]}}]}""");
+        var calendar = await d.SubscribeAsync(d.S1, Url1);
+        await d.AddActiveChannelAsync(d.S1, A);
+        await d.AddActiveChannelAsync(d.S2, B);
+        await d.AddActiveChannelAsync(d.S3, "c@example.nl");
+        Assert.Equal(calendar, await d.SubscribeAsync(d.S2, Url2));
+        var put = await d.PutAsync(d.S2, $"/api/me/calendars/{calendar}/filter", """{"rules":[{"outcome":"hide","when":{"changeKind":["name"]}}]}""");
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        Assert.Equal(calendar, await d.SubscribeAsync("s3", MtLink(user: "3003")));
+        Assert.Equal(calendar, await d.SubscribeAsync(d.S3, MtLink(user: "3003")));
 
         await d.AdvanceAndNotifyAsync(d.Window);
         var (a, b) = (Assert.Single(d.To(A)), Assert.Single(d.To(B)));
         Assert.Empty(d.To("c@example.nl"));
-        Assert.Equal((await d.OutcomesAsync("s1")).Where(o => o.Outcome != "hidden").Select(o => o.Id), DeliveryHost.Ids(a));
-        Assert.Equal((await d.OutcomesAsync("s2")).Where(o => o.Outcome != "hidden").Select(o => o.Id), DeliveryHost.Ids(b));
+        Assert.Equal((await d.OutcomesAsync(d.S1)).Where(o => o.Outcome != "hidden").Select(o => o.Id), DeliveryHost.Ids(a));
+        Assert.Equal((await d.OutcomesAsync(d.S2)).Where(o => o.Outcome != "hidden").Select(o => o.Id), DeliveryHost.Ids(b));
         Assert.NotEqual(DeliveryHost.Ids(a), DeliveryHost.Ids(b));
         Assert.DoesNotContain(B, a.ToString());
         Assert.DoesNotContain(A, b.ToString());
@@ -361,9 +371,9 @@ public class DeliveryTests
     public async Task EveryActiveChannelReceives(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        await d.AddActiveChannelAsync("s1", A);
-        await d.AddActiveChannelAsync("s1", B);
+        await d.SubscribeAsync(d.S1, Url1);
+        await d.AddActiveChannelAsync(d.S1, A);
+        await d.AddActiveChannelAsync(d.S1, B);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Equal(DeliveryHost.Ids(Assert.Single(d.To(A))), DeliveryHost.Ids(Assert.Single(d.To(B))));
@@ -374,12 +384,12 @@ public class DeliveryTests
     public async Task CalendarNames(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var labelled = await d.SubscribeAsync("s1", Url1);
-        var feed = await d.SubscribeAsync("s1", MtLink(id: "ALET26VT4B"));
-        var generic = await d.SubscribeAsync("s1", GenericUrl, "generic.ics");
+        var labelled = await d.SubscribeAsync(d.S1, Url1);
+        var feed = await d.SubscribeAsync(d.S1, MtLink(id: "ALET26VT4B"));
+        var generic = await d.SubscribeAsync(d.S1, GenericUrl, "generic.ics");
         Assert.Equal(3, new[] { labelled, feed, generic }.Distinct().Count());
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync($"/api/subscribers/s1/calendars/{labelled}/notifications", """{"label":"Minor robotics"}""")).StatusCode);
-        await d.AddActiveChannelAsync("s1", A);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, $"/api/me/calendars/{labelled}/notifications", """{"label":"Minor robotics"}""")).StatusCode);
+        await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.RecordChangesAsync(MtLink(id: "ALET26VT4B"), "mt-nl-edited.ics");
         await d.RecordChangesAsync(GenericUrl, "generic-edited.ics");
@@ -396,14 +406,14 @@ public class DeliveryTests
     public async Task NotificationSwitch(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var x = await d.SubscribeAsync("s1", Url1);
-        var y = await d.SubscribeAsync("s1", GenericUrl, "generic.ics");
-        var (a, b) = (await d.AddActiveChannelAsync("s1", A), await d.AddActiveChannelAsync("s1", B));
+        var x = await d.SubscribeAsync(d.S1, Url1);
+        var y = await d.SubscribeAsync(d.S1, GenericUrl, "generic.ics");
+        var (a, b) = (await d.AddActiveChannelAsync(d.S1, A), await d.AddActiveChannelAsync(d.S1, B));
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.RecordChangesAsync(GenericUrl, "generic-edited.ics");
-        var recorded = (await d.OutcomesAsync("s1")).Count;
+        var recorded = (await d.OutcomesAsync(d.S1)).Count;
 
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync($"/api/subscribers/s1/calendars/{x}/notifications", """{"notify":false}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, $"/api/me/calendars/{x}/notifications", """{"notify":false}""")).StatusCode);
         foreach (var channel in new[] { a, b })
             Assert.All(await ChangesOfAsync(d, channel, x), s => Assert.Equal(("skipped", "notificationsOff"), s));
         await d.AdvanceAndNotifyAsync(d.Window);
@@ -414,9 +424,9 @@ public class DeliveryTests
         var rows = await d.Db.ScalarAsync("SELECT count(*) FROM delivery");
         await d.RecordChangesAsync(Url1, "mt-nl.ics");
         Assert.Equal(rows, await d.Db.ScalarAsync("SELECT count(*) FROM delivery"));
-        Assert.True((await d.OutcomesAsync("s1")).Count > recorded);
+        Assert.True((await d.OutcomesAsync(d.S1)).Count > recorded);
 
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync($"/api/subscribers/s1/calendars/{x}/notifications", """{"notify":true}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, $"/api/me/calendars/{x}/notifications", """{"notify":true}""")).StatusCode);
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Single(d.To(A));
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
@@ -436,14 +446,14 @@ public class DeliveryTests
     public async Task PauseAndResume(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var channel = await d.AddActiveChannelAsync("s1", A);
+        await d.SubscribeAsync(d.S1, Url1);
+        var channel = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        Assert.Equal(HttpStatusCode.OK, (await d.PostAsync($"/api/subscribers/s1/channels/{channel}/pause")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PostAsync(d.S1, $"/api/me/channels/{channel}/pause")).StatusCode);
         Assert.All((await d.DeliveryStatusesAsync(channel)).Values, s => Assert.Equal(("skipped", "channelNotActive"), s));
         await d.RecordChangesAsync(Url1, "mt-nl.ics");
         var before = await d.Db.ScalarAsync("SELECT max(id) FROM detected_change");
-        Assert.Equal(HttpStatusCode.OK, (await d.PostAsync($"/api/subscribers/s1/channels/{channel}/resume")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PostAsync(d.S1, $"/api/me/channels/{channel}/resume")).StatusCode);
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Empty(d.To(A));
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
@@ -456,10 +466,10 @@ public class DeliveryTests
     public async Task RemoveChannel(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var channel = await d.AddActiveChannelAsync("s1", A);
+        await d.SubscribeAsync(d.S1, Url1);
+        var channel = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        Assert.Equal(HttpStatusCode.NoContent, (await d.H.Client.DeleteAsync($"/api/subscribers/s1/channels/{channel}", Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await d.S1.Client.DeleteAsync($"/api/me/channels/{channel}", Ct)).StatusCode);
         Assert.Equal(0, await d.Db.ScalarAsync("SELECT count(*) FROM delivery"));
         Assert.Equal(0, await d.Db.ScalarAsync("SELECT count(*) FROM channel"));
         await d.AdvanceAndNotifyAsync(d.Window);
@@ -471,8 +481,8 @@ public class DeliveryTests
     public async Task UnsubscribeAndConfirmAgain(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var channel = await d.AddConfirmedChannelAsync("s1", A);
+        await d.SubscribeAsync(d.S1, Url1);
+        var channel = await d.AddConfirmedChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         var token = await d.TextAsync("SELECT unsubscribe_token FROM channel WHERE id = $1", channel);
         var r = await d.PostPageAsync($"{EmailChannelTests.Public}/n/unsubscribe/{token}",
@@ -482,7 +492,7 @@ public class DeliveryTests
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Equal([MessageKind.Confirmation], d.To(A).Select(m => m.Kind));
 
-        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync($"/api/subscribers/s1/channels/{channel}/confirmation")).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync(d.S1, $"/api/me/channels/{channel}/confirmation")).StatusCode);
         await d.ConfirmLatestAsync(A);
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Equal([MessageKind.Confirmation, MessageKind.Confirmation], d.To(A).Select(m => m.Kind));
@@ -496,11 +506,11 @@ public class DeliveryTests
     public async Task RemovingTheSubscriptionSkips(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var calendar = await d.SubscribeAsync("s1", Url1);
-        await d.SubscribeAsync("s2", Url2); // keeps the calendar
-        var channel = await d.AddActiveChannelAsync("s1", A);
+        var calendar = await d.SubscribeAsync(d.S1, Url1);
+        await d.SubscribeAsync(d.S2, Url2); // keeps the calendar
+        var channel = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        Assert.Equal(HttpStatusCode.NoContent, (await d.H.Client.DeleteAsync($"/api/subscribers/s1/calendars/{calendar}", Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await d.S1.Client.DeleteAsync($"/api/me/calendars/{calendar}", Ct)).StatusCode);
         Assert.All((await d.DeliveryStatusesAsync(channel)).Values, s => Assert.Equal(("skipped", "subscriptionRemoved"), s));
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Empty(d.C.Delivered);
@@ -511,17 +521,17 @@ public class DeliveryTests
     public async Task SendTimeRecheck(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var calendar = await d.SubscribeAsync("s1", Url1);
-        var paused = await d.AddActiveChannelAsync("s1", A);
+        var calendar = await d.SubscribeAsync(d.S1, Url1);
+        var paused = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.Db.ExecAsync("UPDATE channel SET status = 'paused' WHERE id = $1", paused);
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Empty(d.C.Delivered);
         Assert.All((await d.DeliveryStatusesAsync(paused)).Values, s => Assert.Equal(("skipped", "channelNotActive"), s));
 
-        var off = await d.AddActiveChannelAsync("s1", B);
+        var off = await d.AddActiveChannelAsync(d.S1, B);
         await d.RecordChangesAsync(Url1, "mt-nl.ics");
-        await d.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify) VALUES ($1, 's1', false)", calendar);
+        await d.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify) VALUES ($1, $2, false)", calendar, d.S1.AccountId);
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Empty(d.C.Delivered);
         Assert.All((await d.DeliveryStatusesAsync(off)).Values, s => Assert.Equal(("skipped", "notificationsOff"), s));
@@ -532,18 +542,18 @@ public class DeliveryTests
     public async Task LanguageAndTimeZoneAtSendTime(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        await d.SubscribeAsync("s2", Url2);
-        await d.AddActiveChannelAsync("s1", A);
-        await d.AddActiveChannelAsync("s2", B);
+        await d.SubscribeAsync(d.S1, Url1);
+        await d.SubscribeAsync(d.S2, Url2);
+        await d.AddActiveChannelAsync(d.S1, A);
+        await d.AddActiveChannelAsync(d.S2, B);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync("/api/subscribers/s2/notification-settings", """{"language":"nl","timeZone":"America/New_York"}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S2, "/api/me/notification-settings", """{"language":"nl","timeZone":"America/New_York"}""")).StatusCode);
         await d.AdvanceAndNotifyAsync(d.Window);
         var (a, b) = (Assert.Single(d.To(A)), Assert.Single(d.To(B)));
         Assert.Equal(("en", "Europe/Amsterdam"), (a.Language, a.TimeZone.Id));
         Assert.Equal(("nl", "America/New_York"), (b.Language, b.TimeZone.Id));
 
-        var r = await d.PostAsync("/api/subscribers/s2/channels", new { type = d.C.Type, target = "c@example.nl" });
+        var r = await d.PostAsync(d.S2, "/api/me/channels", new { type = d.C.Type, target = "c@example.nl" });
         Assert.Equal(HttpStatusCode.Created, r.StatusCode);
         await d.NotifyAsync(3);
         Assert.Equal("nl", Assert.Single(d.To("c@example.nl")).Language);
@@ -567,9 +577,9 @@ public class DeliveryTests
     public async Task OutageBacksOffTheType(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
+        await d.SubscribeAsync(d.S1, Url1);
         var channels = new List<long>();
-        foreach (var t in new[] { A, B, "c@example.nl" }) channels.Add(await d.AddActiveChannelAsync("s1", t));
+        foreach (var t in new[] { A, B, "c@example.nl" }) channels.Add(await d.AddActiveChannelAsync(d.S1, t));
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         var times = Attempts(d);
         d.C.Outage = true;
@@ -588,7 +598,7 @@ public class DeliveryTests
 
         d.C.Outage = false;
         await d.AdvanceAndNotifyAsync(TimeSpan.FromMinutes(35));
-        var visible = (await d.OutcomesAsync("s1")).Where(o => o.Outcome != "hidden").Select(o => o.Id).ToList();
+        var visible = (await d.OutcomesAsync(d.S1)).Where(o => o.Outcome != "hidden").Select(o => o.Id).ToList();
         foreach (var t in new[] { A, B, "c@example.nl" }) Assert.Equal(visible, DeliveryHost.Ids(Assert.Single(d.To(t))));
         Assert.All(await d.Db.RowsAsync("SELECT failed_attempts, next_attempt_at FROM channel"), r => Assert.Equal([0, null], r));
     }
@@ -598,9 +608,9 @@ public class DeliveryTests
     public async Task ChannelBackoff(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var a = await d.AddActiveChannelAsync("s1", A);
-        await d.AddActiveChannelAsync("s1", B);
+        await d.SubscribeAsync(d.S1, Url1);
+        var a = await d.AddActiveChannelAsync(d.S1, A);
+        await d.AddActiveChannelAsync(d.S1, B);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         d.C.FailTemporarily(A, 2);
         async Task<(int, DateTimeOffset?)> BackoffAsync()
@@ -629,11 +639,11 @@ public class DeliveryTests
     public async Task BadMessageDoesNotStallTheType(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        await d.SubscribeAsync("s2", MtLink(id: "ALET26VT4B", user: "2002"));
-        var a = await d.AddActiveChannelAsync("s1", A);
-        await d.AddActiveChannelAsync("s2", B);
-        await d.AddActiveChannelAsync("s2", "c@example.nl");
+        await d.SubscribeAsync(d.S1, Url1);
+        await d.SubscribeAsync(d.S2, MtLink(id: "ALET26VT4B", user: "2002"));
+        var a = await d.AddActiveChannelAsync(d.S1, A);
+        await d.AddActiveChannelAsync(d.S2, B);
+        await d.AddActiveChannelAsync(d.S2, "c@example.nl");
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics"); // A's changes are the oldest due
         await d.RecordChangesAsync(MtLink(id: "ALET26VT4B", user: "2002"), "mt-nl-edited.ics");
         d.C.PoisonMessage(A);
@@ -655,8 +665,8 @@ public class DeliveryTests
     public async Task ExpiryAfterTheRetryWindow(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var a = await d.AddActiveChannelAsync("s1", A);
+        await d.SubscribeAsync(d.S1, Url1);
+        var a = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         d.C.Outage = true;
         for (var end = d.Now + TimeSpan.FromDays(1) + TimeSpan.FromMinutes(1); d.Now < end; d.H.Time.Advance(TimeSpan.FromMinutes(10)))
@@ -673,8 +683,8 @@ public class DeliveryTests
     public async Task UnconfiguredTypeStillExpires()
     {
         await using var d = await DeliveryHost.CreateAsync("test");
-        await d.SubscribeAsync("s1", Url1);
-        var a = await d.AddActiveChannelAsync("s1", A);
+        await d.SubscribeAsync(d.S1, Url1);
+        var a = await d.AddActiveChannelAsync(d.S1, A);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         ((TestTypeUnderTest)d.C).Channel.Configured = false;
         await d.AdvanceAndNotifyAsync(TimeSpan.FromDays(1) + TimeSpan.FromMinutes(1));
@@ -687,12 +697,12 @@ public class DeliveryTests
     public async Task PermanentRejection(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
-        var a = await d.AddActiveChannelAsync("s1", A);
-        await d.AddActiveChannelAsync("s1", B);
+        await d.SubscribeAsync(d.S1, Url1);
+        var a = await d.AddActiveChannelAsync(d.S1, A);
+        await d.AddActiveChannelAsync(d.S1, B);
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
-        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync($"/api/subscribers/s1/channels/{a}/test")).StatusCode);
-        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync($"/api/subscribers/s1/channels/{a}/test")).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync(d.S1, $"/api/me/channels/{a}/test")).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync(d.S1, $"/api/me/channels/{a}/test")).StatusCode);
         d.C.RejectPermanently(A);
         await d.AdvanceAndNotifyAsync(d.Window);
 
@@ -706,7 +716,7 @@ public class DeliveryTests
         await d.RecordChangesAsync(Url1, "mt-nl.ics");
         var before = await d.Db.ScalarAsync("SELECT max(id) FROM detected_change");
         d.C.FailTemporarily(A, 0); // the address works again
-        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync($"/api/subscribers/s1/channels/{a}/confirmation")).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync(d.S1, $"/api/me/channels/{a}/confirmation")).StatusCode);
         await d.ConfirmLatestAsync(A);
         Assert.Equal("active", await d.TextAsync("SELECT status FROM channel WHERE id = $1", a));
         await d.AdvanceAndNotifyAsync(d.Window);
@@ -721,9 +731,9 @@ public class DeliveryTests
     public async Task RestartNeverDuplicates(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        await d.SubscribeAsync("s1", Url1);
+        await d.SubscribeAsync(d.S1, Url1);
         string[] targets = [A, B, "c@example.nl"];
-        foreach (var t in targets) await d.AddActiveChannelAsync("s1", t);
+        foreach (var t in targets) await d.AddActiveChannelAsync(d.S1, t);
         CancellationTokenSource? cancel = null;
         var sends = 0;
         d.C.Recorder.Before.Add((_, ct) =>
@@ -755,7 +765,7 @@ public class DeliveryTests
                 d.H.Time.Advance(TimeSpan.FromMilliseconds(1));
             }
         }
-        var visible = (await d.OutcomesAsync("s1")).Where(o => o.Outcome != "hidden").Select(o => o.Id).Order().ToList();
+        var visible = (await d.OutcomesAsync(d.S1)).Where(o => o.Outcome != "hidden").Select(o => o.Id).Order().ToList();
         foreach (var t in targets)
         {
             var ids = d.To(t).SelectMany(DeliveryHost.Ids).ToList();
@@ -769,11 +779,11 @@ public class DeliveryTests
     public async Task FiftyListed(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var calendar = await d.SubscribeAsync("s1", Url1);
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync($"/api/subscribers/s1/calendars/{calendar}/filter", """{"rules":[]}""")).StatusCode);
-        var a = await d.AddActiveChannelAsync("s1", A);
+        var calendar = await d.SubscribeAsync(d.S1, Url1);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, $"/api/me/calendars/{calendar}/filter", """{"rules":[]}""")).StatusCode);
+        var a = await d.AddActiveChannelAsync(d.S1, A);
         for (var i = 0; i < 8; i++) await d.RecordChangesAsync(Url1, i % 2 == 0 ? "mt-nl-edited.ics" : "mt-nl.ics");
-        var all = (await d.OutcomesAsync("s1")).Select(o => o.Id).ToList();
+        var all = (await d.OutcomesAsync(d.S1)).Select(o => o.Id).ToList();
         Assert.True(all.Count > 50);
         await d.AdvanceAndNotifyAsync(d.Window);
         var m = Assert.Single(d.To(A));
@@ -791,13 +801,14 @@ public class DeliveryTests
         await using var d = await DeliveryHost.CreateAsync([under]);
         for (var s = 1; s <= 4; s++)
         {
-            await d.SubscribeAsync($"s{s}", MtLink(user: $"{s}00{s}"));
-            for (var c = 0; c < 5; c++) await d.AddActiveChannelAsync($"s{s}", $"{s}.{c}@example.nl");
+            var who = await d.H.SignInAsync();
+            await d.SubscribeAsync(who, MtLink(user: $"{s}00{s}"));
+            for (var c = 0; c < 5; c++) await d.AddActiveChannelAsync(who, $"{s}.{c}@example.nl");
         }
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         var times = Attempts(d);
         d.H.Time.Advance(d.Window);
-        var r = await d.PostAsync("/api/subscribers/s5/channels", new { type = d.C.Type, target = "late@example.nl" });
+        var r = await d.PostAsync(await d.H.SignInAsync(), "/api/me/channels", new { type = d.C.Type, target = "late@example.nl" });
         Assert.Equal(HttpStatusCode.Created, r.StatusCode);
 
         var start = d.Now;
@@ -828,14 +839,17 @@ public class DeliveryTests
         try
         {
             var url = "https://mass.example.com/feed.ics";
-            await d.SubscribeAsync("s0", url, before);
+            await d.SubscribeAsync(d.S1, url, before);
             var calendar = await d.Db.ScalarAsync("SELECT calendar_id FROM calendar_link");
             await d.Db.ExecAsync("""
-                INSERT INTO calendar_link (calendar_id, subscriber, url) SELECT $1, 's' || g, 'https://mass.example.com/feed.ics?' || g FROM generate_series(1, 999) g
+                WITH a AS (INSERT INTO account (email, language, confirmed_at, created_at)
+                           SELECT 'm' || g || '@example.nl', 'en', now(), now() FROM generate_series(1, 999) g RETURNING id)
+                INSERT INTO calendar_link (calendar_id, subscriber, url) SELECT $1, id, 'https://mass.example.com/feed.ics?' || id FROM a
                 """, calendar);
             await d.Db.ExecAsync("""
                 INSERT INTO channel (subscriber, type, target, status, status_since, activated_at, unsubscribe_token, created_at)
-                SELECT 's' || g, 'test', g || '@example.nl', 'active', $1, $1, lpad(g::text, 43, 't'), $1 FROM generate_series(0, 999) g
+                SELECT subscriber, 'test', subscriber || '@example.nl', 'active', $1, $1, lpad(subscriber::text, 43, 't'), $1
+                FROM (SELECT DISTINCT subscriber FROM calendar_link) s
                 """, d.Now);
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -866,9 +880,9 @@ public class DeliveryTests
     {
         var (email, test) = (await EmailUnderTest.CreateAsync(), new TestTypeUnderTest());
         await using var d = await DeliveryHost.CreateAsync([email, test]);
-        await d.SubscribeAsync("s1", Url1);
-        var e = await d.AddActiveChannelAsync("s1", A, "email");
-        var t = await d.AddActiveChannelAsync("s1", B, "test");
+        await d.SubscribeAsync(d.S1, Url1);
+        var e = await d.AddActiveChannelAsync(d.S1, A, "email");
+        var t = await d.AddActiveChannelAsync(d.S1, B, "test");
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.AdvanceAndNotifyAsync(d.Window);
         var (em, tm) = (Assert.Single(email.Recorder.Delivered).Message, Assert.Single(test.Recorder.Delivered).Message);
@@ -891,7 +905,7 @@ public class DeliveryTests
 
         // An outage of the test type does not back off email.
         test.Outage = true;
-        var u = await d.AddActiveChannelAsync("s1", "c@example.nl", "test");
+        var u = await d.AddActiveChannelAsync(d.S1, "c@example.nl", "test");
         await d.RecordChangesAsync(Url1, "mt-nl-edited.ics");
         await d.AdvanceAndNotifyAsync(d.Window);
         Assert.Equal(3, email.Recorder.Delivered.Count);
@@ -903,9 +917,9 @@ public class DeliveryTests
     public async Task TestMessage(string type)
     {
         await using var d = await DeliveryHost.CreateAsync(type);
-        var a = await d.AddActiveChannelAsync("s1", A);
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync("/api/subscribers/s1/notification-settings", """{"language":"nl"}""")).StatusCode);
-        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync($"/api/subscribers/s1/channels/{a}/test")).StatusCode);
+        var a = await d.AddActiveChannelAsync(d.S1, A);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, "/api/me/notification-settings", """{"language":"nl"}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync(d.S1, $"/api/me/channels/{a}/test")).StatusCode);
         await d.NotifyAsync(3);
         var m = Assert.Single(d.To(A));
         Assert.Equal((MessageKind.Test, "nl", $"{EmailChannelTests.Frontend}/notifications"), (m.Kind, m.Language, m.SettingsUrl));
@@ -915,8 +929,8 @@ public class DeliveryTests
         await d.NotifyAsync(3);
         Assert.Single(d.To(A));
 
-        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync($"/api/subscribers/s1/channels/{a}/test")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await d.PostAsync($"/api/subscribers/s1/channels/{a}/pause")).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync(d.S1, $"/api/me/channels/{a}/test")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PostAsync(d.S1, $"/api/me/channels/{a}/pause")).StatusCode);
         await d.NotifyAsync(3);
         Assert.Single(d.To(A));
         Assert.Equal(1, await d.Db.ScalarAsync("SELECT count(*) FROM channel_message"));

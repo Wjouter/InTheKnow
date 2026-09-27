@@ -73,6 +73,11 @@ sealed class EmailChannel(Settings settings) : IChannelType
                 r.Paragraph(r.T("test.body"));
                 r.Link(r.T("test.settings"), m.SettingsUrl!);
                 break;
+            case MessageKind.Account:
+                r.Paragraph(Texts.Format(m.Language, AccountBody(m), AccountValue(m)));
+                if (m.Link is not null) r.Button(r.T($"account.{m.AccountKind}.action"), m.Link);
+                r.Paragraph(r.T("account.footer"));
+                break;
         }
 
         var mail = new MailMessage
@@ -87,7 +92,8 @@ sealed class EmailChannel(Settings settings) : IChannelType
         mail.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(
             $"<!DOCTYPE html><html lang=\"{m.Language}\"><body style=\"font-family:sans-serif;font-size:14px;color:#222\">{html}</body></html>",
             Encoding.UTF8, "text/html"));
-        if (m.Kind != MessageKind.Confirmation)
+        // Account emails are about the account, not optional news: no unsubscribe (specs/004 contracts/account-emails.md).
+        if (m.Kind is not (MessageKind.Confirmation or MessageKind.Account))
         {
             mail.Headers.Add("List-Unsubscribe", $"<{m.UnsubscribeUrl}>");
             mail.Headers.Add("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
@@ -95,9 +101,29 @@ sealed class EmailChannel(Settings settings) : IChannelType
         return mail;
     }
 
+    // roleChanged and invite have one body per role.
+    static string AccountBody(Message m) => m.AccountKind switch
+    {
+        "roleChanged" => $"account.roleChanged.body.{(Arg(m, "role") == "admin" ? "admin" : "user")}",
+        "invite" => $"account.invite.body.{(Arg(m, "admin") == "true" ? "admin" : "user")}",
+        _ => $"account.{m.AccountKind}.body",
+    };
+
+    // The body's one inserted value, if it has one.
+    static string AccountValue(Message m) => m.AccountKind switch
+    {
+        "recoveryCodeUsed" => Arg(m, "remaining"),
+        "methodAdded" or "methodRemoved" => Arg(m, "type"),
+        "invite" => Arg(m, "expires"),
+        _ => "",
+    };
+
+    static string Arg(Message m, string key) => m.Args?.GetValueOrDefault(key) ?? "";
+
     static string Subject(Message m) => m.Kind switch
     {
         MessageKind.Confirmation => Texts.Get(m.Language, "subject.confirmation"),
+        MessageKind.Account => Texts.Get(m.Language, $"account.{m.AccountKind}.subject"),
         MessageKind.Test => Texts.Get(m.Language, "subject.test"),
         _ when m.Calendars.Count != 1 => Texts.Format(m.Language, "subject.changesCalendars", Count(m), m.Calendars.Count),
         _ when Count(m) == 1 => Texts.Format(m.Language, "subject.change", m.Calendars[0].Name),
@@ -125,6 +151,15 @@ sealed class EmailChannel(Settings settings) : IChannelType
         {
             text.Append(label).Append(": ").Append(url).Append("\n\n");
             html.Append("<p style=\"margin:0 0 12px\"><a href=\"").Append(E(url)).Append("\">").Append(E(label)).Append("</a></p>");
+        }
+
+        // The link as a button in HTML, and on a line of its own in text.
+        public void Button(string label, string url)
+        {
+            text.Append(label).Append(":\n").Append(url).Append("\n\n");
+            html.Append("<p style=\"margin:16px 0\"><a href=\"").Append(E(url))
+                .Append("\" style=\"display:inline-block;padding:10px 16px;background:#2a6;color:#fff;text-decoration:none;border-radius:4px\">")
+                .Append(E(label)).Append("</a></p>");
         }
 
         public void Calendar(CalendarGroup g)

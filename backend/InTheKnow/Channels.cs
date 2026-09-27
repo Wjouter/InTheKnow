@@ -1,4 +1,5 @@
 using System.Buffers.Text;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,8 +10,8 @@ using NpgsqlTypes;
 
 namespace InTheKnow;
 
-sealed record ChannelRow(long Id, string Subscriber, string Type, string Target, string Status, string? FailureReason,
-                         DateTimeOffset? LastMessageAt, DateTimeOffset CreatedAt);
+sealed record ChannelRow(long Id, long Subscriber, string Type, string Target, string Status, string? FailureReason,
+                         DateTimeOffset? LastMessageAt, DateTimeOffset CreatedAt, bool AccountAddress = false);
 
 // Error is the contracts/api.md `reason`; "not_found" means 404. Channel is also set with channel_not_active (US7-2).
 sealed record ChannelResult(ChannelRow? Channel, string? Error);
@@ -31,7 +32,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
 {
     const int MaxConfirmations = 3, MaxTests = 5;
     static readonly TimeSpan ConfirmationValidity = TimeSpan.FromHours(48), Unused = TimeSpan.FromDays(30), Day = TimeSpan.FromDays(1);
-    const string Columns = "id, subscriber, type, target, status, failure_reason, last_message_at, created_at";
+    const string Columns = "id, subscriber, type, target, status, failure_reason, last_message_at, created_at, is_account_address";
 
     [GeneratedRegex("^[A-Za-z0-9_-]{43}$")] private static partial Regex TokenShape();
 
@@ -39,13 +40,13 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
 
     public static byte[] Hash(string token) => SHA256.HashData(Encoding.UTF8.GetBytes(token));
 
-    // research R7: salted with the subscriber id, so equal addresses of different subscribers do not correlate.
-    public static byte[] DeclinedHash(string subscriber, string address) =>
-        SHA256.HashData(Encoding.UTF8.GetBytes(subscriber + "\n" + address.ToLowerInvariant()));
+    // research R7: salted with the account id, so equal addresses of different accounts do not correlate.
+    public static byte[] DeclinedHash(long subscriber, string address) =>
+        SHA256.HashData(Encoding.UTF8.GetBytes(subscriber.ToString(CultureInfo.InvariantCulture) + "\n" + address.ToLowerInvariant()));
 
     IChannelType? Type(string name) => types.FirstOrDefault(t => t.Name == name);
 
-    public async Task<List<ChannelRow>> ListAsync(string subscriber, CancellationToken ct)
+    public async Task<List<ChannelRow>> ListAsync(long subscriber, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand($"SELECT {Columns} FROM channel WHERE subscriber = $1 ORDER BY id");
         cmd.Parameters.Add(new() { Value = subscriber });
@@ -55,7 +56,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         return rows;
     }
 
-    public async Task<ChannelResult> AddAsync(string subscriber, string type, string target, CancellationToken ct)
+    public async Task<ChannelResult> AddAsync(long subscriber, string type, string target, CancellationToken ct)
     {
         if (Type(type) is not { } t) return Fail("invalid_type");
         if (t.Normalize(target) is not { } normalized) return Fail("invalid_target");
@@ -134,7 +135,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         await using var find = new NpgsqlCommand("""
-            SELECT ch.id, ch.status, coalesce(s.language, 'en') FROM channel ch LEFT JOIN subscriber_setting s ON s.subscriber = ch.subscriber
+            SELECT ch.id, ch.status, a.language FROM channel ch JOIN account a ON a.id = ch.subscriber
             WHERE ch.unsubscribe_token = $1 FOR UPDATE OF ch
             """, conn, tx)
         { Parameters = { new() { Value = token } } };
@@ -157,13 +158,13 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
     {
         if (!TokenShape().IsMatch(token)) return null;
         await using var cmd = db.CreateCommand(unsubscribe
-            ? "SELECT coalesce(s.language, 'en') FROM channel ch LEFT JOIN subscriber_setting s ON s.subscriber = ch.subscriber WHERE ch.unsubscribe_token = $1"
+            ? "SELECT a.language FROM channel ch JOIN account a ON a.id = ch.subscriber WHERE ch.unsubscribe_token = $1"
             : "SELECT language FROM channel_message WHERE token_hash = $1");
         cmd.Parameters.Add(new() { Value = unsubscribe ? token : Hash(token) });
         return (string?)await cmd.ExecuteScalarAsync(ct);
     }
 
-    public Task<ChannelResult> PauseAsync(string subscriber, long id, CancellationToken ct) =>
+    public Task<ChannelResult> PauseAsync(long subscriber, long id, CancellationToken ct) =>
         TransitionAsync(subscriber, id, ct, async (conn, tx, row, now) =>
         {
             if (row.Status != "active") return "invalid_status";
@@ -171,7 +172,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
             return null;
         });
 
-    public Task<ChannelResult> ResumeAsync(string subscriber, long id, CancellationToken ct) =>
+    public Task<ChannelResult> ResumeAsync(long subscriber, long id, CancellationToken ct) =>
         TransitionAsync(subscriber, id, ct, async (conn, tx, row, now) =>
         {
             if (row.Status != "paused") return "invalid_status";
@@ -182,7 +183,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         });
 
     // FR-029: the cascade removes its deliveries and messages.
-    public async Task<ChannelResult> RemoveAsync(string subscriber, long id, CancellationToken ct)
+    public async Task<ChannelResult> RemoveAsync(long subscriber, long id, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand("DELETE FROM channel WHERE id = $1 AND subscriber = $2");
         cmd.Parameters.Add(new() { Value = id });
@@ -191,7 +192,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
     }
 
     // FR-006, research R10: at most 3 confirmation emails per channel per 24 h, the initial one included.
-    public Task<ChannelResult> RequestConfirmationAsync(string subscriber, long id, CancellationToken ct) =>
+    public Task<ChannelResult> RequestConfirmationAsync(long subscriber, long id, CancellationToken ct) =>
         TransitionAsync(subscriber, id, ct, async (conn, tx, row, now) =>
         {
             if (row.Status is not ("awaitingConfirmation" or "unsubscribed" or "failing")) return "invalid_status";
@@ -203,7 +204,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         }, keepStatus: true);
 
     // FR-023: at most 5 test messages per channel per 24 h, to an active channel only.
-    public Task<ChannelResult> RequestTestAsync(string subscriber, long id, CancellationToken ct) =>
+    public Task<ChannelResult> RequestTestAsync(long subscriber, long id, CancellationToken ct) =>
         TransitionAsync(subscriber, id, ct, async (conn, tx, row, now) =>
         {
             if (row.Status != "active") return "channel_not_active";
@@ -232,8 +233,29 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         }
     }
 
+    // 004 FR-028, research R15: a confirmed account gets its own address as an active email channel. It counts toward the
+    // limit, and an unconfirmed account owns no channels, so there is always room.
+    public static Task AddAccountAddressAsync(NpgsqlConnection conn, NpgsqlTransaction tx, long accountId, string email, DateTimeOffset now,
+                                              CancellationToken ct) =>
+        ExecAsync(conn, tx, """
+            INSERT INTO channel (subscriber, type, target, status, status_since, activated_at, unsubscribe_token, created_at, is_account_address)
+            VALUES ($1, 'email', $2, 'active', $3, $3, $4, $3, true)
+            """, ct, accountId, email.Trim(), now, NewToken());
+
+    // FR-023, research R15: the account's own channel follows its new address. A separate channel for that address goes
+    // first, with its pending deliveries, so the unique target index holds. Without a flagged channel nothing moves.
+    public static async Task MoveAccountAddressAsync(NpgsqlConnection conn, NpgsqlTransaction tx, long accountId, string newEmail, CancellationToken ct)
+    {
+        await using (var find = new NpgsqlCommand("SELECT 1 FROM channel WHERE subscriber = $1 AND is_account_address", conn, tx)
+        { Parameters = { new() { Value = accountId } } })
+            if (await find.ExecuteScalarAsync(ct) is null) return;
+        await ExecAsync(conn, tx, "DELETE FROM channel WHERE subscriber = $1 AND NOT is_account_address AND type = 'email' AND lower(target) = lower($2)",
+            ct, accountId, newEmail);
+        await ExecAsync(conn, tx, "UPDATE channel SET target = $2 WHERE subscriber = $1 AND is_account_address", ct, accountId, newEmail);
+    }
+
     // Null when the subscriber has no subscription to the calendar.
-    public async Task<SubscriptionNotifications?> GetSubscriptionAsync(string subscriber, long calendarId, CancellationToken ct)
+    public async Task<SubscriptionNotifications?> GetSubscriptionAsync(long subscriber, long calendarId, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand("""
             SELECT coalesce(ss.notify, true), ss.label, coalesce(ss.label, c.feed_name, c.host)
@@ -248,7 +270,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
     }
 
     // Body { notify?, label? } (contracts/api.md); a missing field keeps its value, a null label clears it.
-    public async Task<(SubscriptionNotifications? Value, string? Error)> SetSubscriptionAsync(string subscriber, long calendarId, JsonObject body, CancellationToken ct)
+    public async Task<(SubscriptionNotifications? Value, string? Error)> SetSubscriptionAsync(long subscriber, long calendarId, JsonObject body, CancellationToken ct)
     {
         var (hasNotify, hasLabel) = (body.ContainsKey("notify"), body.ContainsKey("label"));
         if (!hasNotify && !hasLabel) return (null, "empty_body");
@@ -293,18 +315,19 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         return (await GetSubscriptionAsync(subscriber, calendarId, ct), null);
     }
 
-    // No row means English and the operator default (FR-017, FR-018a).
-    public async Task<NotificationSettings> GetSettingsAsync(string subscriber, CancellationToken ct)
+    // The account's language and time zone (004 research R1); no time zone means the operator default (FR-018a).
+    public async Task<NotificationSettings> GetSettingsAsync(long subscriber, CancellationToken ct)
     {
-        await using var cmd = db.CreateCommand("SELECT language, time_zone FROM subscriber_setting WHERE subscriber = $1");
+        await using var cmd = db.CreateCommand("SELECT language, time_zone FROM account WHERE id = $1");
         cmd.Parameters.Add(new() { Value = subscriber });
         await using var r = await cmd.ExecuteReaderAsync(ct);
-        var (language, zone) = await r.ReadAsync(ct) ? (r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1)) : ("en", null);
+        await r.ReadAsync(ct);
+        var (language, zone) = (r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1));
         return new(language, zone, zone ?? settings.DefaultTimeZone.Id);
     }
 
     // Body { language?, timeZone? }; a null time zone clears it. A rejected request keeps the previous values.
-    public async Task<(NotificationSettings? Value, string? Error)> SetSettingsAsync(string subscriber, JsonObject body, CancellationToken ct)
+    public async Task<(NotificationSettings? Value, string? Error)> SetSettingsAsync(long subscriber, JsonObject body, CancellationToken ct)
     {
         var (hasLanguage, hasZone) = (body.ContainsKey("language"), body.ContainsKey("timeZone"));
         if (!hasLanguage && !hasZone) return (null, "empty_body");
@@ -317,9 +340,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
             zone = z.Id;
         }
         await using var cmd = db.CreateCommand("""
-            INSERT INTO subscriber_setting (subscriber, language, time_zone) VALUES ($1, coalesce($2, 'en'), $3)
-            ON CONFLICT (subscriber) DO UPDATE
-            SET language = coalesce($2, subscriber_setting.language), time_zone = CASE WHEN $4 THEN $3 ELSE subscriber_setting.time_zone END
+            UPDATE account SET language = coalesce($2, language), time_zone = CASE WHEN $4 THEN $3 ELSE time_zone END WHERE id = $1
             """);
         cmd.Parameters.Add(new() { Value = subscriber });
         cmd.Parameters.Add(new() { Value = (object?)language ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
@@ -337,7 +358,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
             """, ct, id, status, now);
 
     // Locks the subscriber's channel, runs one lifecycle step and returns the channel as it is after it.
-    async Task<ChannelResult> TransitionAsync(string subscriber, long id, CancellationToken ct,
+    async Task<ChannelResult> TransitionAsync(long subscriber, long id, CancellationToken ct,
         Func<NpgsqlConnection, NpgsqlTransaction, ChannelRow, DateTimeOffset, Task<string?>> step, bool keepStatus = false)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
@@ -351,7 +372,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         return new(after, null);
     }
 
-    static async Task<ChannelRow?> LockAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string subscriber, long id, CancellationToken ct)
+    static async Task<ChannelRow?> LockAsync(NpgsqlConnection conn, NpgsqlTransaction tx, long subscriber, long id, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand($"SELECT {Columns} FROM channel WHERE id = $1 AND subscriber = $2 FOR UPDATE", conn, tx)
         { Parameters = { new() { Value = id }, new() { Value = subscriber } } };
@@ -360,7 +381,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
     }
 
     sealed record TokenMessage(long Id, long ChannelId, DateTimeOffset? UsedAt, DateTimeOffset? ExpiresAt, string Language,
-                               string Status, string Type, string Subscriber, string Target);
+                               string Status, string Type, long Subscriber, string Target);
 
     // The sent confirmation a token belongs to, with its channel locked.
     static async Task<TokenMessage?> MessageAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string token, CancellationToken ct)
@@ -375,10 +396,10 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         await using var r = await cmd.ExecuteReaderAsync(ct);
         if (!await r.ReadAsync(ct)) return null;
         return new(r.GetInt64(0), r.GetInt64(1), r.IsDBNull(2) ? null : r.GetFieldValue<DateTimeOffset>(2),
-            r.IsDBNull(3) ? null : r.GetFieldValue<DateTimeOffset>(3), r.GetString(4), r.GetString(5), r.GetString(6), r.GetString(7), r.GetString(8));
+            r.IsDBNull(3) ? null : r.GetFieldValue<DateTimeOffset>(3), r.GetString(4), r.GetString(5), r.GetString(6), r.GetInt64(7), r.GetString(8));
     }
 
-    static async Task<bool> DeclinedAsync(NpgsqlConnection conn, NpgsqlTransaction? tx, string subscriber, string address, CancellationToken ct)
+    static async Task<bool> DeclinedAsync(NpgsqlConnection conn, NpgsqlTransaction? tx, long subscriber, string address, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand("SELECT 1 FROM declined_address WHERE subscriber = $1 AND address_hash = $2", conn, tx)
         { Parameters = { new() { Value = subscriber }, new() { Value = DeclinedHash(subscriber, address) } } };
@@ -396,8 +417,8 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         ExecAsync(conn, tx, "INSERT INTO channel_message (channel_id, kind, requested_at) VALUES ($1, $2, $3)", ct, id, kind, now);
 
     static ChannelRow Read(NpgsqlDataReader r) =>
-        new(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5),
-            r.IsDBNull(6) ? null : r.GetFieldValue<DateTimeOffset>(6), r.GetFieldValue<DateTimeOffset>(7));
+        new(r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5),
+            r.IsDBNull(6) ? null : r.GetFieldValue<DateTimeOffset>(6), r.GetFieldValue<DateTimeOffset>(7), r.GetBoolean(8));
 
     static ChannelResult Fail(string reason) => new(null, reason);
 

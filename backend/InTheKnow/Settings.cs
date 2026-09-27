@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Mail;
 
 namespace InTheKnow;
@@ -14,6 +15,24 @@ sealed class InTheKnowOptions
     // No default domain here: the binder appends to an initialised list, so appsettings.json holds the default.
     public MyTimetablesOptions MyTimetables { get; set; } = new();
     public NotificationsOptions Notifications { get; set; } = new();
+    public AccountsOptions Accounts { get; set; } = new();
+}
+
+// specs/004 contracts/configuration.md.
+sealed class AccountsOptions
+{
+    public TimeSpan SessionIdleLifetime { get; set; } = TimeSpan.FromDays(30);
+    public int SourceFailuresPerHour { get; set; } = 3000;
+    public int SourceRequestsPerHour { get; set; } = 1000;
+    public List<string> TrustedProxies { get; set; } = []; // IP addresses or CIDR networks
+    public BotCheckOptions BotCheck { get; set; } = new();
+}
+
+sealed class BotCheckOptions
+{
+    public string Provider { get; set; } = "";
+    public string SiteKey { get; set; } = "";
+    public string SecretKey { get; set; } = "";
 }
 
 sealed class NotificationsOptions
@@ -69,6 +88,8 @@ sealed class Settings
     public required InTheKnowOptions Options { get; init; }
     public required string ConnectionString { get; init; }
     public required TimeZoneInfo DefaultTimeZone { get; init; }
+    public IReadOnlyList<IPAddress> TrustedProxyAddresses { get; init; } = [];
+    public IReadOnlyList<IPNetwork> TrustedProxyNetworks { get; init; } = [];
     Dictionary<string, DomainOptions> domains = [];
 
     public static Settings Load(IConfiguration c, ILogger log)
@@ -76,7 +97,7 @@ sealed class Settings
         var o = c.GetSection("InTheKnow").Get<InTheKnowOptions>() ?? new();
         var cs = c.GetConnectionString("Default");
         if (string.IsNullOrWhiteSpace(cs)) throw new InvalidOperationException("ConnectionStrings:Default is required");
-        if (o.ApiKey.Length < 32) throw new InvalidOperationException("InTheKnow:ApiKey must be at least 32 characters");
+        if (o.ApiKey != "") log.LogWarning("InTheKnow:ApiKey is retired and ignored");
 
         var minimum = TimeSpan.FromMinutes(5);
         if (o.CheckInterval < minimum)
@@ -123,12 +144,35 @@ sealed class Settings
         Require(e.FromName is { Length: >= 1 and <= 100 } && !e.FromName.Any(char.IsControl),
             n + "Email:FromName must be 1 to 100 characters without control characters");
         Require(e.MaxMessagesPerMinute >= 1, n + "Email:MaxMessagesPerMinute must be at least 1");
+        if (e.Host == "") log.LogWarning("Email is not configured: account confirmation, reset and invite emails wait until it is");
+
+        // specs/004 contracts/configuration.md.
+        const string a = "InTheKnow:Accounts:";
+        var ao = o.Accounts;
+        Require(ao.SessionIdleLifetime >= TimeSpan.FromHours(1) && ao.SessionIdleLifetime <= TimeSpan.FromDays(365),
+            a + "SessionIdleLifetime must be between 1 hour and 365 days");
+        Require(ao.SourceFailuresPerHour >= 20, a + "SourceFailuresPerHour must be at least 20");
+        Require(ao.SourceRequestsPerHour >= 10, a + "SourceRequestsPerHour must be at least 10");
+        var (proxies, networks) = (new List<IPAddress>(), new List<IPNetwork>());
+        for (var i = 0; i < ao.TrustedProxies.Count; i++)
+        {
+            if (IPAddress.TryParse(ao.TrustedProxies[i], out var ip)) proxies.Add(ip);
+            else if (IPNetwork.TryParse(ao.TrustedProxies[i], out var net)) networks.Add(net);
+            else Require(false, $"{a}TrustedProxies:{i} must be an IP address or a CIDR network");
+        }
+        if (proxies.Count + networks.Count == 0)
+            log.LogWarning("InTheKnow:Accounts:TrustedProxies is empty: the direct peer is the client, so all users behind a proxy share one throttling source");
+        var bot = ao.BotCheck;
+        Require(bot.Provider is "" or "turnstile" or "recaptcha", a + "BotCheck:Provider must be empty, turnstile or recaptcha");
+        Require(bot.Provider == "" || bot.SiteKey != "" && bot.SecretKey != "", a + "BotCheck:SiteKey and BotCheck:SecretKey are required when a provider is set");
 
         return new Settings
         {
             Options = o,
             ConnectionString = cs,
             DefaultTimeZone = zone!,
+            TrustedProxyAddresses = proxies,
+            TrustedProxyNetworks = networks,
             domains = o.MyTimetables.Domains.ToDictionary(d => d.Host, StringComparer.OrdinalIgnoreCase),
         };
     }
