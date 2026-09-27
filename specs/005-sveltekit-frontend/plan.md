@@ -159,22 +159,22 @@ frontend/                                   # NEW
     │   ├── styles/base.css                 # design system base + forced-colours focus fix
     │   ├── components/                     # Button, Field, Switch, Badge, Card, Dialog, Toast, TabNav, Header,
     │   │                                   # PhoneNav, PageIntro, ChangeGroup, CalendarStatus, RuleEditor, StepUp,
-    │   │                                   # BotCheck, PasswordRules
-    │   ├── i18n/en.ts, i18n/nl.ts, i18n/index.ts   # typed dictionaries (R10)
+    │   │                                   # BotCheck, PasswordRules, AddCalendar, RecoveryCodes
+    │   ├── i18n/en.ts, i18n/nl.ts, i18n/index.ts, i18n/index.test.ts   # typed dictionaries, pickLang (R9, R10)
     │   ├── codes.ts                        # Reason, CheckFailure unions; pattern-code mapping
-    │   ├── enhance.ts                      # pending flag + step-up resubmit (R8)
-    │   ├── codes.test.ts                   # contract reasons ⊆ Reason union (SC-009)
+    │   ├── enhance.svelte.ts, enhance.test.ts   # pending flag + step-up resubmit (R8); runes need .svelte.ts
+    │   ├── codes.test.ts                   # contract reasons ⊆ Reason union (SC-009), pattern codes
     │   ├── next.ts, next.test.ts           # safeNext (R6)
     │   └── server/
     │       ├── api.ts, api.test.ts         # API client, error mapping, cookies (R3, R5, R7)
-    │       ├── actions.ts                  # shared: reauthenticate, fail() helpers, bot check field
+    │       ├── actions.ts, actions.test.ts # shared: reauthenticate, refuse(), formValues(), bot check field
     │       ├── changes.ts, changes.test.ts # sentences, grouping, tones (R11)
-    │       ├── rules.ts                    # rule sentences, inactive reasons (R14)
+    │       ├── rules.ts, rules.test.ts     # rule sentences, inactive reasons (R14)
     │       └── format.ts, format.test.ts   # dates, waits (R12)
     └── routes/
         ├── +layout.svelte, +layout.server.ts, +error.svelte, +page.svelte, +page.server.ts   # / (visitor or home)
-        ├── sign-in/, sign-in/code/, sign-out/, language/
-        ├── account/{sign-up,confirmation,confirm,forgot-password,reset,email,invite}/
+        ├── sign-in/, sign-in/code/, sign-out/, language/   # sign-in and code/ hold sign-in.test.ts, code.test.ts
+        ├── account/{sign-up,confirmation,confirm,forgot-password,reset,email,invite}/   # sign-up/sign-up.test.ts
         ├── changes/
         ├── calendars/, calendars/[id]/{+layout,+page,filter,notifications}/
         ├── presets/, presets/[id]/
