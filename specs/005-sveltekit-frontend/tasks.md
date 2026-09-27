@@ -242,7 +242,7 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Tests for User Story 1 (write first)
 
-- [ ] T031 [P] [US1] `frontend/src/routes/sign-in/sign-in.test.ts`: call the `default` action of `./+page.server` with `vi.mock('$lib/server/api')` and a fake event (cookies, `url`, `locals.t`):
+- [X] T031 [P] [US1] `frontend/src/routes/sign-in/sign-in.test.ts`: call the `default` action of `./+page.server` with `vi.mock('$lib/server/api')` and a fake event (cookies, `url`, `locals.t`):
   - `{ token: 'A', secondFactorRequired: false }` → `setSession(A)`, no `setPending`, `303` to `next`;
   - `{ token: 'B', secondFactorRequired: true }` → `setPending(B)`, **never** `setSession`, `303 /sign-in/code?next=…`;
   - `next=//evil.example` → the redirect goes to `/`;
@@ -250,29 +250,29 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Implementation for User Story 1
 
-- [ ] T032 [P] [US1] Write `frontend/src/lib/components/PasswordRules.svelte`: the three rules (12 to 128 characters, not a common password, not the email address) listed next to a password field before submitting, with an `id` for `aria-describedby`. The failed rule is highlighted when the page's refusal is `password_length`, `password_common` or `password_is_email` (004 contracts/api.md) (FR-017, US1-3).
-- [ ] T033 [P] [US1] Add `loadBotCheck` and `botCheckValue` to `frontend/src/lib/server/actions.ts`. `loadBotCheck` calls `GET /api/auth/bot-check` (004 contracts/api.md § `GET /api/auth/bot-check`) and returns the provider and site key, or `null`. `botCheckValue` reads `cf-turnstile-response`, else `g-recaptcha-response`.
-- [ ] T034 [US1] Write `frontend/src/lib/components/BotCheck.svelte` (research R15):
+- [X] T032 [P] [US1] Write `frontend/src/lib/components/PasswordRules.svelte`: the three rules (12 to 128 characters, not a common password, not the email address) listed next to a password field before submitting, with an `id` for `aria-describedby`. The failed rule is highlighted when the page's refusal is `password_length`, `password_common` or `password_is_email` (004 contracts/api.md) (FR-017, US1-3).
+- [X] T033 [P] [US1] Add `loadBotCheck` and `botCheckValue` to `frontend/src/lib/server/actions.ts`. `loadBotCheck` calls `GET /api/auth/bot-check` (004 contracts/api.md § `GET /api/auth/bot-check`) and returns the provider and site key, or `null`. `botCheckValue` reads `cf-turnstile-response`, else `g-recaptcha-response`.
+- [X] T034 [US1] Write `frontend/src/lib/components/BotCheck.svelte` (research R15):
   - props `provider`, `siteKey`;
   - loads the provider script once per page session, with explicit rendering: Turnstile `https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit`, reCAPTCHA `https://www.google.com/recaptcha/api.js?onload=<global callback>&render=explicit`. Add the CSP nonce if SvelteKit exposes one; otherwise the host list in `kit.csp` covers it;
   - calls `render()` on mount into its container, and `remove()` (Turnstile) or `reset()` (reCAPTCHA) on destroy;
   - exports `reset()`. Each form's `onResult` calls it after every action result, because the result is single-use;
   - on the script's `onerror`, or when nothing has rendered after 10 s, shows "the check couldn't load; allow challenges.cloudflare.com (or google.com) or try again". It never disables the submit button.
-- [ ] T035 [US1] Write `frontend/src/routes/sign-in/` (pages.md, 004 contracts/api.md § `POST /api/auth/sign-in`):
+- [X] T035 [US1] Write `frontend/src/routes/sign-in/` (pages.md, 004 contracts/api.md § `POST /api/auth/sign-in`):
   - `load`: a signed-in user is sent to `safeNext(next)`. Return `loadBotCheck()`, `next`, and an `expired` notice when `?expired=code` (the code step timed out, spec edge case).
   - `default` action: `POST /api/auth/sign-in { email, password, botCheck }` with `on401: 'return'` (the API's `401` here is `invalid_credentials`, not `not_signed_in`).
     - `secondFactorRequired: false` → `setSession(token)`, `303 safeNext(next)`.
     - `secondFactorRequired: true` → `setPending(token)`, `303 /sign-in/code?next=…`. **Never put this token in `itk_session`**, because the gate would treat it as signed in. The code page arrives in US6 (T079). Until then that address is a 404.
     - Refusals through `refuse()`, keeping `email`: `invalid_credentials` (one generic message, US1-6), `not_confirmed` (with a link to `/account/confirmation`, US1-5), `account_disabled`, `too_many_attempts` with the wait (US1-7), `bot_check_failed`.
   - Page: email and password `Field`s (`autocomplete="username"` / `current-password`), `BotCheck` when configured, a link to `/account/forgot-password` (built in US5) and to sign-up. The sign-in layout from the design system uses the solid magenta block without a photo.
-- [ ] T036 [P] [US1] Write `frontend/src/routes/sign-out/+page.server.ts`: no `load` page (a `GET` gets `303 /`). The `default` action calls `POST /api/auth/sign-out` with `on401: 'return'`, then `clearSession` and `clearPending` even when the call fails, and `303 /` (FR-006, US1-8).
-- [ ] T037 [US1] Write `frontend/src/routes/account/sign-up/` (004 contracts/api.md § `POST /api/auth/sign-up`):
+- [X] T036 [P] [US1] Write `frontend/src/routes/sign-out/+page.server.ts`: no `load` page (a `GET` gets `303 /`). The `default` action calls `POST /api/auth/sign-out` with `on401: 'return'`, then `clearSession` and `clearPending` even when the call fails, and `303 /` (FR-006, US1-8).
+- [X] T037 [US1] Write `frontend/src/routes/account/sign-up/` (004 contracts/api.md § `POST /api/auth/sign-up`):
   - `load`: `loadBotCheck()`, and `lang` as the default language (US9-2);
   - `default` action: `POST /api/auth/sign-up { email, password, language, botCheck }`. On `202`, return `{ done: true }`. The page then shows one "check your email" view, **identical for every address**: no email echoed, no difference between existing and new (SC-005). Refusals keep `email` and `language`: the password rules, `invalid_email`, `invalid_language`, `sign_up_by_invitation` ("sign-up is by invitation only", US7-5), `bot_check_failed`, `try_again_later` (503: try again later), `too_many_requests` with the wait;
   - Page: email, password with `PasswordRules`, a language `<select>` (English, Nederlands), `BotCheck`.
-- [ ] T038 [P] [US1] Write `frontend/src/routes/account/confirmation/`: an email field and `BotCheck`. The `default` action calls `POST /api/auth/confirmation { email, botCheck }` and always shows the same "if the address has an unconfirmed account, we sent an email" result (FR-016, SC-005). `try_again_later` and waits are the only other messages.
-- [ ] T039 [P] [US1] Write `frontend/src/routes/account/confirm/`. `load` reads `token` from the query and returns only whether it is present. It calls no API (SC-004). The page has a password field and a "Confirm my account" button. The `default` action posts `POST /api/auth/confirm { token, password }`, with the token from `url.searchParams`. On success: "your account is ready", with a sign-in link. `token_invalid` → "this link no longer works", with a link to `/account/confirmation` (US5-4). `password_incorrect` → "the password is incorrect" (US1-4).
-- [ ] T040 [US1] Write `frontend/src/routes/+page.server.ts` and `+page.svelte` for visitors: a short explanation of InTheKnow with sign-in and sign-up buttons (spec Assumptions, "a public landing page beyond … is out of scope"). For a signed-in user, the page shows a minimal heading and a link to `/calendars`. US2 (T054) replaces that branch with the real home page.
+- [X] T038 [P] [US1] Write `frontend/src/routes/account/confirmation/`: an email field and `BotCheck`. The `default` action calls `POST /api/auth/confirmation { email, botCheck }` and always shows the same "if the address has an unconfirmed account, we sent an email" result (FR-016, SC-005). `try_again_later` and waits are the only other messages.
+- [X] T039 [P] [US1] Write `frontend/src/routes/account/confirm/`. `load` reads `token` from the query and returns only whether it is present. It calls no API (SC-004). The page has a password field and a "Confirm my account" button. The `default` action posts `POST /api/auth/confirm { token, password }`, with the token from `url.searchParams`. On success: "your account is ready", with a sign-in link. `token_invalid` → "this link no longer works", with a link to `/account/confirmation` (US5-4). `password_incorrect` → "the password is incorrect" (US1-4).
+- [X] T040 [US1] Write `frontend/src/routes/+page.server.ts` and `+page.svelte` for visitors: a short explanation of InTheKnow with sign-in and sign-up buttons (spec Assumptions, "a public landing page beyond … is out of scope"). For a signed-in user, the page shows a minimal heading and a link to `/calendars`. US2 (T054) replaces that branch with the real home page.
 
 **Checkpoint**: the US1 independent test passes. `npm run check` and `npm test` stay green.
 
@@ -286,15 +286,15 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Tests for User Story 2 (write first)
 
-- [ ] T041 [P] [US2] In `backend/InTheKnow.Tests/ApiTests.cs`, add the newest-first tests of contracts/api.md § 1:
+- [X] T041 [P] [US2] In `backend/InTheKnow.Tests/ApiTests.cs`, add the newest-first tests of contracts/api.md § 1:
   - newest-first order across two calendars;
   - `before` paging with a small `limit` reaches the oldest change with no gaps or repeats;
   - a page is filled past hidden changes and is never short while older visible changes exist;
   - `includeHidden=true` with `order=newest`;
   - `order=sideways` → `400 invalid_order`; `before` without `order`, `before` with `order=oldest`, and `after` with `order=newest` → `400 invalid_cursor`;
   - a request without `order` returns exactly what it did before (compare with an existing oldest-first assertion).
-- [ ] T042 [P] [US2] In `backend/InTheKnow.Tests/AccountTests.cs`, add the home page tests of contracts/api.md § 2: a new account reads `homePage: "changes"`; `PUT /api/me/settings { "homePage": "combined" }` → `200 { "homePage": "combined" }` and `GET /api/me` reads it back; `{}` → `400 empty_body`; `{ "homePage": "combined", "x": 1 }` → `400 invalid_settings`; `{ "homePage": "grid" }` → `400 invalid_home_page`; another account's value is untouched. In `backend/InTheKnow.Tests/DbTests.cs`, assert that `UPDATE account SET home_page = 'grid'` is refused by the `CHECK`, and that an account inserted without `home_page` gets `changes`.
-- [ ] T043 [P] [US2] Write `frontend/src/lib/server/changes.test.ts` (SC-006, research R11):
+- [X] T042 [P] [US2] In `backend/InTheKnow.Tests/AccountTests.cs`, add the home page tests of contracts/api.md § 2: a new account reads `homePage: "changes"`; `PUT /api/me/settings { "homePage": "combined" }` → `200 { "homePage": "combined" }` and `GET /api/me` reads it back; `{}` → `400 empty_body`; `{ "homePage": "combined", "x": 1 }` → `400 invalid_settings`; `{ "homePage": "grid" }` → `400 invalid_home_page`; another account's value is untouched. In `backend/InTheKnow.Tests/DbTests.cs`, assert that `UPDATE account SET home_page = 'grid'` is refused by the `CHECK`, and that an account inserted without `home_page` gets `changes`.
+- [X] T043 [P] [US2] Write `frontend/src/lib/server/changes.test.ts` (SC-006, research R11):
   - a fixture with one change per `kind`/`field` row of `specs/001-ical-change-detection/contracts/detected-change.md`: `added`, `removed`, and `changed` on `name`, `time`, `status`, `location`, `description`, `type`, `rooms`, `teachers`, `groups`, `details.<label>` and `details.text`;
   - each gets a non-empty sentence in `en` and `nl`, containing none of the raw field names (`details.`, `eventKey`, `oldValue`), `{`, `[`, `null` or `undefined`;
   - status tentative → confirmed reads "event confirmed" (en) and its Dutch equivalent; → cancelled reads "cancelled";
@@ -306,48 +306,48 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Implementation for User Story 2 (backend, FR-045)
 
-- [ ] T044 [US2] Create `backend/InTheKnow/Migrations/005_frontend.sql` with exactly (data-model.md):
+- [X] T044 [US2] Create `backend/InTheKnow/Migrations/005_frontend.sql` with exactly (data-model.md):
   ```sql
   ALTER TABLE account ADD COLUMN home_page text NOT NULL DEFAULT 'changes'
       CHECK (home_page IN ('changes', 'combined'));
   ```
-- [ ] T045 [US2] In `backend/InTheKnow/Api.cs`, extend `me.MapGet("/changes", …)` (line 77) per contracts/api.md § 1:
+- [X] T045 [US2] In `backend/InTheKnow/Api.cs`, extend `me.MapGet("/changes", …)` (line 77) per contracts/api.md § 1:
   - add `string? order` and `long? before` parameters;
   - before the loop: `order` not null/`oldest`/`newest` → `Problem(400, "invalid_order")`; `before` with `order != "newest"`, or `after` with `order == "newest"` → `Problem(400, "invalid_cursor")`;
   - for `newest`, the same batch loop with `from = before ?? long.MaxValue`, `c.id < $2 ORDER BY c.id DESC`, the same `take + 1` condition, the same item shape, and the **same `Page()` helper** (line 162). Don't write a second pager. `next` is then the oldest id returned;
   - without `order`, the code path is unchanged.
-- [ ] T046 [US2] In `backend/InTheKnow/AccountApi.cs`:
+- [X] T046 [US2] In `backend/InTheKnow/AccountApi.cs`:
   - `GET /api/me` (line 104): append `a.home_page` to the SELECT as ordinal 8, so the existing ordinals don't shift, and add `homePage = r.GetString(8)` to the JSON;
   - add `me.MapPut("/settings", …)` taking `JsonNode? body`: not an object, or no known field → `Problem(400, "empty_body")`; any key other than `homePage` → `Problem(400, "invalid_settings")`; `homePage` not the string `changes` or `combined` → `Problem(400, "invalid_home_page")`. Then `UPDATE account SET home_page = $2 WHERE id = $1`, and return `{ homePage }`. No step-up (contracts/api.md § 2).
 
 ### Implementation for User Story 2 (frontend)
 
-- [ ] T047 [US2] Write `frontend/src/lib/server/changes.ts` (research R11, data-model.md § ChangeGroup):
+- [X] T047 [US2] Write `frontend/src/lib/server/changes.ts` (research R11, data-model.md § ChangeGroup):
   - `describe(change, t, fmt): string` for every kind and field. Set fields name what was added and removed. Status per R11. `details.<label>` uses the label as text;
   - `tone(change): 'new' | 'cancelled' | 'moved' | 'changed'` and `icon(change)` per R11's table (`plus-circle`, `x-circle`, `map-pin`, `clock`, `check-circle`, `pencil`);
   - `group(items, calendars, t, fmt): ChangeGroup[]` over consecutive items sharing `(calendarId, eventKey, detectedAt)`. Heading: `eventName`, `fmt.dateTime(eventStartsAt)`, and `calendarName` only when `calendars.length > 1`. Tone: cancelled > moved > new > changed. `items[]`: `{ sentence, outcome, icon }`;
   - `calendarView(calendar, t, fmt)`, built from `GET /api/me/calendars`: `{ calendarId, name, state, stateText, lastChecked, nextCheck, failures, notify, label }`, with the states of data-model.md § Calendar and `checkFailureMessage(lastError)`. It **never** carries `links[]` or a URL, only `linkCount` (FR-023).
-- [ ] T048 [P] [US2] Write `frontend/src/lib/components/ChangeGroup.svelte`: the design's ChangeNotice look with the group's tone colour and icon, the heading, and one line per item. `lowPriority`: muted text, a grey icon, and a neutral "Low priority" `Badge`. `hidden`: a dashed border, reduced emphasis, and a "Hidden" `Badge` (FR-027). Not clickable, and no unread dot (R18).
-- [ ] T049 [P] [US2] Write `frontend/src/lib/components/CalendarStatus.svelte`: prints a `calendarView`: name, a `Badge` for the state (Checked OK green, Last check failed amber, Failing red, Not checked yet neutral), the reason text, last and next check, and the failure count when failing (US2-4).
-- [ ] T050 [US2] Add the shared add-link action and form:
+- [X] T048 [P] [US2] Write `frontend/src/lib/components/ChangeGroup.svelte`: the design's ChangeNotice look with the group's tone colour and icon, the heading, and one line per item. `lowPriority`: muted text, a grey icon, and a neutral "Low priority" `Badge`. `hidden`: a dashed border, reduced emphasis, and a "Hidden" `Badge` (FR-027). Not clickable, and no unread dot (R18).
+- [X] T049 [P] [US2] Write `frontend/src/lib/components/CalendarStatus.svelte`: prints a `calendarView`: name, a `Badge` for the state (Checked OK green, Last check failed amber, Failing red, Not checked yet neutral), the reason text, last and next check, and the failure count when failing (US2-4).
+- [X] T050 [US2] Add the shared add-link action and form:
   - `addLink(event)` in `frontend/src/lib/server/actions.ts`: `POST /api/me/links { url }` (001 contracts/api.md § `POST /api/me/links`). Success (`201` added, `200` already added) → `{ added: true, name }`. Refusals via `refuse()` keep `url`: `invalid_url`, `unsupported_scheme` ("this is not an https link"), `url_too_long`, `blocked_address`, each `validation_failed:<code>` through `checkFailureMessage`, and `host_budget_exhausted` with the wait (FR-024, US2-2, US2-3);
   - `frontend/src/lib/components/AddCalendar.svelte`: a URL `Field` and a submit button that reads "Checking…" and is disabled while `pending` (US2-1), with a hint that checking can take several seconds. Posts to `?/addLink` on the page that includes it.
-- [ ] T051 [US2] Write `frontend/src/routes/changes/`:
+- [X] T051 [US2] Write `frontend/src/routes/changes/`:
   - `load`: in parallel, `GET /api/me/changes?order=newest&limit=50[&before=<id>][&includeHidden=true]` and `GET /api/me/calendars`. Accept `before` only as a positive integer and `showHidden` only as `1`. Return the groups from `group()`, `next`, and `showHidden`;
   - Page: a `PageIntro`; a "show hidden changes" switch as a `GET` form (`showHidden=1`) that submits on change and has a visible submit button without JavaScript; the groups; "Older changes" (`?before=<next>`, keeping `showHidden`) only when `next` is set, and "Newest" when `before` is set (US2-5 to US2-9, FR-025). An empty page says there are no changes yet.
-- [ ] T052 [US2] Write `frontend/src/routes/calendars/`:
+- [X] T052 [US2] Write `frontend/src/routes/calendars/`:
   - `load`: `GET /api/me/calendars` → `calendarView[]`;
   - action `addLink` (T050);
   - Page: the list of `CalendarStatus` cards, each linking to `/calendars/{id}`; `AddCalendar`; a link to `/presets` (R18). With no calendars, a short explanation above the form.
-- [ ] T053 [US2] Write the calendar page layout and Overview tab (FR-049, pages.md):
+- [X] T053 [US2] Write the calendar page layout and Overview tab (FR-049, pages.md):
   - `frontend/src/routes/calendars/[id]/+layout.server.ts`: validate `id` as a positive integer (else `error(404, { kind: 'notInAccount', email })`). Find it in `GET /api/me/calendars`. Absent → `error(404, { kind: 'notInAccount', email: locals.me.email })` (spec edge case). Return its `calendarView`;
   - `frontend/src/routes/calendars/[id]/+layout.svelte`: a `PageIntro` with the calendar name, and `TabNav` with Overview (`/calendars/{id}`), Filter (`/calendars/{id}/filter`) and Notifications (`/calendars/{id}/notifications`);
   - `frontend/src/routes/calendars/[id]/+page.server.ts` and `+page.svelte`: `CalendarStatus`, and a remove button behind a `Dialog` ("remove this calendar; its changes will no longer show"). Action `remove`: `DELETE /api/me/calendars/{id}`, then `303 /calendars`. A `404` from the API → the `notInAccount` refusal (US2-10).
-- [ ] T054 [US2] Replace the signed-in branch of `frontend/src/routes/+page.server.ts` and `+page.svelte` (FR-046, US2-11, US2-12):
+- [X] T054 [US2] Replace the signed-in branch of `frontend/src/routes/+page.server.ts` and `+page.svelte` (FR-046, US2-11, US2-12):
   - `load` for signed-in users: `GET /api/me/calendars`. With none, return `{ view: 'empty' }`. Otherwise load the first changes page as in T051 (no `before`, no hidden) and return `{ view: locals.me.homePage, groups, calendars }`;
   - action `addLink` (T050);
   - Page: `changes` → the feed with a link to `/changes` for older ones. `combined` → the `CalendarStatus` list on top and the latest changes below. `empty` → a short explanation and `AddCalendar`.
-- [ ] T055 [US2] Write `frontend/src/routes/(settings)/settings/preferences/` with the **home page** setting only. US4 (T068) adds language and time zone to this same page.
+- [X] T055 [US2] Write `frontend/src/routes/(settings)/settings/preferences/` with the **home page** setting only. US4 (T068) adds language and time zone to this same page.
   - `load`: returns `homePage` from `locals.me`;
   - action `save`: read `homePage` (only `changes` or `combined`, else `refuse` with `invalid_home_page`), `PUT /api/me/settings { homePage }`, and return `{ saved: true }`;
   - Page: two radio buttons (Changes feed, Calendars and changes), a Save button, and a `Toast` on success.
@@ -430,7 +430,7 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
   - `load`: in parallel `GET /api/me/channels` and `GET /api/me/channel-types`. For each channel: `target` as text, the status label, `channelFailureMessage(failureReason)` when failing, `lastMessageAt` formatted, `accountAddress`, and the allowed actions from data-model.md's table (`awaitingConfirmation`: resend, remove; `active`: pause, test, remove; `paused`: resume, remove; `failing`: resend, remove; `unsubscribed`: resend, remove). `emailAvailable` = the types include `email`;
   - actions `add` (`POST /api/me/channels { type: 'email', target }`, then "open the email we sent to that address"), `pause`, `resume`, `test`, `resend` (`POST …/{id}/confirmation`) and `remove` (`DELETE`, behind a `Dialog`), each taking a `channelId` field. Refusals go through `refuse()`: `target_taken`, `channel_limit`, `target_declined`, `invalid_status`, `channel_not_active`, and `confirmation_limit` and `test_limit` with their wait (003 contracts/api.md § Errors summary);
   - Page: the channel list, with "Account address" marked (US4-7) and only the allowed action buttons per row; the add form, or "adding addresses isn't available right now" when `!emailAvailable`; a note that language and time zone on Preferences apply to emails, linking to `/settings/preferences`; a note that each calendar's notifications and label are on its page, linking to `/calendars`.
-- [ ] T068 [US4] Extend `frontend/src/routes/(settings)/settings/preferences/` (from T055) with language and time zone (FR-033, US4-8 to US4-10):
+- [X] T068 [US4] Extend `frontend/src/routes/(settings)/settings/preferences/` (from T055) with language and time zone (FR-033, US4-8 to US4-10):
   - `load`: also `GET /api/me/notification-settings` → `language`, `timeZone` (null = default), `defaultTimeZone`, `effectiveTimeZone`; plus `Intl.supportedValuesOf('timeZone')`;
   - action `save`: send the home page to `PUT /api/me/settings` as now, and language and time zone to `PUT /api/me/notification-settings { language, timeZone }`, where the "Default (…)" option sends `timeZone: null`. Refusals via `refuse()`. After a language change, the next render uses the new language (`invalidateAll` through `update()`);
   - Page: a language `<select>`; a time zone `<select>` headed by "Default (<defaultTimeZone>)"; the home page radios; a note that emails follow the language and time zone.
@@ -454,9 +454,9 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 - [ ] T070 [US5] Add `reauthenticate(event)` to `frontend/src/lib/server/actions.ts`: reads `password` and optional `code`, calls `POST /api/me/reauthenticate` (004 contracts/api.md § `POST /api/me/reauthenticate`), and returns `{ reauthenticated: true }` or `refuse()` without echoing either field (research R8).
 - [ ] T071 [US5] Write `frontend/src/lib/components/StepUp.svelte`: a `Dialog` with a password field, plus a code field when `me.twoFactor`, posting to `?/reauthenticate` with `use:enhance`. On `{ reauthenticated: true }`, it calls an `onConfirmed()` prop and closes. It shows the refusal message otherwise.
 - [ ] T072 [US5] Extend `frontend/src/lib/enhance.svelte.ts` with step-up (research R8). Export the pure `isStepUp(result: ActionResult): boolean` that T069 tests. When it is true, keep a reference to the submitted `HTMLFormElement` and its submitter, expose `stepUpOpen = true`, and do not reset the form. `StepUp`'s `onConfirmed` then calls `form.requestSubmit(submitter)`. The original fields are still filled in, so the user doesn't retype anything (FR-020, spec edge case "Step-up expires").
-- [ ] T073 [P] [US5] Write `frontend/src/routes/account/forgot-password/`: an email field and `BotCheck`. The `default` action calls `POST /api/auth/password-reset { email, botCheck }` and always shows the same "if the address has an account, we sent an email" result (FR-016, US5-1, SC-005). `try_again_later` and waits are the only other messages.
-- [ ] T074 [P] [US5] Write `frontend/src/routes/account/reset/`. `load` calls no API. The page has a new password field with `PasswordRules` and a button. The `default` action calls `POST /api/auth/password-reset/complete { token, password }`, with the token from the query. Success: "your password is changed and every device was signed out; sign in", and `clearSession` (US5-2). `token_invalid` → "this link no longer works", with a link to `/account/forgot-password`. Password rule refusals show next to the field.
-- [ ] T075 [P] [US5] Write `frontend/src/routes/account/email/`. `load` calls no API. The page has one "Confirm the new address" button. The `default` action calls `POST /api/auth/email-change/confirm { token }`. Success: "your address is changed". `address_taken` and `token_invalid` each explain and link to `/settings/account` for a new change (US5-3, US5-4).
+- [X] T073 [P] [US5] Write `frontend/src/routes/account/forgot-password/`: an email field and `BotCheck`. The `default` action calls `POST /api/auth/password-reset { email, botCheck }` and always shows the same "if the address has an account, we sent an email" result (FR-016, US5-1, SC-005). `try_again_later` and waits are the only other messages.
+- [X] T074 [P] [US5] Write `frontend/src/routes/account/reset/`. `load` calls no API. The page has a new password field with `PasswordRules` and a button. The `default` action calls `POST /api/auth/password-reset/complete { token, password }`, with the token from the query. Success: "your password is changed and every device was signed out; sign in", and `clearSession` (US5-2). `token_invalid` → "this link no longer works", with a link to `/account/forgot-password`. Password rule refusals show next to the field.
+- [X] T075 [P] [US5] Write `frontend/src/routes/account/email/`. `load` calls no API. The page has one "Confirm the new address" button. The `default` action calls `POST /api/auth/email-change/confirm { token }`. Success: "your address is changed". `address_taken` and `token_invalid` each explain and link to `/settings/account` for a new change (US5-3, US5-4).
 - [ ] T076 [US5] Write `frontend/src/routes/(settings)/settings/account/` (FR-048 Account tab, US5-5, US5-6, US5-8):
   - `load`: `email` and `pendingEmail` from `locals.me`;
   - action `changeEmail`: `POST /api/me/email { email }`. `reauthentication_required` → step-up; `invalid_email` and `same_email` are explained. Success (`202`, the same for a taken address): "open the email we sent to the new address";
@@ -482,7 +482,7 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Tests for User Story 6 (write first)
 
-- [ ] T078 [P] [US6] `frontend/src/routes/sign-in/code/code.test.ts`, in the style of T031:
+- [X] T078 [P] [US6] `frontend/src/routes/sign-in/code/code.test.ts`, in the style of T031:
   - `load` without `itk_pending` → `303 /sign-in?…&expired=code`;
   - the action sends the `itk_pending` value as `opts.token`. On `200` it calls `setSession` with **that same value**, then `clearPending`, then `303 safeNext(next)`;
   - `401` → `clearPending`, no `setSession`, `303 /sign-in?…&expired=code`;
@@ -490,7 +490,7 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Implementation for User Story 6
 
-- [ ] T079 [US6] Write `frontend/src/routes/sign-in/code/` (US6-3, 004 contracts/api.md § `POST /api/auth/sign-in/code`):
+- [X] T079 [US6] Write `frontend/src/routes/sign-in/code/` (US6-3, 004 contracts/api.md § `POST /api/auth/sign-in/code`):
   - `load`: without `itk_pending`, `303 /sign-in?next=…&expired=code`;
   - `default` action: `POST /api/auth/sign-in/code { code }` with `opts.token` = the `itk_pending` value and `on401: 'return'`. The API answers `200 { secondFactorRequired: false }` and returns no new token: the same token is now fully signed in. So success → `setSession(<the itk_pending value>)`, `clearPending`, `303 safeNext(next)`. `401` → `clearPending`, `303 /sign-in?next=<next>&expired=code`. `code_invalid` and `too_many_attempts` with the wait via `refuse()`;
   - Page: one code field (`autocomplete="one-time-code"`, `inputmode="numeric"`) that also accepts a recovery code, with a hint saying so.
@@ -515,18 +515,18 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Tests for User Story 7 (write first)
 
-- [ ] T082 [P] [US7] `frontend/src/routes/account/sign-up/sign-up.test.ts`, in the style of T031:
+- [X] T082 [P] [US7] `frontend/src/routes/account/sign-up/sign-up.test.ts`, in the style of T031:
   - `load` with `?invite=T` sets `itk_invite=T` with `httpOnly: true, secure: true, sameSite: 'lax', path: '/account/sign-up', maxAge: 3600`, calls no API, and throws `303 /account/sign-up`;
   - the action sends `invite: 'T'` from the cookie, and deletes the cookie after a `202`. After a refusal the cookie stays;
   - the `202` result is the same object for every address (SC-005).
 
 ### Implementation for User Story 7
 
-- [ ] T083 [US7] Extend `frontend/src/routes/account/sign-up/` (from T037) with shareable invites (research R15, data-model.md):
+- [X] T083 [US7] Extend `frontend/src/routes/account/sign-up/` (from T037) with shareable invites (research R15, data-model.md):
   - `+page.server.ts` `load`: when `url.searchParams.get('invite')` is set, set the `itk_invite` cookie with `httpOnly: true, secure: true, sameSite: 'lax', path: '/account/sign-up', maxAge: 3600`, and `throw redirect(303, '/account/sign-up')`. This runs whether or not a bot check is configured, and changes no data (SC-004). Return `invite: Boolean(cookies.get('itk_invite'))`;
   - the `default` action sends `invite` from the cookie, and deletes the cookie after a successful sign-up. `invite_invalid` → "this invite no longer works" (US7-4);
   - Page: "you're signing up with an invite" when `invite` is set (US7-3).
-- [ ] T084 [US7] Write `frontend/src/routes/account/invite/` (US7-1, US7-2, pages.md). `load` calls no API. The page has a password field with `PasswordRules`, a language `<select>` whose first option, "The invite's language", sends no `language`, and a button. The `default` action calls `POST /api/auth/invite/accept { token, password, language? }`. The response is the sign-in body (`{ token, secondFactorRequired: false }`) with no role. So success → `setSession(token)`, then `GET /api/me` with `opts.token` = that token to read `role`. When it is `admin`, show "admin pages unlock once you turn on two-step verification", with a link to `/settings/security/two-factor`; otherwise `303 /`. `invite_invalid` → "this invite no longer works".
+- [X] T084 [US7] Write `frontend/src/routes/account/invite/` (US7-1, US7-2, pages.md). `load` calls no API. The page has a password field with `PasswordRules`, a language `<select>` whose first option, "The invite's language", sends no `language`, and a button. The `default` action calls `POST /api/auth/invite/accept { token, password, language? }`. The response is the sign-in body (`{ token, secondFactorRequired: false }`) with no role. So success → `setSession(token)`, then `GET /api/me` with `opts.token` = that token to read `role`. When it is `admin`, show "admin pages unlock once you turn on two-step verification", with a link to `/settings/security/two-factor`; otherwise `303 /`. `invite_invalid` → "this invite no longer works".
 
 **Checkpoint**: US7 works on its own.
 
@@ -569,8 +569,8 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 **Independent Test**: visit `/sign-in` with a Dutch browser and see Dutch; switch to English; sign in to an account set to Dutch and see Dutch.
 
-- [ ] T091 [US9] Write `frontend/src/routes/language/+page.server.ts`: a `GET` gets `303 /`. The `default` action reads `lang` (only `en`/`nl`, else ignored) and `next`, sets `itk_lang` with `httpOnly: false, secure: true, sameSite: 'lax', path: '/', maxAge: 31536000` (**not** `HttpOnly`; data-model.md), and answers `303 safeNext(next)`.
-- [ ] T092 [US9] Add the visitor language switch to `frontend/src/lib/components/Header.svelte`: a small `<form method="POST" action="/language">` with a hidden `next` (the current path and query) and one button for the other language ("English" / "Nederlands", each with `lang` set on the button text). It is shown only to visitors.
+- [X] T091 [US9] Write `frontend/src/routes/language/+page.server.ts`: a `GET` gets `303 /`. The `default` action reads `lang` (only `en`/`nl`, else ignored) and `next`, sets `itk_lang` with `httpOnly: false, secure: true, sameSite: 'lax', path: '/', maxAge: 31536000` (**not** `HttpOnly`; data-model.md), and answers `303 safeNext(next)`.
+- [X] T092 [US9] Add the visitor language switch to `frontend/src/lib/components/Header.svelte`: a small `<form method="POST" action="/language">` with a hidden `next` (the current path and query) and one button for the other language ("English" / "Nederlands", each with `lang` set on the button text). It is shown only to visitors.
 
 **Checkpoint**: all stories work.
 
