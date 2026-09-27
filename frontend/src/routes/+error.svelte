@@ -8,6 +8,8 @@
 	const kind = $derived(page.error?.kind);
 </script>
 
+<svelte:head><title>{t.home.title}</title></svelte:head>
+
 <div class="wrap stack">
 	{#if kind === 'locked'}
 		<h1>{t.errors.lockedTitle}</h1>
@@ -28,7 +30,8 @@
 	{:else if kind === 'unavailable'}
 		<h1>{t.errors.unavailableTitle}</h1>
 		<p>{t.errors.unavailable}</p>
-		<div><Button href={page.url.pathname + page.url.search}>{t.errors.tryAgain}</Button></div>
+		<!-- A full load: a client-side visit to the same address reruns no load. -->
+		<div data-sveltekit-reload><Button href={page.url.pathname + page.url.search}>{t.errors.tryAgain}</Button></div>
 	{:else if kind === 'notFound' || page.status === 404}
 		<h1>{t.errors.notFoundTitle}</h1>
 		<p>{t.errors.notFound}</p>

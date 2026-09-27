@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import { page } from '$app/state';
 	import Button from './Button.svelte';
 	import ConfirmAction from './ConfirmAction.svelte';
@@ -22,14 +23,26 @@
 	let { preset, form, showFollowers }: { preset: Preset; form: unknown; showFollowers: boolean } = $props();
 	const t = $derived(dicts[page.data.lang]);
 	const save = submitter();
-	const remove = submitter();
+	// Deleting goes back to the list: /presets or /admin/presets.
+	const remove = submitter({ notice: { at: page.url.pathname.replace(/\/[^/]+$/, ''), text: () => t.presets.deleted } });
 	const r = $derived(refusal(form));
 	let confirmSave = $state(false);
+	let confirmed = false;
 	let formEl: HTMLFormElement | undefined = $state();
+	// Any submit (the button, or Enter in the name field) asks first when calendars follow the preset.
+	const saveEnhance: SubmitFunction = (input) => {
+		if (showFollowers && preset.followers > 0 && !confirmed) {
+			input.cancel();
+			confirmSave = true;
+			return;
+		}
+		confirmed = false;
+		return save.enhance(input);
+	};
 	const id = $props.id();
 </script>
 
-<form method="POST" action="?/save" use:enhance={save.enhance} class="stack" bind:this={formEl} id="{id}-form">
+<form method="POST" action="?/save" use:enhance={saveEnhance} class="stack" bind:this={formEl} id="{id}-form">
 	<Field
 		label={t.presets.name}
 		id="{id}-name"
@@ -43,11 +56,7 @@
 		<RuleEditor rules={preset.rules} error={r && r.reason !== 'invalid_name' && r.reason !== 'name_taken' ? r : null} />
 	{/key}
 	<div class="row">
-		{#if showFollowers && preset.followers > 0}
-			<Button type="button" disabled={save.pending} onclick={() => (confirmSave = true)}>{t.presets.save}</Button>
-		{:else}
-			<Button disabled={save.pending}>{t.presets.save}</Button>
-		{/if}
+		<Button disabled={save.pending}>{t.presets.save}</Button>
 	</div>
 </form>
 
@@ -60,6 +69,7 @@
 			variant="dark"
 			onclick={() => {
 				confirmSave = false;
+				confirmed = true;
 				formEl?.requestSubmit();
 			}}>{t.presets.save}</Button
 		>

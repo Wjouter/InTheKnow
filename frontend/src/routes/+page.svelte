@@ -11,6 +11,8 @@
 	const t = $derived(dicts[data.lang]);
 </script>
 
+<svelte:head><title>{t.home.title}</title></svelte:head>
+
 {#if data.view === 'visitor'}
 	<AuthPanel title={t.home.visitorTitle} intro={t.home.visitorIntro}>
 		<ul class="points">
