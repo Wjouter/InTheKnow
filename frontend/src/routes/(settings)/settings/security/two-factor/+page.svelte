@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import Button from '$lib/components/Button.svelte';
 	import Field from '$lib/components/Field.svelte';
@@ -15,7 +16,11 @@
 	// The setup stays on screen after a wrong code: it lives only in this page, never on the server's side.
 	let setup = $state<{ secret: string; qr: string } | null>(null);
 	$effect(() => {
-		if (form && 'secret' in form && form.secret && form.qr) setup = { secret: form.secret, qr: form.qr };
+		if (form && 'secret' in form && form.secret && form.qr) {
+			setup = { secret: form.secret, qr: form.qr };
+			// The code step replaces the Start button: move keyboard focus to its field (FR-043).
+			tick().then(() => document.getElementById('code')?.focus());
+		}
 	});
 	const codes = $derived(form && 'recoveryCodes' in form ? form.recoveryCodes : null);
 	const grouped = (secret: string) => secret.match(/.{1,4}/g)?.join(' ') ?? secret;
