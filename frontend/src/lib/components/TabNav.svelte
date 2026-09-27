@@ -4,6 +4,12 @@
 
 	// Each tab is its own address, so this is a nav of links, not an ARIA tab widget (research R18, FR-048, FR-049).
 	let { label, items, children }: { label: string; items: { href: string; label: string }[]; children: Snippet } = $props();
+	// The tab whose address is the longest match, so /settings/security/two-factor marks "Sign-in & security".
+	const current = $derived(
+		items
+			.filter((i) => page.url.pathname === i.href || page.url.pathname.startsWith(`${i.href}/`))
+			.sort((a, b) => b.href.length - a.href.length)[0]?.href
+	);
 </script>
 
 <div class="tabs">
@@ -11,7 +17,7 @@
 		<ul>
 			{#each items as item (item.href)}
 				<li>
-					<a href={item.href} aria-current={page.url.pathname === item.href ? 'page' : undefined}>{item.label}</a>
+					<a href={item.href} aria-current={current === item.href ? 'page' : undefined}>{item.label}</a>
 				</li>
 			{/each}
 		</ul>

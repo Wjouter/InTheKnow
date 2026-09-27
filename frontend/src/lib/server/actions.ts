@@ -67,3 +67,12 @@ export async function addLink(event: RequestEvent) {
 	if (!r.ok) return refuse(event, r, { url });
 	return { added: true } as const;
 }
+
+/** The step-up dialog's action on every page that has one (research R8). Never echoes the password or code. */
+export async function reauthenticate(event: RequestEvent) {
+	const data = await event.request.formData();
+	const code = field(data, 'code');
+	const r = await api(event, 'POST', '/api/me/reauthenticate', { password: raw(data, 'password'), code: code || undefined });
+	if (!r.ok) return refuse(event, r, { form: 'stepUp' });
+	return { reauthenticated: true } as const;
+}
