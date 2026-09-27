@@ -96,6 +96,15 @@ export function must<T>(
 	error(r.status, { message: t.errors.generic });
 }
 
+/**
+ * The signed-in account for a load on a gated page. The gate lets requests through without one only when the API
+ * couldn't be reached, so that is "unavailable", not a crash.
+ */
+export function signedIn(event: RequestEvent): Me {
+	if (event.locals.me) return event.locals.me;
+	error(503, { kind: 'unavailable', message: event.locals.t.errors.unavailableTitle });
+}
+
 const cookie = { httpOnly: true, secure: true, sameSite: 'lax' } as const;
 
 export function setSession(event: RequestEvent, token: string): void {

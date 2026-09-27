@@ -1,4 +1,4 @@
-import { api, must } from '$lib/server/api';
+import { api, must, signedIn } from '$lib/server/api';
 import { field, refuse } from '$lib/server/actions';
 
 type Settings = { language: 'en' | 'nl'; timeZone: string | null; effectiveTimeZone: string };
@@ -6,7 +6,7 @@ type Settings = { language: 'en' | 'nl'; timeZone: string | null; effectiveTimeZ
 export const load = async (event) => {
 	const settings = must(event, await api<Settings>(event, 'GET', '/api/me/notification-settings'));
 	return {
-		homePage: event.locals.me!.homePage,
+		homePage: signedIn(event).homePage,
 		language: settings.language,
 		timeZone: settings.timeZone,
 		// The API names the operator's default only as effectiveTimeZone, when the account has no zone of its own.

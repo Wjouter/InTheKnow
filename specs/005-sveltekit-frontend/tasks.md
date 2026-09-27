@@ -690,6 +690,10 @@ Where the implementation differs from a task as written:
   so no `@types/node` package is needed (plan: no other package).
 - **T027/T072**: the step-up part of `submitter()` was written with T027. `StepUp` handles its own action result, so
   a wrong password shows in the dialog and the page's result stays.
+- **T029**: when the API is down, a gated page shows the unavailable view with status `503`, not `200`. Loads that need
+  the account call `signedIn()` (`$lib/server/api`), which answers `503 unavailable` when the gate let the request
+  through without one. Found by stopping the API with a signed-in browser: three settings loads crashed with a
+  `TypeError` (500), and the admin layout would have said "not allowed".
 - **T001**: npm reports 3 low-severity advisories in `cookie` < 0.7 through `@sveltejs/kit` 2.70.3 (the latest Kit).
   Its only fix is a downgrade to Kit 0.0.30. The app sets only fixed cookie names, paths and domains.
 

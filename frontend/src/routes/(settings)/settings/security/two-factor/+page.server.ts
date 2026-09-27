@@ -1,8 +1,11 @@
 import { renderSVG } from 'uqr';
-import { api } from '$lib/server/api';
+import { api, signedIn } from '$lib/server/api';
 import { field, refuse } from '$lib/server/actions';
 
-export const load = ({ locals }) => ({ twoFactor: locals.me!.twoFactor, admin: locals.me!.role === 'admin' });
+export const load = (event) => {
+	const me = signedIn(event);
+	return { twoFactor: me.twoFactor, admin: me.role === 'admin' };
+};
 
 export const actions = {
 	start: async (event) => {
