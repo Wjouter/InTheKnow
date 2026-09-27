@@ -1,8 +1,11 @@
 import { redirect } from '@sveltejs/kit';
-import { api, clearSession } from '$lib/server/api';
+import { api, clearSession, signedIn } from '$lib/server/api';
 import { field, reauthenticate, refuse } from '$lib/server/actions';
 
-export const load = ({ locals }) => ({ email: locals.me!.email, pendingEmail: locals.me!.pendingEmail });
+export const load = (event) => {
+	const me = signedIn(event);
+	return { email: me.email, pendingEmail: me.pendingEmail };
+};
 
 export const actions = {
 	changeEmail: async (event) => {

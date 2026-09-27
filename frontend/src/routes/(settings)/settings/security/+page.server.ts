@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { api, clearSession, must } from '$lib/server/api';
+import { api, clearSession, must, signedIn } from '$lib/server/api';
 import { field, raw, reauthenticate, refuse } from '$lib/server/actions';
 import { formatter } from '$lib/server/format';
 
@@ -9,16 +9,17 @@ type Method = { id: number; type: string; createdAt: string; lastUsedAt: string 
 const id = (v: string) => (/^[1-9]\d{0,17}$/.test(v) ? v : null);
 
 export const load = async (event) => {
-	const { lang, tz, me } = event.locals;
+	const { lang, tz } = event.locals;
+	const me = signedIn(event);
 	const [sessions, methods] = await Promise.all([
 		api<{ items: Session[] }>(event, 'GET', '/api/me/sessions'),
 		api<{ items: Method[] }>(event, 'GET', '/api/me/methods')
 	]);
 	const fmt = formatter(lang, tz);
 	return {
-		hasPassword: me!.hasPassword,
-		twoFactor: me!.twoFactor,
-		recoveryCodesLeft: me!.recoveryCodesLeft,
+		hasPassword: me.hasPassword,
+		twoFactor: me.twoFactor,
+		recoveryCodesLeft: me.recoveryCodesLeft,
 		sessions: must(event, sessions).items.map((s) => ({ id: s.id, device: s.device, lastUsed: fmt.dateTime(s.lastUsedAt), current: s.current })),
 		methods: must(event, methods).items.map((m) => ({
 			id: m.id,

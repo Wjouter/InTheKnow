@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { api, must } from '$lib/server/api';
+import { api, must, signedIn } from '$lib/server/api';
 
 export type ChannelType = {
 	type: string;
@@ -16,7 +16,7 @@ export type ChannelType = {
 // which must() turns into the locked page with a way forward (US8-1). Actions don't run this load: their refusals
 // go through refuse() instead.
 export const load = async (event) => {
-	if (event.locals.me?.role !== 'admin') error(403, { kind: 'notAllowed', message: event.locals.t.errors.notAllowedTitle });
+	if (signedIn(event).role !== 'admin') error(403, { kind: 'notAllowed', message: event.locals.t.errors.notAllowedTitle });
 	const types = must(event, await api<{ items: ChannelType[] }>(event, 'GET', '/api/admin/channel-types'));
 	return { channelTypes: types.items };
 };
