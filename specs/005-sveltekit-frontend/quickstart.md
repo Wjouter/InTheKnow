@@ -171,3 +171,51 @@ Fixes made during the walkthrough:
 - The browser pane asks for `/favicon.ico` on every page. The gate sent it to sign-in, which rendered the sign-in page each time. `handle` now answers it with a plain `404`.
 - After a session ended, client-side navigation reached sign-in, but the header kept the signed-in nav. The root layout load skipped reading `url` (a short-circuited `&&`), so it never reran. It now always reads the path.
 - The gate's `next` kept form action keys (`?/addLink`). It now uses the same `returnPath()` as the API client.
+
+## Walkthrough results, second run (2026-09-27 to 2026-09-28)
+
+The steps the first run left open, on the same setup. The API ran with `CollectionWindow` at 1 minute so digests
+arrive quickly. Real changes came from the checker: one event was removed from a stored snapshot (with the snapshot
+hash cleared) before a check, so the next check recorded it as added and wrote the delivery rows itself.
+
+| Step | Result |
+|---|---|
+| 1. Sign-up and sign-in | Done. **SC-005**: sign-up with a new address, the same address again and an existing account's address give pages that differ only in the nonce; so do confirmation and forgot-password for an existing and an unknown address. **SC-004**: opening the confirmation link asks for the password and the account stays unconfirmed (`confirmed_at` checked) until the button. Bot check with Cloudflare's always-pass test keys: after a wrong password the widget was reset (one `turnstile.reset` call), and the retry reached the code step, not `bot_check_failed`. Going from `/sign-in` to `/account/forgot-password` without a reload shows the widget. |
+| 2. First calendar | Done with a public Google holiday feed (the user chose not to use a private MyTimetables link). "Checking…" shows with the button disabled, a second Enter adds nothing, and the calendar appears as checked OK within seconds. **SC-001**: from the sign-up post (20:08:13) to the calendar added (20:11:19) took about 3 minutes, including the email wait and the SC-005 diffs. `https://example.org/` gives "This link doesn't give a calendar InTheKnow can read." **Not done**: the empty-feed refusal (needs a hosted empty calendar). |
+| 3. Changes | Done: with 66 changes, the first page has 50 and "Older changes" gives the other 16 with no further link, with no overlap or gap. |
+| 5. Email links | Done: with notifications on for one calendar and off for another, a change on each gave one digest email (the first) and no delivery row or email for the second. |
+| 6. Filters and presets | Done: a group picked from the current events' list (the list held the three seeded groups; the pane doesn't draw the browser's own suggestion popup, so the value was typed and added with Enter), save as preset, apply to a second calendar, and the edit confirmation "2 calendars follow this preset". Also create, copy and delete on `/presets`. |
+| 7. Notifications tab | Done: resend confirmation, confirm from Mailpit (then Pause, Send a test and Remove appear), and the sixth test in a day is refused. |
+| 8. Account management | Done: password reset from the email signs out the other device, sign out another device, change password (other devices signed out), sign out everywhere, remove the only sign-in method (refused, after step-up), 2FA on with the leave warning (stubbed `confirm` returned "stay" and the page kept the codes), new recovery codes, 2FA off (step-up with password and code), email change through `/account/email`, delete the account. |
+| 9. Invites and admin | Done: `make-admin` → accept → admin pages locked → unlocked in the same session after 2FA setup. Search, make admin refused for an unconfirmed account and for one without 2FA, then promote, demote, disable, enable, remove 2FA and delete. Named invite create, send again and revoke. Global preset create, edit and delete. `?status=failing` lists only the failing calendar. `/calendars/[id]` remove. |
+| 10. Language | Done: signed out with `Accept-Language: nl` the page is Dutch; after signing in, an account set to English gets `lang="en"`. |
+| 11. Keyboard | Done for steps 1, 2, 6 and 8 with real Tab, Shift+Tab, Enter, arrow and Esc keys. Flows done by keyboard: confirm, sign out, sign in, add a calendar, the Filter tab, save as and apply a preset, the preset edit dialog, and on Sign-in & security: remove method, sign out a device, 2FA off. A Tab sweep (every visible control in `main` reached) also covered `/account/sign-up`, `/account/forgot-password`, `/account/reset`, `/account/email`, `/sign-in/code`, `/settings/account`, `/presets` and the two-factor page in its "already on" state. **Not swept**: the two-factor setup form (Start, code). Every control was reachable with the magenta focus ring, dialogs kept focus inside (Tab cycles), and Esc closed them with focus back on the opener. After a save on the Filter tab and Apply preset, focus dropped to `<body>` (fixed below). |
+| 12. Coverage | Every row of the [coverage table](./contracts/pages.md#coverage-every-api-action-and-the-page-that-offers-it-sc-002) is now exercised. |
+| 13. Speed | **Estimated, not throttled** (neither browser here can throttle): dev-server documents are 25 to 101 KB, uncompressed, and take 9 to 66 ms on the server. At 1.6 Mbit/s with a 150 ms round trip, the largest (`/`) works out to about 1 s, under the 2 s target. |
+| 14. Logs | Done: no query strings, tokens or addresses after reset, confirm, email-change and invite links. |
+
+Fixes made during this run:
+- The tab title kept the previous page's title after client-side navigation to `/` or to an error page. Svelte 5 sets
+  `document.title` from `<svelte:head>`, and the root layout's title ran only once. The home and error pages now set it.
+- A success notice stayed on screen for good when a refusal followed within 4 seconds (the sixth test email). The
+  toast's timer was cleared with the previous effect run while the new run returned early. A result without a
+  message now hides the old one.
+- Admin role and disable refusals said "Your account isn't confirmed" and "Admin pages need two-step verification"
+  about someone else's account. A `409` on `/admin/accounts` now says "This account isn't confirmed yet." and "This
+  account needs two-step verification before it can be an admin."
+- "0 calendars follow this preset." now reads "No calendar follows this preset.", like the delete dialog, and the
+  admin calendar list says "1 account" instead of "1 accounts".
+
+Fixed after the run (each checked again in the browser):
+- Focus dropped to `<body>` after Save rules, Apply preset and every other enhanced form. The button is disabled while
+  the request runs, and a disabled button loses focus. The shared `submitter()` now gives focus back when the result
+  stays on the page.
+- In the rule editor, removing a rule dropped focus, and moving one to the top or bottom left focus on a disabled
+  button. Focus now goes to the next rule's remove button, or to the other move button.
+- Enter in a preset's name field did nothing. The save button is now a submit button, and any submit asks for the
+  followers confirmation first. Without JavaScript the form now saves at all.
+- The unavailable view kept the previous page's title. Its "Try again" also did nothing: a client-side visit to the
+  same address reruns no load. It now has its own title, and "Try again" is a full page load.
+- Removing a calendar, deleting a preset and deleting the account now show a notice ("Calendar removed.") on the page
+  they land on. The notice goes with the navigation state and is cleared from history, so Back doesn't repeat it.
+  Without JavaScript these still redirect with no notice.
