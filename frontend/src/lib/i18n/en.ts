@@ -359,6 +359,54 @@ export const en = {
 			noRules: 'No rules: every change shows.'
 		}
 	},
+	filter: {
+		title: 'Filter',
+		followsPreset: (name: string) => `This calendar uses the preset “${name}”.`,
+		custom: 'This calendar has its own rules.',
+		usePreset: 'Use a preset',
+		preset: 'Preset',
+		forEveryone: 'for everyone',
+		apply: 'Apply preset',
+		managePresets: 'Manage presets',
+		edit: 'Edit the rules',
+		editHint: 'Rules are checked from top to bottom. Saving your own rules stops this calendar following a preset.',
+		saveRules: 'Save rules',
+		saveAsPreset: 'Save as preset',
+		saveAsPresetHint: 'Saves this calendar’s current rules under a name, to use on other calendars.',
+		presetName: 'Preset name',
+		presetSaved: 'Preset saved.'
+	},
+	presets: {
+		title: 'Filter presets',
+		intro: 'Sets of rules you can use on several calendars.',
+		yours: 'Your presets',
+		none: 'You have no presets yet.',
+		forEveryone: 'Presets for everyone',
+		defaultBadge: 'Default',
+		followers: (n: number) => (n === 1 ? '1 calendar follows this preset.' : `${n} calendars follow this preset.`),
+		create: 'Create a preset',
+		name: 'Name',
+		createSubmit: 'Create preset',
+		copy: 'Copy',
+		copyName: (name: string) => `Copy of ${name}`,
+		copyTitle: (name: string) => `Copy “${name}”`,
+		copyLabel: 'Name of the copy',
+		edit: 'Edit',
+		back: 'All presets',
+		save: 'Save preset',
+		saveTitle: 'Save this preset?',
+		saveBody: (n: number) =>
+			n === 1 ? '1 calendar follows this preset. It will use the new rules.' : `${n} calendars follow this preset. They will use the new rules.`,
+		delete: 'Delete preset',
+		deleteTitle: 'Delete this preset?',
+		deleteBody: (n: number) =>
+			n === 0
+				? 'No calendar follows this preset.'
+				: n === 1
+					? '1 calendar follows this preset. It keeps the preset’s last rules as its own filter.'
+					: `${n} calendars follow this preset. They keep its last rules as their own filter.`,
+		deleteConfirm: 'Delete'
+	},
 	settings: {
 		title: 'Settings',
 		tabsLabel: 'Settings',

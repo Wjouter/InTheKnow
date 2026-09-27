@@ -21,11 +21,11 @@
 		'check-circle': CircleCheck,
 		pencil: Pencil
 	};
-	const GroupIcon = $derived(icons[group.items.find((i) => i.outcome === 'normal')?.icon ?? group.items[0].icon]);
+	const GroupIcon = $derived(icons[group.icon]);
 	const quiet = $derived(group.items.every((i) => i.outcome !== 'normal'));
 </script>
 
-<article class="notice {group.tone}" class:quiet class:hidden={group.items.every((i) => i.outcome === 'hidden')}>
+<article class="change {group.tone}" class:quiet class:hidden={group.items.every((i) => i.outcome === 'hidden')}>
 	<span class="icon" aria-hidden="true"><GroupIcon size={20} /></span>
 	<div class="body">
 		<div class="head">
@@ -46,7 +46,7 @@
 </article>
 
 <style>
-	.notice {
+	.change {
 		display: flex;
 		gap: 14px;
 		padding: var(--space-4);
@@ -82,7 +82,7 @@
 		background: var(--grey-100);
 		color: var(--grey-600);
 	}
-	.hidden {
+	.change.hidden {
 		border: 1px dashed var(--border-strong);
 		background: var(--surface-subtle);
 	}
@@ -110,8 +110,8 @@
 		color: var(--text-muted);
 		white-space: nowrap;
 	}
-	.hidden .when,
-	.hidden .calendar {
+	.change.hidden .when,
+	.change.hidden .calendar {
 		color: var(--grey-600);
 	}
 	.calendar {
