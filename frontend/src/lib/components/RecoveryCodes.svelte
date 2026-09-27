@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import Button from './Button.svelte';
@@ -9,6 +10,9 @@
 	let { codes }: { codes: string[] } = $props();
 	const t = $derived(dicts[page.data.lang]);
 	let saved = $state(false);
+	// The codes replace the button that asked for them: move keyboard focus here (FR-043).
+	let heading: HTMLHeadingElement | undefined = $state();
+	onMount(() => heading?.focus());
 	let copied = $state(false);
 	const text = $derived(codes.join('\n') + '\n');
 
@@ -30,7 +34,7 @@
 
 {#if !saved}
 	<section class="codes section" aria-labelledby="recovery-title">
-		<h2 id="recovery-title">{t.recovery.title}</h2>
+		<h2 id="recovery-title" tabindex="-1" bind:this={heading}>{t.recovery.title}</h2>
 		<p class="notice warning">{t.recovery.warning}</p>
 		<ol>
 			{#each codes as code (code)}<li><code>{code}</code></li>{/each}
