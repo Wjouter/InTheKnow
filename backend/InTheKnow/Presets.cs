@@ -4,7 +4,7 @@ using NpgsqlTypes;
 
 namespace InTheKnow;
 
-sealed record PresetRow(long Id, string? Owner, string Name, IReadOnlyList<Rule> Rules, bool IsDefault);
+sealed record PresetRow(long Id, long? Owner, string Name, IReadOnlyList<Rule> Rules, bool IsDefault);
 
 sealed record EffectiveFilter(string SourceType, PresetRow? Preset, IReadOnlyList<Rule> Rules);
 
@@ -26,7 +26,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     // Calendar id → effective filter and active conditions for each of the subscriber's subscriptions.
     // No subscription_filter row means the Default preset (research R1).
     public async Task<Dictionary<long, (EffectiveFilter Filter, ActiveConditions Active)>> LoadFiltersAsync(
-        string subscriber, CancellationToken ct, long? calendarId = null)
+        long subscriber, CancellationToken ct, long? calendarId = null)
     {
         await using var cmd = db.CreateCommand($"""
             SELECT s.calendar_id, c.host, f.rules::text, {Columns}
@@ -50,7 +50,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     // Null when the subscriber has no subscription to the calendar.
-    public async Task<FilterView?> GetFilterAsync(string subscriber, long calendarId, CancellationToken ct)
+    public async Task<FilterView?> GetFilterAsync(long subscriber, long calendarId, CancellationToken ct)
     {
         if (!(await LoadFiltersAsync(subscriber, ct, calendarId)).TryGetValue(calendarId, out var f)) return null;
         var values = new Dictionary<string, List<string>>();
@@ -78,7 +78,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     // Customises the subscription with these rules. False when there is no subscription.
-    public async Task<bool> ReplaceFilterAsync(string subscriber, long calendarId, IReadOnlyList<Rule> rules, CancellationToken ct)
+    public async Task<bool> ReplaceFilterAsync(long subscriber, long calendarId, IReadOnlyList<Rule> rules, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand("""
             INSERT INTO subscription_filter (calendar_id, subscriber, rules)
@@ -92,7 +92,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     // Links the subscription to a preset that is the subscriber's own or global. False when either is missing.
-    public async Task<bool> ApplyAsync(string subscriber, long calendarId, long presetId, CancellationToken ct)
+    public async Task<bool> ApplyAsync(long subscriber, long calendarId, long presetId, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand("""
             INSERT INTO subscription_filter (calendar_id, subscriber, preset_id)
@@ -109,7 +109,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     // A subscriber sees their own presets by name, then the global ones; the operator (owner null) only the global ones.
-    public async Task<List<PresetRow>> ListAsync(string? owner, CancellationToken ct)
+    public async Task<List<PresetRow>> ListAsync(long? owner, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand($"SELECT {Columns} FROM preset p WHERE owner IS NULL OR owner = $1 ORDER BY owner IS NULL, name");
         cmd.Parameters.Add(Owner(owner));
@@ -119,7 +119,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
         return presets;
     }
 
-    public async Task<PresetResult> CreateAsync(string? owner, string? name, IReadOnlyList<Rule> rules, CancellationToken ct)
+    public async Task<PresetResult> CreateAsync(long? owner, string? name, IReadOnlyList<Rule> rules, CancellationToken ct)
     {
         if (name is not { Length: >= 1 and <= 100 }) return Fail("invalid_name");
         await using var conn = await db.OpenConnectionAsync(ct);
@@ -135,7 +135,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     // Linked subscriptions follow the new rules, since they read the preset row (FR-017).
-    public async Task<PresetResult> UpdateAsync(string? owner, long id, string? name, IReadOnlyList<Rule>? rules, CancellationToken ct)
+    public async Task<PresetResult> UpdateAsync(long? owner, long id, string? name, IReadOnlyList<Rule>? rules, CancellationToken ct)
     {
         if (name is { Length: < 1 or > 100 }) return Fail("invalid_name");
         await using var cmd = db.CreateCommand($"""
@@ -151,7 +151,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     // Subscriptions linked to the preset become customised with its last rules, then it is deleted (FR-018, research R7).
-    public async Task<string?> DeleteAsync(string? owner, long id, CancellationToken ct)
+    public async Task<string?> DeleteAsync(long? owner, long id, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
@@ -176,7 +176,7 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     // Why a preset is not the caller's: a global preset on a subscriber route is visible but not theirs (FR-022).
-    async Task<string> MissingAsync(string? owner, long id, CancellationToken ct)
+    async Task<string> MissingAsync(long? owner, long id, CancellationToken ct)
     {
         if (owner is null) return "not_found";
         await using var cmd = db.CreateCommand("SELECT 1 FROM preset WHERE id = $1 AND owner IS NULL");
@@ -195,13 +195,13 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
     }
 
     static PresetRow ReadPreset(NpgsqlDataReader r, int i) =>
-        new(r.GetInt64(i), r.IsDBNull(i + 1) ? null : r.GetString(i + 1), r.GetString(i + 2), Parse(r.GetString(i + 3)), r.GetBoolean(i + 4));
+        new(r.GetInt64(i), r.IsDBNull(i + 1) ? null : r.GetInt64(i + 1), r.GetString(i + 2), Parse(r.GetString(i + 3)), r.GetBoolean(i + 4));
 
     // Stored rules were validated on write.
     static IReadOnlyList<Rule> Parse(string json) =>
         FilterRules.Parse(JsonNode.Parse(json)).Rules ?? throw new InvalidOperationException("stored filter rules are invalid");
 
-    static NpgsqlParameter Owner(string? owner) => new() { Value = (object?)owner ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };
+    static NpgsqlParameter Owner(long? owner) => new() { Value = (object?)owner ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Bigint };
 
     static NpgsqlParameter Rules(IReadOnlyList<Rule> rules) => new() { Value = FilterRules.ToJson(rules).ToJsonString(), NpgsqlDbType = NpgsqlDbType.Jsonb };
 

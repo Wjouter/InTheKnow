@@ -1,58 +1,54 @@
+using System.Security.Claims;
 using System.Text.Json.Nodes;
 using static InTheKnow.Api;
 
 namespace InTheKnow;
 
-// Filter and preset routes (specs/002 contracts/api.md). The operator-key middleware of MapApi covers /api.
+// Filter and preset routes (specs/002 contracts/api.md), under /api/me and /api/admin (004).
 // Bodies bind as JsonNode, so a wrong shape gets a 400 with a reason instead of a binding failure.
 static class FilterApi
 {
     public static void MapFilterApi(this WebApplication app)
     {
-        var api = app.MapGroup("/api");
-        const string filter = "/subscribers/{subscriber}/calendars/{calendarId:long}/filter";
+        var me = Me(app);
+        const string filter = "/calendars/{calendarId:long}/filter";
 
-        api.MapGet(filter, async (string subscriber, long calendarId, Presets presets, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber") : FilterResult(await presets.GetFilterAsync(subscriber, calendarId, ct)));
+        me.MapGet(filter, async (ClaimsPrincipal user, long calendarId, Presets presets, CancellationToken ct) =>
+            FilterResult(await presets.GetFilterAsync(user.AccountId(), calendarId, ct)));
 
-        api.MapPut(filter, async (string subscriber, long calendarId, JsonNode? body, Presets presets, CancellationToken ct) =>
+        me.MapPut(filter, async (ClaimsPrincipal user, long calendarId, JsonNode? body, Presets presets, CancellationToken ct) =>
         {
-            if (!Valid(subscriber)) return Problem(400, "invalid_subscriber");
             var (rules, error) = FilterRules.Parse(Field(body, "rules"));
             if (error is not null) return Problem(400, error);
-            return await presets.ReplaceFilterAsync(subscriber, calendarId, rules!, ct)
-                ? FilterResult(await presets.GetFilterAsync(subscriber, calendarId, ct))
+            return await presets.ReplaceFilterAsync(user.AccountId(), calendarId, rules!, ct)
+                ? FilterResult(await presets.GetFilterAsync(user.AccountId(), calendarId, ct))
                 : Results.NotFound();
         });
 
-        api.MapPut(filter + "/preset", async (string subscriber, long calendarId, JsonNode? body, Presets presets, CancellationToken ct) =>
-        {
-            if (!Valid(subscriber)) return Problem(400, "invalid_subscriber");
-            return Field(body, "presetId") is JsonValue v && v.TryGetValue<long>(out var presetId)
-                   && await presets.ApplyAsync(subscriber, calendarId, presetId, ct)
-                ? FilterResult(await presets.GetFilterAsync(subscriber, calendarId, ct))
-                : Results.NotFound();
-        });
+        me.MapPut(filter + "/preset", async (ClaimsPrincipal user, long calendarId, JsonNode? body, Presets presets, CancellationToken ct) =>
+            Field(body, "presetId") is JsonValue v && v.TryGetValue<long>(out var presetId)
+            && await presets.ApplyAsync(user.AccountId(), calendarId, presetId, ct)
+                ? FilterResult(await presets.GetFilterAsync(user.AccountId(), calendarId, ct))
+                : Results.NotFound());
 
-        // Personal presets: the subscriber's own, plus the global ones to list and apply (FR-015, FR-016).
-        const string personal = "/subscribers/{subscriber}/presets";
-        api.MapGet(personal, async (string subscriber, Presets presets, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber") : Items(await presets.ListAsync(subscriber, ct)));
-        api.MapPost(personal, async (string subscriber, JsonNode? body, Presets presets, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber") : await CreateAsync(presets, subscriber, body, ct));
-        api.MapPut(personal + "/{id:long}", async (string subscriber, long id, JsonNode? body, Presets presets, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber") : await UpdateAsync(presets, subscriber, id, body, ct));
-        api.MapDelete(personal + "/{id:long}", async (string subscriber, long id, Presets presets, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber") : Deleted(await presets.DeleteAsync(subscriber, id, ct)));
+        // Personal presets: the account's own, plus the global ones to list and apply (FR-015, FR-016).
+        me.MapGet("/presets", async (ClaimsPrincipal user, Presets presets, CancellationToken ct) => Items(await presets.ListAsync(user.AccountId(), ct)));
+        me.MapPost("/presets", (ClaimsPrincipal user, JsonNode? body, Presets presets, CancellationToken ct) =>
+            CreateAsync(presets, user.AccountId(), body, ct));
+        me.MapPut("/presets/{id:long}", (ClaimsPrincipal user, long id, JsonNode? body, Presets presets, CancellationToken ct) =>
+            UpdateAsync(presets, user.AccountId(), id, body, ct));
+        me.MapDelete("/presets/{id:long}", async (ClaimsPrincipal user, long id, Presets presets, CancellationToken ct) =>
+            Deleted(await presets.DeleteAsync(user.AccountId(), id, ct)));
 
-        // Global presets, operator only: separated by path, so login can scope the subscriber routes later (research R8).
-        api.MapGet("/presets", async (Presets presets, CancellationToken ct) => Items(await presets.ListAsync(null, ct)));
-        api.MapPost("/presets", (JsonNode? body, Presets presets, CancellationToken ct) => CreateAsync(presets, null, body, ct));
-        api.MapPut("/presets/{id:long}", (long id, JsonNode? body, Presets presets, CancellationToken ct) => UpdateAsync(presets, null, id, body, ct));
-        api.MapDelete("/presets/{id:long}", async (long id, Presets presets, CancellationToken ct) => Deleted(await presets.DeleteAsync(null, id, ct)));
+        // Global presets, admins only (004).
+        var admin = Admin(app);
+        admin.MapGet("/presets", async (Presets presets, CancellationToken ct) => Items(await presets.ListAsync(null, ct)));
+        admin.MapPost("/presets", (JsonNode? body, Presets presets, CancellationToken ct) => CreateAsync(presets, null, body, ct));
+        admin.MapPut("/presets/{id:long}", (long id, JsonNode? body, Presets presets, CancellationToken ct) => UpdateAsync(presets, null, id, body, ct));
+        admin.MapDelete("/presets/{id:long}", async (long id, Presets presets, CancellationToken ct) => Deleted(await presets.DeleteAsync(null, id, ct)));
     }
 
-    static async Task<IResult> CreateAsync(Presets presets, string? owner, JsonNode? body, CancellationToken ct)
+    static async Task<IResult> CreateAsync(Presets presets, long? owner, JsonNode? body, CancellationToken ct)
     {
         var (rules, error) = FilterRules.Parse(Field(body, "rules"));
         if (error is not null) return Problem(400, error);
@@ -60,7 +56,7 @@ static class FilterApi
         return r.Error is null ? Results.Json(PresetJson(r.Preset!), statusCode: 201) : Error(r.Error);
     }
 
-    static async Task<IResult> UpdateAsync(Presets presets, string? owner, long id, JsonNode? body, CancellationToken ct)
+    static async Task<IResult> UpdateAsync(Presets presets, long? owner, long id, JsonNode? body, CancellationToken ct)
     {
         var (nameNode, rulesNode) = (Field(body, "name"), Field(body, "rules"));
         if (nameNode is null && rulesNode is null) return Problem(400, "invalid_rules");
@@ -85,8 +81,6 @@ static class FilterApi
         "name_taken" or "preset_limit" => Problem(409, reason),
         _ => Problem(400, reason),
     };
-
-    static bool Valid(string subscriber) => Subscriptions.SubscriberPattern().IsMatch(subscriber);
 
     static JsonNode? Field(JsonNode? body, string key) => (body as JsonObject)?[key];
 

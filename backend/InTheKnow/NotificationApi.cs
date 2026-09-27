@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json.Nodes;
@@ -6,73 +7,67 @@ using static InTheKnow.Api;
 
 namespace InTheKnow;
 
-// Notification routes (specs/003 contracts/api.md). The operator-key middleware of MapApi covers /api; the /n/ pages are
-// public and act only through their path token (research R8). No response or page ever contains a calendar link.
+// Notification routes (specs/003 contracts/api.md), under /api/me and /api/admin (004). The /n/ pages are public and act
+// only through their path token (research R8, 004 FR-030). No response or page ever contains a calendar link.
 static class NotificationApi
 {
     static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
 
     public static void MapNotificationApi(this WebApplication app)
     {
-        var api = app.MapGroup("/api");
-        const string channels = "/subscribers/{subscriber}/channels";
+        var me = Me(app);
+        const string channels = "/channels";
         const string channel = channels + "/{channelId:long}";
 
-        api.MapGet(channels, async (string subscriber, Channels c, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber") : Results.Json(new { items = (await c.ListAsync(subscriber, ct)).Select(ChannelJson) }));
+        me.MapGet(channels, async (ClaimsPrincipal user, Channels c, CancellationToken ct) =>
+            Results.Json(new { items = (await c.ListAsync(user.AccountId(), ct)).Select(ChannelJson) }));
 
-        api.MapPost(channels, async (string subscriber, JsonNode? body, Channels c, CancellationToken ct) =>
+        me.MapPost(channels, async (ClaimsPrincipal user, JsonNode? body, Channels c, CancellationToken ct) =>
         {
-            if (!Valid(subscriber)) return Problem(400, "invalid_subscriber");
             var (type, target) = (FilterRules.Text(Field(body, "type")), FilterRules.Text(Field(body, "target")));
             if (type is null) return Problem(400, "invalid_type");
             if (target is null) return Problem(400, "invalid_target");
-            var r = await c.AddAsync(subscriber, type, target, ct);
+            var r = await c.AddAsync(user.AccountId(), type, target, ct);
             return r.Error is null ? Results.Json(ChannelJson(r.Channel!), statusCode: 201) : Error(r);
         });
 
-        api.MapDelete(channel, async (string subscriber, long channelId, Channels c, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber")
-            : (await c.RemoveAsync(subscriber, channelId, ct)) is { Error: not null } r ? Error(r) : Results.NoContent());
+        me.MapDelete(channel, async (ClaimsPrincipal user, long channelId, Channels c, CancellationToken ct) =>
+            (await c.RemoveAsync(user.AccountId(), channelId, ct)) is { Error: not null } r ? Error(r) : Results.NoContent());
 
-        api.MapPost(channel + "/pause", (string subscriber, long channelId, Channels c, CancellationToken ct) =>
-            Step(subscriber, () => c.PauseAsync(subscriber, channelId, ct), r => Results.Json(ChannelJson(r.Channel!))));
-        api.MapPost(channel + "/resume", (string subscriber, long channelId, Channels c, CancellationToken ct) =>
-            Step(subscriber, () => c.ResumeAsync(subscriber, channelId, ct), r => Results.Json(ChannelJson(r.Channel!))));
-        api.MapPost(channel + "/confirmation", (string subscriber, long channelId, Channels c, CancellationToken ct) =>
-            Step(subscriber, () => c.RequestConfirmationAsync(subscriber, channelId, ct), _ => Results.StatusCode(202)));
-        api.MapPost(channel + "/test", (string subscriber, long channelId, Channels c, CancellationToken ct) =>
-            Step(subscriber, () => c.RequestTestAsync(subscriber, channelId, ct), _ => Results.StatusCode(202)));
+        me.MapPost(channel + "/pause", (ClaimsPrincipal user, long channelId, Channels c, CancellationToken ct) =>
+            Step(() => c.PauseAsync(user.AccountId(), channelId, ct), r => Results.Json(ChannelJson(r.Channel!))));
+        me.MapPost(channel + "/resume", (ClaimsPrincipal user, long channelId, Channels c, CancellationToken ct) =>
+            Step(() => c.ResumeAsync(user.AccountId(), channelId, ct), r => Results.Json(ChannelJson(r.Channel!))));
+        me.MapPost(channel + "/confirmation", (ClaimsPrincipal user, long channelId, Channels c, CancellationToken ct) =>
+            Step(() => c.RequestConfirmationAsync(user.AccountId(), channelId, ct), _ => Results.StatusCode(202)));
+        me.MapPost(channel + "/test", (ClaimsPrincipal user, long channelId, Channels c, CancellationToken ct) =>
+            Step(() => c.RequestTestAsync(user.AccountId(), channelId, ct), _ => Results.StatusCode(202)));
 
-        const string notifications = "/subscribers/{subscriber}/calendars/{calendarId:long}/notifications";
-        api.MapGet(notifications, async (string subscriber, long calendarId, Channels c, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber")
-            : await c.GetSubscriptionAsync(subscriber, calendarId, ct) is { } s ? Results.Json(s) : Results.NotFound());
+        const string notifications = "/calendars/{calendarId:long}/notifications";
+        me.MapGet(notifications, async (ClaimsPrincipal user, long calendarId, Channels c, CancellationToken ct) =>
+            await c.GetSubscriptionAsync(user.AccountId(), calendarId, ct) is { } s ? Results.Json(s) : Results.NotFound());
 
-        api.MapPut(notifications, async (string subscriber, long calendarId, JsonNode? body, Channels c, CancellationToken ct) =>
+        me.MapPut(notifications, async (ClaimsPrincipal user, long calendarId, JsonNode? body, Channels c, CancellationToken ct) =>
         {
-            if (!Valid(subscriber)) return Problem(400, "invalid_subscriber");
-            var (value, error) = await c.SetSubscriptionAsync(subscriber, calendarId, body as JsonObject ?? [], ct);
+            var (value, error) = await c.SetSubscriptionAsync(user.AccountId(), calendarId, body as JsonObject ?? [], ct);
             return error switch { null => Results.Json(value), "not_found" => Results.NotFound(), _ => Problem(400, error) };
         });
 
-        const string settings = "/subscribers/{subscriber}/notification-settings";
-        api.MapGet(settings, async (string subscriber, Channels c, CancellationToken ct) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber") : Results.Json(await c.GetSettingsAsync(subscriber, ct)));
+        // Reads and writes the account's language and time zone (004).
+        me.MapGet("/notification-settings", async (ClaimsPrincipal user, Channels c, CancellationToken ct) =>
+            Results.Json(await c.GetSettingsAsync(user.AccountId(), ct)));
 
-        api.MapPut(settings, async (string subscriber, JsonNode? body, Channels c, CancellationToken ct) =>
+        me.MapPut("/notification-settings", async (ClaimsPrincipal user, JsonNode? body, Channels c, CancellationToken ct) =>
         {
-            if (!Valid(subscriber)) return Problem(400, "invalid_subscriber");
-            var (value, error) = await c.SetSettingsAsync(subscriber, body as JsonObject ?? [], ct);
+            var (value, error) = await c.SetSettingsAsync(user.AccountId(), body as JsonObject ?? [], ct);
             return error is null ? Results.Json(value) : Problem(400, error);
         });
 
-        // The types a subscriber can add now (US6-3), and the operator's status per type (FR-030a).
-        api.MapGet("/subscribers/{subscriber}/channel-types", (string subscriber, IEnumerable<IChannelType> types) =>
-            !Valid(subscriber) ? Problem(400, "invalid_subscriber")
-            : Results.Json(new { items = types.Where(t => t.Configured).OrderBy(t => t.Name, StringComparer.Ordinal).Select(t => new { type = t.Name }) }));
+        // The types an account can add now (US6-3), and the admin's status per type (FR-030a).
+        me.MapGet("/channel-types", (IEnumerable<IChannelType> types) =>
+            Results.Json(new { items = types.Where(t => t.Configured).OrderBy(t => t.Name, StringComparer.Ordinal).Select(t => new { type = t.Name }) }));
 
-        api.MapGet("/channel-types", async (Notifier notifier, CancellationToken ct) => Results.Json(new
+        Admin(app).MapGet("/channel-types", async (Notifier notifier, CancellationToken ct) => Results.Json(new
         {
             items = (await notifier.StatusAsync(ct)).Select(s => new
             {
@@ -97,20 +92,18 @@ static class NotificationApi
         })
         {
             app.MapGet($"/n/{action}/{{token}}", async (string token, Channels c, CancellationToken ct) =>
-                await c.PageLanguageAsync(action == "unsubscribe", token, ct) is { } language ? Page(action, language, form: true) : NotFoundPage());
+                await c.PageLanguageAsync(action == "unsubscribe", token, ct) is { } language ? Page(action, language, form: true) : NotFoundPage())
+                .AllowAnonymous();
             app.MapPost($"/n/{action}/{{token}}", async (string token, Channels c, CancellationToken ct) =>
                 await run(c, token, ct) is { Outcome: not PageOutcome.NotFound } r ? Page(action, r.Language, result: Result(action, r.Outcome)) : NotFoundPage())
-                .DisableAntiforgery();
+                .DisableAntiforgery().AllowAnonymous();
         }
     }
 
-    static bool Valid(string subscriber) => Subscriptions.SubscriberPattern().IsMatch(subscriber);
-
     static JsonNode? Field(JsonNode? body, string key) => (body as JsonObject)?[key];
 
-    static async Task<IResult> Step(string subscriber, Func<Task<ChannelResult>> run, Func<ChannelResult, IResult> ok)
+    static async Task<IResult> Step(Func<Task<ChannelResult>> run, Func<ChannelResult, IResult> ok)
     {
-        if (!Valid(subscriber)) return Problem(400, "invalid_subscriber");
         var r = await run();
         return r.Error is null ? ok(r) : Error(r);
     }
@@ -126,7 +119,7 @@ static class NotificationApi
         _ => Problem(409, r.Error!),
     };
 
-    // contracts/api.md § Channel. The subscriber id is not part of it.
+    // contracts/api.md § Channel. The account id is not part of it.
     static object ChannelJson(ChannelRow c) => new
     {
         id = c.Id,
@@ -136,6 +129,7 @@ static class NotificationApi
         failureReason = c.FailureReason,
         lastMessageAt = c.LastMessageAt?.UtcDateTime, // UtcDateTime: serialised with Z, as 001's timestamps are
         createdAt = c.CreatedAt.UtcDateTime,
+        accountAddress = c.AccountAddress, // 004 FR-028
     };
 
     static string? Result(string action, PageOutcome outcome) => outcome switch

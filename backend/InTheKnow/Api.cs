@@ -1,35 +1,29 @@
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json.Nodes;
+using System.Security.Claims;
 using Npgsql;
 
 namespace InTheKnow;
 
 sealed record AddLinkRequest(string? Url);
 
-// The HTTP API from contracts/api.md. Every route needs the operator key (FR-031), and no response
-// ever contains a link (FR-032).
+// The HTTP API from contracts/api.md. No response ever contains a link (FR-032). Sessions replace the operator key
+// (004): the fallback policy puts every route behind a signed-in session, which authorization checks before the body
+// is bound. User routes act for the signed-in account under /api/me; the former operator routes need an admin under
+// /api/admin (004 contracts/api.md § Moved routes).
 static class Api
 {
     const int Batch = 500;
 
+    public static RouteGroupBuilder Me(WebApplication app) => app.MapGroup("/api/me");
+
+    public static RouteGroupBuilder Admin(WebApplication app) => app.MapGroup("/api/admin").RequireAuthorization("admin");
+
     public static void MapApi(this WebApplication app)
     {
-        // Middleware rather than an endpoint filter: filters run after parameter binding, so a request without the
-        // key could get a 400 for its body before the 401.
-        app.Use(async (http, next) =>
-        {
-            if (http.Request.Path.StartsWithSegments("/api") && !HasKey(http))
-                http.Response.StatusCode = 401;
-            else
-                await next(http);
-        });
-        var api = app.MapGroup("/api");
+        var me = Me(app);
 
-        api.MapPost("/subscribers/{subscriber}/links", async (string subscriber, AddLinkRequest body, Subscriptions subscriptions,
-                                                                HttpResponse response, CancellationToken ct) =>
+        me.MapPost("/links", async (ClaimsPrincipal user, AddLinkRequest body, Subscriptions subscriptions, HttpResponse response, CancellationToken ct) =>
         {
-            var r = await subscriptions.AddLinkAsync(subscriber, body.Url ?? "", ct);
+            var r = await subscriptions.AddLinkAsync(user.AccountId(), body.Url ?? "", ct);
             switch (r.Error)
             {
                 case null:
@@ -45,9 +39,8 @@ static class Api
             }
         });
 
-        api.MapGet("/subscribers/{subscriber}/calendars", async (string subscriber, NpgsqlDataSource db, CancellationToken ct) =>
+        me.MapGet("/calendars", async (ClaimsPrincipal user, NpgsqlDataSource db, CancellationToken ct) =>
         {
-            if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
             await using var cmd = db.CreateCommand("""
                 SELECT c.id, c.status, c.last_checked_at, c.last_ok, c.last_error, c.consecutive_failures, c.next_check_at,
                        l.id, l.flagged_at IS NOT NULL, l.created_at, coalesce(ss.notify, true), ss.label, coalesce(ss.label, c.feed_name, c.host)
@@ -55,7 +48,7 @@ static class Api
                 LEFT JOIN subscription_setting ss ON ss.calendar_id = c.id AND ss.subscriber = l.subscriber
                 WHERE l.subscriber = $1 ORDER BY c.id, l.id
                 """);
-            cmd.Parameters.Add(new() { Value = subscriber });
+            cmd.Parameters.Add(new() { Value = user.AccountId() });
             await using var r = await cmd.ExecuteReaderAsync(ct);
             var calendars = new List<(long Id, Dictionary<string, object?> Json, List<object> Links)>();
             while (await r.ReadAsync(ct))
@@ -76,23 +69,18 @@ static class Api
             return Results.Json(calendars.Select(c => c.Json));
         });
 
-        api.MapDelete("/subscribers/{subscriber}/calendars/{calendarId:long}", async (string subscriber, long calendarId,
-                                                                                      Subscriptions subscriptions, CancellationToken ct) =>
-        {
-            if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
-            return await subscriptions.RemoveAsync(subscriber, calendarId, ct) ? Results.NoContent() : Results.NotFound();
-        });
+        me.MapDelete("/calendars/{calendarId:long}", async (ClaimsPrincipal user, long calendarId, Subscriptions subscriptions, CancellationToken ct) =>
+            await subscriptions.RemoveAsync(user.AccountId(), calendarId, ct) ? Results.NoContent() : Results.NotFound());
 
         // Read-only: delivery status lives in `delivery` (003).
         // Each change carries its outcome under the subscriber's filter; hidden ones only with includeHidden (FR-008).
-        api.MapGet("/subscribers/{subscriber}/changes", async (string subscriber, long? after, int? limit, string? includeHidden,
-                                                               NpgsqlDataSource db, Presets presets, CancellationToken ct) =>
+        me.MapGet("/changes", async (ClaimsPrincipal user, long? after, int? limit, string? includeHidden,
+                                     NpgsqlDataSource db, Presets presets, CancellationToken ct) =>
         {
-            if (!Subscriptions.SubscriberPattern().IsMatch(subscriber)) return Problem(400, "invalid_subscriber");
             if (limit is < 1 or > 500) return Problem(400, "invalid_limit");
             if (includeHidden is not (null or "true" or "false")) return Problem(400, "invalid_include_hidden");
             var take = limit ?? 100;
-            var filters = await presets.LoadFiltersAsync(subscriber, ct);
+            var filters = await presets.LoadFiltersAsync(user.AccountId(), ct);
             var items = new List<(long Id, object Json)>();
             // Keyset batches until the page is full, so a page is never empty while visible changes remain (research R3).
             // ponytail: a full keyset scan per page; upgrade to an indexed pre-filter or a materialised outcome only if SC-009 measurement fails
@@ -133,7 +121,7 @@ static class Api
             return Page(items, take);
         });
 
-        api.MapGet("/calendars", async (string? status, bool? overdue, long? after, int? limit, NpgsqlDataSource db, TimeProvider time, CancellationToken ct) =>
+        Admin(app).MapGet("/calendars", async (string? status, bool? overdue, long? after, int? limit, NpgsqlDataSource db, TimeProvider time, CancellationToken ct) =>
         {
             if (status is not (null or "ok" or "failing")) return Problem(400, "invalid_status");
             if (limit is < 1 or > 500) return Problem(400, "invalid_limit");
@@ -165,15 +153,6 @@ static class Api
             }
             return Page(items, take);
         });
-    }
-
-    static bool HasKey(HttpContext http)
-    {
-        var key = http.RequestServices.GetRequiredService<Settings>().Options.ApiKey;
-        var header = http.Request.Headers.Authorization.ToString();
-        var presented = header.StartsWith("Bearer ", StringComparison.Ordinal) ? header["Bearer ".Length..] : "";
-        return presented.Length > 0 && CryptographicOperations.FixedTimeEquals(
-            SHA256.HashData(Encoding.UTF8.GetBytes(presented)), SHA256.HashData(Encoding.UTF8.GetBytes(key)));
     }
 
     internal static IResult Problem(int status, string reason, Dictionary<string, object?>? extra = null) =>

@@ -13,6 +13,10 @@ sealed class Harness : IAsyncDisposable
     public const string Mt = "mytimetables.inholland.nl";
 
     public required TestDb Db { get; init; }
+    // Three accounts (004): the subscribers s1, s2 and s3 of 001 to 003's stories.
+    public long S1 { get; private set; }
+    public long S2 { get; private set; }
+    public long S3 { get; private set; }
     public FakeTimeProvider Time { get; } = new(T0);
     public FakeHttp Http { get; }
     public Settings Settings { get; private set; } = null!;
@@ -28,6 +32,7 @@ sealed class Harness : IAsyncDisposable
     public static async Task<Harness> CreateAsync(ILoggerFactory logs, params (string Key, string? Value)[] overrides)
     {
         var h = new Harness { Db = await TestDb.CreateAsync(), Logs = logs };
+        (h.S1, h.S2, h.S3) = await TestHost.AccountsAsync(h.Db.DataSource);
         h.Restart(overrides);
         return h;
     }
@@ -48,11 +53,11 @@ sealed class Harness : IAsyncDisposable
 
     public Task RunAsync() => Checker.RunDueChecksAsync(Now).WaitAsync(TimeSpan.FromSeconds(30));
 
-    public async Task<(long Id, string Url)> SeedAsync(string fixture, string host = Mt, DateTimeOffset? nextCheckAt = null, string subscriber = "s1")
+    public async Task<(long Id, string Url)> SeedAsync(string fixture, string host = Mt, DateTimeOffset? nextCheckAt = null, long? subscriber = null)
     {
         var url = $"https://{host}/ical?{Guid.NewGuid():N}";
         Http.Map[url] = fixture;
-        var (id, _) = await Db.SeedCalendarAsync(host, [url], subscriber, nextCheckAt);
+        var (id, _) = await Db.SeedCalendarAsync(host, [url], subscriber ?? S1, nextCheckAt);
         return (id, url);
     }
 
@@ -253,7 +258,7 @@ public class CheckerTests
         await using var h = await Harness.CreateAsync();
         string[] urls = [$"https://{Harness.Mt}/ical?one", $"https://{Harness.Mt}/ical?two"];
         foreach (var u in urls) h.Http.Map[u] = "mt-nl.ics";
-        var (id, links) = await h.Db.SeedCalendarAsync(Harness.Mt, urls);
+        var (id, links) = await h.Db.SeedCalendarAsync(Harness.Mt, urls, h.S1);
         await h.RunAsync();
         Assert.Equal(1, h.Http.Count(urls[0]));
 
@@ -293,7 +298,7 @@ public class CheckerTests
     public async Task RetentionDeletesExpiredChangesInBatches()
     {
         await using var h = await Harness.CreateAsync();
-        var (id, _) = await h.Db.SeedCalendarAsync("x.example", ["https://x.example/a"]);
+        var (id, _) = await h.Db.SeedCalendarAsync("x.example", ["https://x.example/a"], h.S1);
         const string insert = """
             INSERT INTO detected_change (calendar_id, event_key, kind, new_value, event_name, event_starts_at, detected_at)
             SELECT $1, 'k' || g, 'added', '{}', 'n', $2, $2 FROM generate_series(1, $3) g
@@ -480,7 +485,7 @@ public class CheckerTests
 
         var link = LinkIdentityTests.MtLink(id: "NEWGROUP");
         h.Http.Map[new Uri(link).AbsoluteUri] = "mt-nl.ics";
-        var add = h.Subscriptions.AddLinkAsync("s9", link, Ct);
+        var add = h.Subscriptions.AddLinkAsync(await TestHost.AccountAsync(h.Db.DataSource), link, Ct);
         await Harness.UntilAsync(() => h.Budget.EarliestFree(h.Now) == Harness.T0.AddSeconds(12));
         while (!add.IsCompleted || h.Now < Harness.T0.AddSeconds(13))
         {
@@ -602,8 +607,8 @@ public class CheckerTests
     public async Task RegroupSplitsAndMerges()
     {
         await using var h = await Harness.CreateAsync();
-        var a = await SubscriptionsTests.AddAsync(h, "s1", LinkIdentityTests.MtLink(user: "1001"));
-        var b = await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "2002"));
+        var a = await SubscriptionsTests.AddAsync(h, h.S1, LinkIdentityTests.MtLink(user: "1001"));
+        var b = await SubscriptionsTests.AddAsync(h, h.S2, LinkIdentityTests.MtLink(user: "2002"));
         Assert.Equal(a.CalendarId, b.CalendarId);
         var original = a.CalendarId!.Value;
 
@@ -637,17 +642,17 @@ public class CheckerTests
     {
         await using var h = await Harness.CreateAsync();
         var presets = new Presets(h.Db.DataSource, h.Settings);
-        var a = await SubscriptionsTests.AddAsync(h, "s1", LinkIdentityTests.MtLink(user: "1001"));
-        var b = await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "2002"));
-        await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "1001", hex: "03")); // stays with s1's link on a split
-        var c = await SubscriptionsTests.AddAsync(h, "s3", LinkIdentityTests.MtLink(user: "3003"));
+        var a = await SubscriptionsTests.AddAsync(h, h.S1, LinkIdentityTests.MtLink(user: "1001"));
+        var b = await SubscriptionsTests.AddAsync(h, h.S2, LinkIdentityTests.MtLink(user: "2002"));
+        await SubscriptionsTests.AddAsync(h, h.S2, LinkIdentityTests.MtLink(user: "1001", hex: "03")); // stays with s1's link on a split
+        var c = await SubscriptionsTests.AddAsync(h, h.S3, LinkIdentityTests.MtLink(user: "3003"));
         var original = a.CalendarId!.Value;
         Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
 
-        var personal = (await presets.CreateAsync("s2", "Mine", FilterEngineTests.R(PresetsTests.HideZelf), Ct)).Preset!.Id;
-        Assert.True(await presets.ReplaceFilterAsync("s1", original, FilterEngineTests.R(PresetsTests.HideZelf), Ct));
-        Assert.True(await presets.ApplyAsync("s2", original, personal, Ct));
-        Assert.True(await presets.ReplaceFilterAsync("s3", original, FilterEngineTests.R("[]"), Ct));
+        var personal = (await presets.CreateAsync(h.S2, "Mine", FilterEngineTests.R(PresetsTests.HideZelf), Ct)).Preset!.Id;
+        Assert.True(await presets.ReplaceFilterAsync(h.S1, original, FilterEngineTests.R(PresetsTests.HideZelf), Ct));
+        Assert.True(await presets.ApplyAsync(h.S2, original, personal, Ct));
+        Assert.True(await presets.ReplaceFilterAsync(h.S3, original, FilterEngineTests.R("[]"), Ct));
 
         // Split: s2 keeps its filter on both calendars; s3 has no link left on the original, so its row moves.
         h.Restart(("InTheKnow:MyTimetables:Domains:0:ClassGroupSharing", "false"));
@@ -656,17 +661,17 @@ public class CheckerTests
         var (split2, split3) = (await CalendarOf(b.LinkId!.Value), await CalendarOf(c.LinkId!.Value));
         Assert.Equal(original, await CalendarOf(a.LinkId!.Value));
         Assert.Equal(3, new[] { original, split2, split3 }.Distinct().Count());
-        Assert.Equal(new List<(long, string, long?, long?)>
+        Assert.Equal(new List<(long, long, long?, long?)>
             {
-                (original, "s1", null, 1), (original, "s2", personal, null), (split2, "s2", personal, null), (split3, "s3", null, 0),
+                (original, h.S1, null, 1), (original, h.S2, personal, null), (split2, h.S2, personal, null), (split3, h.S3, null, 0),
             }.Order(), (await PresetsTests.FiltersAsync(h.Db)).Order());
 
         // Merge back: the target's own row wins over the moved link's.
-        Assert.True(await presets.ReplaceFilterAsync("s2", split2, FilterEngineTests.R("[]"), Ct));
+        Assert.True(await presets.ReplaceFilterAsync(h.S2, split2, FilterEngineTests.R("[]"), Ct));
         h.Restart();
         await h.Checker.RegroupAsync(h.Now, Ct);
         Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
-        Assert.Equal([(original, "s1", null, 1L), (original, "s2", personal, null), (original, "s3", null, 0L)], await PresetsTests.FiltersAsync(h.Db));
+        Assert.Equal([(original, h.S1, null, 1L), (original, h.S2, personal, null), (original, h.S3, null, 0L)], await PresetsTests.FiltersAsync(h.Db));
     }
 
     [Fact]
@@ -674,7 +679,7 @@ public class CheckerTests
     {
         await using var h = await Harness.CreateAsync();
         string[] urls = [LinkIdentityTests.MtLink(user: "1001"), LinkIdentityTests.MtLink(user: "2002")];
-        foreach (var (u, i) in urls.Select((u, i) => (u, i))) await SubscriptionsTests.AddAsync(h, $"s{i}", u);
+        foreach (var u in urls) await SubscriptionsTests.AddAsync(h, await TestHost.AccountAsync(h.Db.DataSource), u);
         Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar"));
 
         h.Restart(("InTheKnow:MyTimetables:Domains:0:Host", "elsewhere.example"));
@@ -694,7 +699,7 @@ public class CheckerTests
         for (var i = 0; i < urls.Count; i++)
         {
             h.Http.Map[new Uri(urls[i]).AbsoluteUri] = i == 4 ? "generic.ics" : "mt-nl.ics";
-            await h.Db.SeedCalendarAsync(i == 3 ? Harness.Mt : $"{outcomes[i]}.example", [new Uri(urls[i]).AbsoluteUri]);
+            await h.Db.SeedCalendarAsync(i == 3 ? Harness.Mt : $"{outcomes[i]}.example", [new Uri(urls[i]).AbsoluteUri], h.S1);
         }
         await h.RunAsync();
         h.Http.Map[new Uri(urls[1]).AbsoluteUri] = System.Net.HttpStatusCode.InternalServerError;
@@ -715,7 +720,7 @@ public class CheckerTests
     }
 
     // 003 research R1: fan-out at record time. Channels are inserted directly as active (FR-011).
-    internal static Task<long> ChannelAsync(TestDb db, string subscriber, string status = "active", DateTimeOffset? at = null, string? target = null,
+    internal static Task<long> ChannelAsync(TestDb db, long subscriber, string status = "active", DateTimeOffset? at = null, string? target = null,
                                             string type = "email") =>
         db.ScalarAsync("""
             INSERT INTO channel (subscriber, type, target, status, status_since, failure_reason, activated_at, unsubscribe_token, created_at)
@@ -729,17 +734,17 @@ public class CheckerTests
         var (h, id, url) = await BaselineAsync();
         await using var _h = h;
         Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM delivery")); // a baseline creates none
-        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, 's2', $2)", id, url + "&s2");
-        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, 's3', $2)", id, url + "&s3");
-        var active = await ChannelAsync(h.Db, "s1");
-        var second = await ChannelAsync(h.Db, "s1");
-        var s2 = await ChannelAsync(h.Db, "s2");
-        foreach (var status in new[] { "paused", "awaitingConfirmation" }) await ChannelAsync(h.Db, "s1", status);
-        foreach (var status in new[] { "unsubscribed", "failing" }) await ChannelAsync(h.Db, "s2", status);
-        await ChannelAsync(h.Db, "s3");
-        await ChannelAsync(h.Db, "nobody");
-        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify) VALUES ($1, 's3', false)", id);
-        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, label) VALUES ($1, 's2', 'Mine')", id);
+        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, $3, $2)", id, url + "&s2", h.S2);
+        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, $3, $2)", id, url + "&s3", h.S3);
+        var active = await ChannelAsync(h.Db, h.S1);
+        var second = await ChannelAsync(h.Db, h.S1);
+        var s2 = await ChannelAsync(h.Db, h.S2);
+        foreach (var status in new[] { "paused", "awaitingConfirmation" }) await ChannelAsync(h.Db, h.S1, status);
+        foreach (var status in new[] { "unsubscribed", "failing" }) await ChannelAsync(h.Db, h.S2, status);
+        await ChannelAsync(h.Db, h.S3);
+        await ChannelAsync(h.Db, await TestHost.AccountAsync(h.Db.DataSource));
+        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify) VALUES ($1, $2, false)", id, h.S3);
+        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, label) VALUES ($1, $2, 'Mine')", id, h.S2);
 
         h.Http.Map[url] = "mt-nl-edited.ics";
         await NextIntervalAsync(h);
@@ -749,19 +754,34 @@ public class CheckerTests
         Assert.Equal([[active, changes, true], [second, changes, true], [s2, changes, true]], rows);
     }
 
+    // 004 FR-033c, research R12: a disabled account's channels get no deliveries; an enabled one on the same calendar does.
+    [Fact]
+    public async Task FanOutSkipsDisabledAccounts()
+    {
+        var (h, id, url) = await BaselineAsync();
+        await using var _h = h;
+        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, $3, $2)", id, url + "&s2", h.S2);
+        var enabled = await ChannelAsync(h.Db, h.S1);
+        await ChannelAsync(h.Db, h.S2);
+        await h.Db.ExecAsync("UPDATE account SET disabled_at = now() WHERE id = $1", h.S2);
+        h.Http.Map[url] = "mt-nl-edited.ics";
+        await NextIntervalAsync(h);
+        Assert.Equal([[enabled]], await h.Db.RowsAsync("SELECT DISTINCT channel_id FROM delivery"));
+    }
+
     [Fact]
     public async Task FanOutUsesTheIdWatermark()
     {
         var (h, id, url) = await BaselineAsync();
         await using var _h = h;
-        var early = await ChannelAsync(h.Db, "s1");
+        var early = await ChannelAsync(h.Db, h.S1);
         h.Http.Map[url] = "mt-nl-edited.ics";
         h.Time.Advance(h.Settings.Options.CheckInterval);
         await h.RunAsync();
         var first = await h.Db.ScalarAsync("SELECT count(*) FROM detected_change");
 
         // A second check at the same fake instant: the channel activated in between gets only its changes.
-        var late = await ChannelAsync(h.Db, "s1");
+        var late = await ChannelAsync(h.Db, h.S1);
         await h.Db.ExecAsync("UPDATE calendar SET next_check_at = $1 WHERE id = $2", h.Now, id);
         h.Restart(); // a fresh host budget, so the host is not busy at this instant
         h.Http.Map[url] = "mt-nl.ics";
@@ -798,7 +818,7 @@ public class CheckerTests
         }
         finally { File.Delete(renamed); }
 
-        await ChannelAsync(h.Db, "s1");
+        await ChannelAsync(h.Db, h.S1);
         var (generic, _) = await h.SeedAsync("generic.ics", "calendar.example.com");
         await h.RunAsync();
         Assert.Equal(0, await h.Db.ScalarAsync("SELECT count(*) FROM delivery")); // a baseline records nothing, so fans out nothing
@@ -810,23 +830,23 @@ public class CheckerTests
     public async Task RegroupKeepsSubscriptionSettings()
     {
         await using var h = await Harness.CreateAsync();
-        var a = await SubscriptionsTests.AddAsync(h, "s1", LinkIdentityTests.MtLink(user: "1001"));
-        var b = await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "2002"));
-        await SubscriptionsTests.AddAsync(h, "s2", LinkIdentityTests.MtLink(user: "1001", hex: "03")); // stays with s1's link on a split
+        var a = await SubscriptionsTests.AddAsync(h, h.S1, LinkIdentityTests.MtLink(user: "1001"));
+        var b = await SubscriptionsTests.AddAsync(h, h.S2, LinkIdentityTests.MtLink(user: "2002"));
+        await SubscriptionsTests.AddAsync(h, h.S2, LinkIdentityTests.MtLink(user: "1001", hex: "03")); // stays with s1's link on a split
         var original = a.CalendarId!.Value;
-        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify, label) VALUES ($1, 's1', true, 'One'), ($1, 's2', false, 'Two')", original);
+        await h.Db.ExecAsync("INSERT INTO subscription_setting (calendar_id, subscriber, notify, label) VALUES ($1, $2, true, 'One'), ($1, $3, false, 'Two')", original, h.S1, h.S2);
         Task<List<object?[]>> Rows() => h.Db.RowsAsync("SELECT calendar_id, subscriber, notify, label FROM subscription_setting ORDER BY subscriber, calendar_id");
 
         h.Restart(("InTheKnow:MyTimetables:Domains:0:ClassGroupSharing", "false"));
         await h.Checker.RegroupAsync(h.Now, Ct);
         var split = await h.Db.ScalarAsync("SELECT calendar_id FROM calendar_link WHERE id = $1", b.LinkId!.Value);
         Assert.NotEqual(original, split);
-        Assert.Equal([[original, "s1", true, "One"], [original, "s2", false, "Two"], [split, "s2", false, "Two"]], await Rows());
+        Assert.Equal([[original, h.S1, true, "One"], [original, h.S2, false, "Two"], [split, h.S2, false, "Two"]], await Rows());
 
         // Merge back: the target's own row wins over the moved link's.
         await h.Db.ExecAsync("UPDATE subscription_setting SET notify = true, label = 'Other' WHERE calendar_id = $1", split);
         h.Restart();
         await h.Checker.RegroupAsync(h.Now, Ct);
-        Assert.Equal([[original, "s1", true, "One"], [original, "s2", false, "Two"]], await Rows());
+        Assert.Equal([[original, h.S1, true, "One"], [original, h.S2, false, "Two"]], await Rows());
     }
 }

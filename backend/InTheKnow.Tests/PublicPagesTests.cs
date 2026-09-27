@@ -24,9 +24,9 @@ public class PublicPagesTests
         return (r.StatusCode, await r.Content.ReadAsStringAsync(Ct));
     }
 
-    static async Task<Message> ConfirmationAsync(DeliveryHost d, string subscriber, string target)
+    static async Task<Message> ConfirmationAsync(DeliveryHost d, SignedIn who, string target)
     {
-        Assert.Equal(HttpStatusCode.Created, (await d.PostAsync($"/api/subscribers/{subscriber}/channels", new { type = d.C.Type, target })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await d.PostAsync(who, "/api/me/channels", new { type = d.C.Type, target })).StatusCode);
         await d.NotifyAsync(3);
         return d.To(target).Last(m => m.Kind == MessageKind.Confirmation);
     }
@@ -39,7 +39,7 @@ public class PublicPagesTests
     public async Task ConfirmPage()
     {
         await using var d = await DeliveryHost.CreateAsync("test");
-        var m = await ConfirmationAsync(d, "s1", A);
+        var m = await ConfirmationAsync(d, d.S1, A);
 
         var get = await GetAsync(d, m.ConfirmUrl!);
         Assert.Equal((HttpStatusCode.OK, "text/html; charset=utf-8"), (get.Status, get.ContentType));
@@ -55,18 +55,33 @@ public class PublicPagesTests
         Assert.DoesNotContain(A, get.Html + post.Html);
     }
 
+    // 004 FR-030: every /n/ page, GET and POST, works with no Authorization header (the helpers use a bare client).
+    [Fact]
+    public async Task PagesNeedNoSession()
+    {
+        await using var d = await DeliveryHost.CreateAsync("test");
+        var m = await ConfirmationAsync(d, d.S1, A);
+        var unsubscribe = $"{EmailChannelTests.Public}/n/unsubscribe/{await d.TextAsync("SELECT unsubscribe_token FROM channel WHERE target = $1", A)}";
+        using var bare = d.H.Factory.CreateClient();
+        Assert.Null(bare.DefaultRequestHeaders.Authorization);
+        foreach (var url in new[] { m.ConfirmUrl!, m.DeclineUrl!, unsubscribe })
+            Assert.Equal(HttpStatusCode.OK, (await bare.GetAsync(new Uri(url).PathAndQuery, Ct)).StatusCode);
+        foreach (var url in new[] { m.ConfirmUrl!, unsubscribe, m.DeclineUrl! })
+            Assert.Equal(HttpStatusCode.OK, (await bare.PostAsync(new Uri(url).PathAndQuery, null, Ct)).StatusCode);
+    }
+
     [Fact]
     public async Task ExpiredAndUnavailable()
     {
         await using var d = await DeliveryHost.CreateAsync("test");
-        var expired = await ConfirmationAsync(d, "s1", A);
+        var expired = await ConfirmationAsync(d, d.S1, A);
         d.H.Time.Advance(TimeSpan.FromHours(48) + TimeSpan.FromSeconds(1));
         var post = await PostAsync(d, expired.ConfirmUrl!);
         Assert.Equal(HttpStatusCode.OK, post.Status);
         Assert.Contains(T("en", "page.expired"), post.Html);
         Assert.Equal("awaitingConfirmation", await StatusAsync(d, A));
 
-        var unavailable = await ConfirmationAsync(d, "s1", B);
+        var unavailable = await ConfirmationAsync(d, d.S1, B);
         ((TestTypeUnderTest)d.C).Channel.Configured = false;
         Assert.Contains(T("en", "page.unavailable"), (await PostAsync(d, unavailable.ConfirmUrl!)).Html);
         Assert.Equal("awaitingConfirmation", await StatusAsync(d, B));
@@ -97,8 +112,8 @@ public class PublicPagesTests
     public async Task DeclineAndUnsubscribePages()
     {
         await using var d = await DeliveryHost.CreateAsync("test");
-        var m = await ConfirmationAsync(d, "s1", A);
-        var other = await d.AddConfirmedChannelAsync("s1", B);
+        var m = await ConfirmationAsync(d, d.S1, A);
+        var other = await d.AddConfirmedChannelAsync(d.S1, B);
         var decline = m.DeclineUrl!;
         var unsubscribe = $"{EmailChannelTests.Public}/n/unsubscribe/{await d.TextAsync("SELECT unsubscribe_token FROM channel WHERE id = $1", other)}";
 
@@ -129,11 +144,11 @@ public class PublicPagesTests
     {
         await using var d = await DeliveryHost.CreateAsync("email");
         var url = MtLink(user: "1001");
-        await d.SubscribeAsync("s1", url);
-        var m = await ConfirmationAsync(d, "s1", A);
+        await d.SubscribeAsync(d.S1, url);
+        var m = await ConfirmationAsync(d, d.S1, A);
         await GetAsync(d, m.ConfirmUrl!);
         await PostAsync(d, m.ConfirmUrl!);
-        var declined = await ConfirmationAsync(d, "s1", B);
+        var declined = await ConfirmationAsync(d, d.S1, B);
         await PostAsync(d, declined.DeclineUrl!);
         await d.RecordChangesAsync(url, "mt-nl-edited.ics");
         await d.AdvanceAndNotifyAsync(d.Window);
@@ -141,9 +156,9 @@ public class PublicPagesTests
         await PostAsync(d, digest.UnsubscribeUrl!, new FormUrlEncodedContent([new("List-Unsubscribe", "One-Click")]));
 
         // A failed send, and a rejected one.
-        var c = await d.AddActiveChannelAsync("s1", "c@example.nl");
+        var c = await d.AddActiveChannelAsync(d.S1, "c@example.nl");
         d.C.RejectPermanently("c@example.nl");
-        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync($"/api/subscribers/s1/channels/{c}/test")).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await d.PostAsync(d.S1, $"/api/me/channels/{c}/test")).StatusCode);
         await d.NotifyAsync(3);
         Assert.Equal("failing", await StatusAsync(d, "c@example.nl"));
 
@@ -160,9 +175,9 @@ public class PublicPagesTests
     public async Task PageLanguages()
     {
         await using var d = await DeliveryHost.CreateAsync("test");
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync("/api/subscribers/s1/notification-settings", """{"language":"nl"}""")).StatusCode);
-        var m = await ConfirmationAsync(d, "s1", A);
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync("/api/subscribers/s1/notification-settings", """{"language":"en"}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, "/api/me/notification-settings", """{"language":"nl"}""")).StatusCode);
+        var m = await ConfirmationAsync(d, d.S1, A);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, "/api/me/notification-settings", """{"language":"en"}""")).StatusCode);
         foreach (var url in new[] { m.ConfirmUrl!, m.DeclineUrl! })
         {
             var get = await GetAsync(d, url);
@@ -175,7 +190,7 @@ public class PublicPagesTests
 
         var unsubscribe = $"{EmailChannelTests.Public}/n/unsubscribe/{await d.TextAsync("SELECT unsubscribe_token FROM channel WHERE target = $1", A)}";
         Assert.Contains("<html lang=\"en\">", (await GetAsync(d, unsubscribe)).Html);
-        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync("/api/subscribers/s1/notification-settings", """{"language":"nl"}""")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await d.PutAsync(d.S1, "/api/me/notification-settings", """{"language":"nl"}""")).StatusCode);
         var post = await PostAsync(d, unsubscribe);
         Assert.Contains("<html lang=\"nl\">", post.Html);
         Assert.Contains(T("nl", "page.unsubscribe.done"), post.Html);

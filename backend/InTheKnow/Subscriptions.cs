@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
@@ -8,17 +7,14 @@ sealed record AddLinkResult(long? CalendarId, long? LinkId, bool CalendarIsNew, 
 
 // Adding a link (validate, identity, attach, baseline a new calendar) and removing a subscription.
 // Never logs the link (FR-028).
-sealed partial class Subscriptions(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Settings settings, TimeProvider time)
+sealed class Subscriptions(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Settings settings, TimeProvider time)
 {
     static readonly TimeSpan MaxValidationWait = TimeSpan.FromSeconds(5);
 
-    [GeneratedRegex("^[A-Za-z0-9._@-]{1,100}$")] public static partial Regex SubscriberPattern();
-
     static AddLinkResult Fail(string reason) => new(null, null, false, false, reason);
 
-    public async Task<AddLinkResult> AddLinkAsync(string subscriber, string url, CancellationToken ct)
+    public async Task<AddLinkResult> AddLinkAsync(long subscriber, string url, CancellationToken ct)
     {
-        if (!SubscriberPattern().IsMatch(subscriber)) return Fail("invalid_subscriber");
         var (uri, reason) = await fetcher.CheckUrlAsync(url, ct);
         if (uri is null) return Fail(reason!);
         var link = uri.AbsoluteUri;
@@ -97,8 +93,8 @@ sealed partial class Subscriptions(NpgsqlDataSource db, Fetcher fetcher, HostBud
         return new(calendarId, linkId, created is not null, false, null);
     }
 
-    // Deletes the subscriber's links to the calendar, and the calendar itself when no links remain (FR-008).
-    public async Task<bool> RemoveAsync(string subscriber, long calendarId, CancellationToken ct)
+    // Deletes the account's links to the calendar, and the calendar itself when no links remain (FR-008).
+    public async Task<bool> RemoveAsync(long subscriber, long calendarId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
