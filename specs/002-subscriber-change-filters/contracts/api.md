@@ -52,6 +52,9 @@ or a global preset (otherwise `404`). `200` returns the same body as `GET`. Appl
 
 ## Personal presets
 
+Since 005, personal presets in `GET /api/me/presets` carry `followers`, and rule refusals carry the index of the
+rule at fault: see [005 contracts/api.md](../../005-sveltekit-frontend/contracts/api.md).
+
 ### `GET /api/me/presets`
 
 Returns `{ "items": [Preset] }`: the subscriber's own presets, then the global presets (FR-015, FR-016).
@@ -91,6 +94,8 @@ Since 004 these routes are under `/api/admin` and need an admin with a second fa
 management out of the account's own routes.
 
 ## Changes: `GET /api/me/changes` (FR-008)
+
+Since 005, `order=newest` with a `before` cursor pages newest first: see [005 contracts/api.md](../../005-sveltekit-frontend/contracts/api.md).
 
 Adds one query parameter and one response field to the 001 route:
 
