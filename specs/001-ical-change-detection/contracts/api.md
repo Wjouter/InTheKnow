@@ -83,6 +83,8 @@ deleted in the same transaction.
 
 ### `GET /api/me/changes?after={id}&limit={n}`: recorded changes (US5-3)
 
+Since 005, `order=newest` with a `before` cursor pages newest first: see [005 contracts/api.md](../../005-sveltekit-frontend/contracts/api.md).
+
 Returns the changes of the calendars this subscriber currently subscribes to, ordered by `id` ascending.
 Pagination is keyset-based:
 - `after` defaults to 0.
