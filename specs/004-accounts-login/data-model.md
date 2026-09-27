@@ -138,8 +138,10 @@ Indexes:
 | `created_at` | `timestamptz` | NOT NULL | |
 | `expires_at` | `timestamptz` | NOT NULL, `CHECK (expires_at > created_at AND expires_at <= created_at + interval '90 days')` | 1 to 90 days, default 7 |
 
-Index: `UNIQUE (lower(email)) WHERE kind = 'named'`. A second invite to the same address is refused with
-`invite_exists`, and the admin resends or revokes the first.
+Index: `UNIQUE (lower(email)) WHERE kind = 'named'`. A second invite to the same address while the first is
+pending is refused with `invite_exists`, and the admin resends or revokes the first. An expired named invite is
+deleted when a new one is created for its address, and a resend renews `created_at` and `expires_at` with the same
+validity, so an expired invite never blocks the address (R10, R13).
 
 ### `signup_settings`
 

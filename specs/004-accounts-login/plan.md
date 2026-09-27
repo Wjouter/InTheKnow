@@ -47,7 +47,7 @@ the operator key. Admins replace the operator inside the app.
 - **Security log** (R14): a `security_event` table with no API, deleted after 90 days.
 
 R17 records three places where the spec's requirements conflicted. They are resolved: SC-005 now states the true
-bound of 23 per rolling hour, and FR-018, FR-022 and FR-024 now refer to FR-027a's step-up confirmation.
+bound of 23 per rolling hour, and FR-018, FR-021, FR-022 and FR-024 now refer to FR-027a's step-up confirmation.
 
 ## Technical Context
 
@@ -112,7 +112,7 @@ No NEEDS CLARIFICATION items remain. All decisions are in [research.md](./resear
 | II. HTTPS outside development | PASS | 001's Transport rule is unchanged: TLS at the reverse proxy, and `/api` is not public. `FrontendBaseUrl` must already be `https` outside localhost (003). |
 | Tech: .NET, PostgreSQL, integrity as constraints | PASS | Uniqueness (address, one password, `(type, key)`, token hashes, the one named invite per address), role and state consistency, invite shape, the single-row settings, and cascades are all constraints. "At least one method" and "the last admin stays" are triggers with advisory locks. Rate caps on the app clock stay application checks, as in 002 R7 and 003. |
 | Tech: GPL-3.0-compatible licences, lockfile | PASS | Otp.NET and SecLists are MIT. `packages.lock.json` is updated with the package. |
-| Workflow: checks as the gate; tests for non-trivial logic | PASS (planned) | Every mechanism has a test that fails if it breaks, including the SC-002 and SC-013 route enumerations and the SC-011 load test ([quickstart § 1](./quickstart.md)). |
+| Workflow: checks as the gate; tests for non-trivial logic | PASS (planned) | Every mechanism has a test that fails if it breaks, including the SC-002 and SC-013 route enumerations and the SC-011 load test (opt-in with `ITK_LOAD=1`) ([quickstart § 1](./quickstart.md)). |
 
 **Post-design re-check (after Phase 1)**: PASS.
 - The design adds 9 tables, 1 column, 2 triggers, 1 package and 1 CLI verb. It adds no background service and no
@@ -164,6 +164,7 @@ backend/
 │   ├── FilterApi.cs, NotificationApi.cs  # CHANGED: /api/me and /api/admin paths; subscriber → account id
 │   ├── Subscriptions.cs, Presets.cs, Channels.cs  # CHANGED: long owner; settings from account; account address channel (R15)
 │   ├── Checker.cs             # CHANGED: fan-out skips disabled accounts (R12)
+│   ├── Db.cs                  # CHANGED: SchemaCurrentAsync for make-admin (R13)
 │   ├── Notifier.cs            # CHANGED: drains account_message first; accountDisabled skip; Accounts.CleanupAsync
 │   ├── ChannelType.cs, EmailChannel.cs, Texts.cs  # CHANGED: MessageKind.Account rendering; en/nl account texts
 │   ├── Settings.cs            # CHANGED: AccountsOptions + validation; ApiKey retired
@@ -177,7 +178,8 @@ backend/
     │   AdminTests.cs, MakeAdminTests.cs, BotCheckTests.cs, AccountEmailTests.cs, LogHygieneTests.cs,
     │   SignInLoadTest.cs     # NEW
     └── ApiTests.cs, NotificationApiTests.cs, PresetsTests.cs, ChannelsTests.cs, DeliveryTests.cs, CheckerTests.cs,
-        PublicPagesTests.cs, DbTests.cs, SettingsTests.cs   # CHANGED: signed-in accounts instead of subscriber ids
+        PublicPagesTests.cs, DbTests.cs, SettingsTests.cs, SubscriptionsTests.cs,
+        EmailChannelTests.cs   # CHANGED: signed-in accounts instead of subscriber ids
 ```
 
 Other documents updated during implementation:
