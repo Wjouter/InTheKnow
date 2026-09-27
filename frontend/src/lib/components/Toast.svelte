@@ -7,8 +7,9 @@
 
 	let shown = $state<string | null>(null);
 	$effect(() => {
+		// A newer result without a message (a refusal) hides the old one: its timer is cleared with the previous run.
+		shown = message ?? null;
 		if (!message) return;
-		shown = message;
 		const timer = setTimeout(() => (shown = null), 4000);
 		return () => clearTimeout(timer);
 	});

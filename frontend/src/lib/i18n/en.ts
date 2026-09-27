@@ -276,7 +276,8 @@ export const en = {
 		remove: 'Remove calendar',
 		removeTitle: 'Remove this calendar?',
 		removeBody: 'Its changes will no longer show, and you get no more notifications for it.',
-		removeConfirm: 'Remove'
+		removeConfirm: 'Remove',
+		removed: 'Calendar removed.'
 	},
 	home: {
 		title: 'InTheKnow',
@@ -383,7 +384,8 @@ export const en = {
 		none: 'You have no presets yet.',
 		forEveryone: 'Presets for everyone',
 		defaultBadge: 'Default',
-		followers: (n: number) => (n === 1 ? '1 calendar follows this preset.' : `${n} calendars follow this preset.`),
+		followers: (n: number) =>
+			n === 0 ? 'No calendar follows this preset.' : n === 1 ? '1 calendar follows this preset.' : `${n} calendars follow this preset.`,
 		create: 'Create a preset',
 		name: 'Name',
 		createSubmit: 'Create preset',
@@ -405,7 +407,8 @@ export const en = {
 				: n === 1
 					? '1 calendar follows this preset. It keeps the preset’s last rules as its own filter.'
 					: `${n} calendars follow this preset. They keep its last rules as their own filter.`,
-		deleteConfirm: 'Delete'
+		deleteConfirm: 'Delete',
+		deleted: 'Preset deleted.'
 	},
 	calendarNotifications: {
 		title: 'Notifications',
@@ -465,7 +468,8 @@ export const en = {
 		deleteTitle: 'Delete your account?',
 		deleteBody: 'This deletes, for good:',
 		deleteList: ['your calendars and their changes', 'your filters and presets', 'your email addresses for notifications', 'your account'],
-		deleteConfirm: 'Delete my account'
+		deleteConfirm: 'Delete my account',
+		deleted: 'Your account is deleted.'
 	},
 	security: {
 		password: 'Password',
@@ -565,6 +569,11 @@ export const en = {
 				enabled: 'Account enabled.',
 				deleted: 'Account deleted.',
 				twoFactorRemoved: 'Two-step verification removed.'
+			},
+			// Refusals about the account acted on, where the general message would say "your account".
+			refused: {
+				not_confirmed: 'This account isn’t confirmed yet.',
+				two_factor_required: 'This account needs two-step verification before it can be an admin.'
 			}
 		},
 		signUp: {
@@ -611,7 +620,8 @@ export const en = {
 			overdue: 'Only overdue checks',
 			filter: 'Show',
 			none: 'No calendars.',
-			counts: (subscribers: number, valid: number, total: number) => `${subscribers} accounts, ${valid} of ${total} links working`
+			counts: (subscribers: number, valid: number, total: number) =>
+				`${subscribers} ${subscribers === 1 ? 'account' : 'accounts'}, ${valid} of ${total} links working`
 		},
 		email: {
 			tab: 'Email',

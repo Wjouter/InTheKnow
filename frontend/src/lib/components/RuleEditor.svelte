@@ -3,7 +3,7 @@
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
 	import Trash from '@lucide/svelte/icons/trash-2';
 	import X from '@lucide/svelte/icons/x';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import Button from './Button.svelte';
 	import { dicts } from '$lib/i18n';
@@ -94,14 +94,26 @@
 		if (!current.includes(value)) rules[i].when[key] = [...current, value];
 		drafts[id] = '';
 	}
+	// Keyboard focus stays in the editor when the focused button moves, turns disabled or goes away (FR-043):
+	// the first of `labels` that is an enabled button, else the last button (Add rule).
+	let editorEl: HTMLFieldSetElement | undefined = $state();
+	async function focusButton(...labels: string[]) {
+		await tick();
+		const buttons = [...(editorEl?.querySelectorAll('button') ?? [])].filter((b) => !b.disabled);
+		const byLabel = labels.map((l) => buttons.find((b) => b.getAttribute('aria-label') === l)).find(Boolean);
+		(byLabel ?? buttons.at(-1))?.focus();
+	}
 	function move(i: number, by: -1 | 1) {
 		const j = i + by;
 		[rules[i], rules[j]] = [rules[j], rules[i]];
 		[notes[i], notes[j]] = [notes[j], notes[i]];
+		const [same, other] = by < 0 ? [e.moveUp, e.moveDown] : [e.moveDown, e.moveUp];
+		focusButton(`${same}: ${e.rule(j + 1)}`, `${other}: ${e.rule(j + 1)}`);
 	}
 	function remove(i: number) {
 		rules.splice(i, 1);
 		notes.splice(i, 1);
+		focusButton(`${e.removeRule}: ${e.rule(i + 1)}`, `${e.removeRule}: ${e.rule(i)}`);
 	}
 	function addRule() {
 		rules.push({ outcome: 'hide', when: {} });
@@ -110,7 +122,7 @@
 	const json = $derived(JSON.stringify(rules));
 </script>
 
-<fieldset class="editor">
+<fieldset class="editor" bind:this={editorEl}>
 	<legend>{e.label}</legend>
 	<input type="hidden" name="rules" value={json} />
 	{#if formError}<p class="notice error" role="alert">{formError}</p>{/if}

@@ -277,7 +277,8 @@ export const nl: Dict = {
 		remove: 'Agenda verwijderen',
 		removeTitle: 'Deze agenda verwijderen?',
 		removeBody: 'Je ziet de wijzigingen niet meer, en je krijgt er geen meldingen meer over.',
-		removeConfirm: 'Verwijderen'
+		removeConfirm: 'Verwijderen',
+		removed: 'Agenda verwijderd.'
 	},
 	home: {
 		title: 'InTheKnow',
@@ -384,7 +385,12 @@ export const nl: Dict = {
 		none: 'Je hebt nog geen voorinstellingen.',
 		forEveryone: 'Voorinstellingen voor iedereen',
 		defaultBadge: 'Standaard',
-		followers: (n: number) => (n === 1 ? '1 agenda volgt deze voorinstelling.' : `${n} agenda’s volgen deze voorinstelling.`),
+		followers: (n: number) =>
+			n === 0
+				? 'Geen enkele agenda volgt deze voorinstelling.'
+				: n === 1
+					? '1 agenda volgt deze voorinstelling.'
+					: `${n} agenda’s volgen deze voorinstelling.`,
 		create: 'Een voorinstelling maken',
 		name: 'Naam',
 		createSubmit: 'Voorinstelling maken',
@@ -406,7 +412,8 @@ export const nl: Dict = {
 				: n === 1
 					? '1 agenda volgt deze voorinstelling. Die houdt de laatste regels als eigen filter.'
 					: `${n} agenda’s volgen deze voorinstelling. Die houden de laatste regels als eigen filter.`,
-		deleteConfirm: 'Verwijderen'
+		deleteConfirm: 'Verwijderen',
+		deleted: 'Voorinstelling verwijderd.'
 	},
 	calendarNotifications: {
 		title: 'Meldingen',
@@ -466,7 +473,8 @@ export const nl: Dict = {
 		deleteTitle: 'Je account verwijderen?',
 		deleteBody: 'Dit verwijdert voorgoed:',
 		deleteList: ['je agenda’s en hun wijzigingen', 'je filters en voorinstellingen', 'je e-mailadressen voor meldingen', 'je account'],
-		deleteConfirm: 'Verwijder mijn account'
+		deleteConfirm: 'Verwijder mijn account',
+		deleted: 'Je account is verwijderd.'
 	},
 	security: {
 		password: 'Wachtwoord',
@@ -566,6 +574,10 @@ export const nl: Dict = {
 				enabled: 'Account ingeschakeld.',
 				deleted: 'Account verwijderd.',
 				twoFactorRemoved: 'Tweestapsverificatie verwijderd.'
+			},
+			refused: {
+				not_confirmed: 'Dit account is nog niet bevestigd.',
+				two_factor_required: 'Dit account heeft tweestapsverificatie nodig voordat het beheerder kan worden.'
 			}
 		},
 		signUp: {
@@ -612,7 +624,8 @@ export const nl: Dict = {
 			overdue: 'Alleen achterstallige controles',
 			filter: 'Tonen',
 			none: 'Geen agenda’s.',
-			counts: (subscribers: number, valid: number, total: number) => `${subscribers} accounts, ${valid} van ${total} links werken`
+			counts: (subscribers: number, valid: number, total: number) =>
+				`${subscribers} ${subscribers === 1 ? 'account' : 'accounts'}, ${valid} van ${total} links werken`
 		},
 		email: {
 			tab: 'E-mail',

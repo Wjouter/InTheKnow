@@ -26,6 +26,10 @@ declare global {
 			lang: Lang;
 			me: Me | null;
 		}
+		// A notice for the next page, handed over by an action that redirects there (a removal).
+		interface PageState {
+			notice?: string;
+		}
 		interface Error {
 			message: string;
 			kind?: 'locked' | 'notAllowed' | 'notInAccount' | 'unavailable' | 'notFound';

@@ -11,7 +11,8 @@
 	let { data, form } = $props();
 	const t = $derived(dicts[data.lang]);
 	const w = $derived(t.account);
-	const s = submitter();
+	// Only deleting the account redirects to the home page.
+	const s = submitter({ notice: { at: '/', text: () => w.deleted } });
 	const r = $derived(refusal(form));
 	const shown = $derived(r && !r.stepUp ? r : null);
 </script>

@@ -7,7 +7,7 @@
 
 	let { data, form } = $props();
 	const t = $derived(dicts[data.lang]);
-	const s = submitter();
+	const s = submitter({ notice: { at: '/calendars', text: () => t.calendars.removed } });
 	const r = $derived(refusal(form));
 </script>
 
