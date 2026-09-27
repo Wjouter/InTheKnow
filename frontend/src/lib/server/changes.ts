@@ -41,6 +41,8 @@ export type ChangeGroup = {
 	when: string;
 	calendarName: string | null;
 	tone: Tone;
+	/** The icon of the change that gave the group its tone. */
+	icon: Icon;
 	items: { sentence: string; outcome: Outcome; icon: Icon }[];
 };
 
@@ -126,7 +128,7 @@ const severity: Tone[] = ['cancelled', 'moved', 'new', 'changed'];
 /** Consecutive changes of one event in one check form one group (001 detected-change "Grouping"). */
 export function group(items: Change[], calendars: Calendar[], t: Dict, fmt: Formatter): ChangeGroup[] {
 	const names = new Map(calendars.map((c) => [c.calendarId, c.name]));
-	const groups: (ChangeGroup & { tones: Tone[] })[] = [];
+	const groups: (Omit<ChangeGroup, 'tone' | 'icon'> & { tones: Tone[] })[] = [];
 	let last = '';
 	for (const c of items) {
 		const key = `${c.calendarId} ${c.eventKey} ${c.detectedAt}`;
@@ -136,7 +138,6 @@ export function group(items: Change[], calendars: Calendar[], t: Dict, fmt: Form
 				eventName: c.eventName,
 				when: fmt.dateTime(c.eventStartsAt),
 				calendarName: calendars.length > 1 ? (names.get(c.calendarId) ?? null) : null,
-				tone: 'changed',
 				tones: [],
 				items: []
 			});
@@ -146,7 +147,10 @@ export function group(items: Change[], calendars: Calendar[], t: Dict, fmt: Form
 		g.tones.push(tone(c));
 		g.items.push({ sentence: describe(c, t, fmt), outcome: c.outcome, icon: icon(c) });
 	}
-	return groups.map(({ tones, ...g }) => ({ ...g, tone: severity.find((s) => tones.includes(s)) ?? 'changed' }));
+	return groups.map(({ tones, ...g }) => {
+		const t = severity.find((s) => tones.includes(s)) ?? 'changed';
+		return { ...g, tone: t, icon: g.items[tones.indexOf(t)].icon };
+	});
 }
 
 export type CalendarView = {

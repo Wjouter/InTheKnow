@@ -360,6 +360,54 @@ export const nl: Dict = {
 			noRules: 'Geen regels: elke wijziging wordt getoond.'
 		}
 	},
+	filter: {
+		title: 'Filter',
+		followsPreset: (name: string) => `Deze agenda gebruikt de voorinstelling “${name}”.`,
+		custom: 'Deze agenda heeft eigen regels.',
+		usePreset: 'Een voorinstelling gebruiken',
+		preset: 'Voorinstelling',
+		forEveryone: 'voor iedereen',
+		apply: 'Voorinstelling toepassen',
+		managePresets: 'Voorinstellingen beheren',
+		edit: 'Regels bewerken',
+		editHint: 'Regels worden van boven naar beneden bekeken. Als je eigen regels opslaat, volgt deze agenda geen voorinstelling meer.',
+		saveRules: 'Regels opslaan',
+		saveAsPreset: 'Opslaan als voorinstelling',
+		saveAsPresetHint: 'Bewaart de huidige regels van deze agenda onder een naam, om voor andere agenda’s te gebruiken.',
+		presetName: 'Naam van de voorinstelling',
+		presetSaved: 'Voorinstelling opgeslagen.'
+	},
+	presets: {
+		title: 'Filtervoorinstellingen',
+		intro: 'Sets regels die je voor meerdere agenda’s kunt gebruiken.',
+		yours: 'Je voorinstellingen',
+		none: 'Je hebt nog geen voorinstellingen.',
+		forEveryone: 'Voorinstellingen voor iedereen',
+		defaultBadge: 'Standaard',
+		followers: (n: number) => (n === 1 ? '1 agenda volgt deze voorinstelling.' : `${n} agenda’s volgen deze voorinstelling.`),
+		create: 'Een voorinstelling maken',
+		name: 'Naam',
+		createSubmit: 'Voorinstelling maken',
+		copy: 'Kopiëren',
+		copyName: (name: string) => `Kopie van ${name}`,
+		copyTitle: (name: string) => `“${name}” kopiëren`,
+		copyLabel: 'Naam van de kopie',
+		edit: 'Bewerken',
+		back: 'Alle voorinstellingen',
+		save: 'Voorinstelling opslaan',
+		saveTitle: 'Deze voorinstelling opslaan?',
+		saveBody: (n: number) =>
+			n === 1 ? '1 agenda volgt deze voorinstelling. Die gebruikt dan de nieuwe regels.' : `${n} agenda’s volgen deze voorinstelling. Die gebruiken dan de nieuwe regels.`,
+		delete: 'Voorinstelling verwijderen',
+		deleteTitle: 'Deze voorinstelling verwijderen?',
+		deleteBody: (n: number) =>
+			n === 0
+				? 'Geen enkele agenda volgt deze voorinstelling.'
+				: n === 1
+					? '1 agenda volgt deze voorinstelling. Die houdt de laatste regels als eigen filter.'
+					: `${n} agenda’s volgen deze voorinstelling. Die houden de laatste regels als eigen filter.`,
+		deleteConfirm: 'Verwijderen'
+	},
 	settings: {
 		title: 'Instellingen',
 		tabsLabel: 'Instellingen',

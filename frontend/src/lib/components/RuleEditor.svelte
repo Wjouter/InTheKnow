@@ -10,18 +10,19 @@
 
 	// One editor for calendar filters, personal presets and global presets (research R14). The rules live in $state and
 	// go to the server as JSON in a hidden `rules` field of the enclosing form; the API validates them.
-	type Rule = { outcome: string; when: Record<string, unknown>; error?: string | null; inactiveReason?: string | null };
+	type Rule = { outcome: string; when: Record<string, unknown>; inactiveReason?: string | null };
 	let {
 		rules: initial,
 		activeConditions = null,
 		values = {},
-		formError
+		error = null
 	}: {
 		rules: Rule[];
 		/** The condition keys usable on this calendar; null for presets, which have no calendar. */
 		activeConditions?: string[] | null;
 		values?: Record<string, string[]>;
-		formError?: string;
+		/** The last save's refusal: under rule `rule` when the API named one, else above the editor (FR-032). */
+		error?: { rule?: number; message: string } | null;
 	} = $props();
 
 	const t = $derived(dicts[page.data.lang]);
@@ -31,7 +32,9 @@
 	type Draft = { outcome: string; when: Record<string, unknown> };
 	let rules = $state<Draft[]>(untrack(() => initial.map((r) => ({ outcome: r.outcome, when: structuredClone(r.when ?? {}) }))));
 	// The server's notes per rule stay with their rule while rules move.
-	let notes = $state(untrack(() => initial.map((r) => ({ error: r.error ?? null, inactive: r.inactiveReason ?? null }))));
+	let notes = $state(untrack(() => initial.map((r) => ({ inactive: r.inactiveReason ?? null }))));
+	const ruleError = (i: number) => (error && error.rule === i ? error.message : null);
+	const formError = $derived(error && error.rule === undefined ? error.message : null);
 	let drafts = $state<Record<string, string>>({});
 	let adding = $state<Record<number, string>>({});
 
@@ -102,7 +105,7 @@
 	}
 	function addRule() {
 		rules.push({ outcome: 'hide', when: {} });
-		notes.push({ error: null, inactive: null });
+		notes.push({ inactive: null });
 	}
 	const json = $derived(JSON.stringify(rules));
 </script>
@@ -115,7 +118,7 @@
 
 	{#each rules as rule, i (rule)}
 		{@const id = `${uid}-${i}`}
-		<section class="rule" aria-labelledby="{id}-title" class:invalid={notes[i]?.error}>
+		<section class="rule" aria-labelledby="{id}-title" class:invalid={ruleError(i)}>
 			<div class="rule-head">
 				<h3 id="{id}-title">{e.rule(i + 1)}</h3>
 				<div class="tools">
@@ -125,7 +128,7 @@
 				</div>
 			</div>
 			{#if notes[i]?.inactive}<p class="notice warning">{notes[i].inactive}</p>{/if}
-			{#if notes[i]?.error}<p class="form-error" role="alert">{notes[i].error}</p>{/if}
+			{#if ruleError(i)}<p class="form-error" role="alert">{ruleError(i)}</p>{/if}
 
 			<label class="stacked">
 				<span>{e.outcome}</span>

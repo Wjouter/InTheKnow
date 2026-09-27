@@ -364,49 +364,49 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 ### Tests for User Story 3 (write first)
 
-- [ ] T056 [P] [US3] In `backend/InTheKnow.Tests/FilterRulesTests.cs`, assert that `FilterRules.Parse` returns the 0-based index of the failing rule for a fault in the first, a middle and the last rule (`invalid_outcome`, `empty_conditions`, `invalid_condition`, and `invalid_rules` for an unknown key inside one rule), and a null index for a non-array and for 51 rules (contracts/api.md § 3).
-- [ ] T057 [P] [US3] In `backend/InTheKnow.Tests/PresetsTests.cs` (or `ApiTests.cs` where the route tests live), assert:
+- [X] T056 [P] [US3] In `backend/InTheKnow.Tests/FilterRulesTests.cs`, assert that `FilterRules.Parse` returns the 0-based index of the failing rule for a fault in the first, a middle and the last rule (`invalid_outcome`, `empty_conditions`, `invalid_condition`, and `invalid_rules` for an unknown key inside one rule), and a null index for a non-array and for 51 rules (contracts/api.md § 3).
+- [X] T057 [P] [US3] In `backend/InTheKnow.Tests/PresetsTests.cs` (or `ApiTests.cs` where the route tests live), assert:
   - the `rule` member is on the `400` of `PUT /api/me/calendars/{id}/filter`, `POST` and `PUT /api/me/presets[/{id}]`, and `POST` and `PUT /api/admin/presets[/{id}]`, and is absent for an array-level fault;
   - `followers` on `GET /api/me/presets` counts the user's calendars that apply the preset, drops when one is customised or removed, ignores another account's calendars, and is absent on global presets and on every row of `GET /api/admin/presets` (contracts/api.md § 4);
   - **shared calendar**: accounts A and B both add the same link, and A applies its preset. When A removes the calendar, it still exists for B, and A's `subscription_filter` row survives (`Subscriptions.RemoveAsync` deletes only `calendar_link`). A's `followers` must still drop to 0.
-- [ ] T058 [P] [US3] Write `frontend/src/lib/server/rules.test.ts`: every outcome (`showOnly`, `hide`, `lowPriority`) and every condition of `specs/002-subscriber-change-filters/contracts/rules.md` (`changeKind`, `statusFrom`, `statusTo`, `eventEnded`, `nameContains`, `activityType`, `group`, `room`, `teacher`) gets a sentence in `en` and `nl` with no raw key, `{`, `[` or `null`. An inactive rule gets its reason. `parseRules` on a `FormData` whose `rules` field is `not json`, and on one whose `rules` is `{}`, gives `invalid_rules`.
+- [X] T058 [P] [US3] Write `frontend/src/lib/server/rules.test.ts`: every outcome (`showOnly`, `hide`, `lowPriority`) and every condition of `specs/002-subscriber-change-filters/contracts/rules.md` (`changeKind`, `statusFrom`, `statusTo`, `eventEnded`, `nameContains`, `activityType`, `group`, `room`, `teacher`) gets a sentence in `en` and `nl` with no raw key, `{`, `[` or `null`. An inactive rule gets its reason. `parseRules` on a `FormData` whose `rules` field is `not json`, and on one whose `rules` is `{}`, gives `invalid_rules`.
 
 ### Implementation for User Story 3 (backend, FR-045)
 
-- [ ] T059 [US3] In `backend/InTheKnow/FilterRules.cs`, change `Parse` to return `(IReadOnlyList<Rule>? Rules, string? Error, int? Rule)`: the loop index for per-rule faults, `null` for the array-level `invalid_rules` (not an array, or more than `MaxRules`). Update all call sites:
+- [X] T059 [US3] In `backend/InTheKnow/FilterRules.cs`, change `Parse` to return `(IReadOnlyList<Rule>? Rules, string? Error, int? Rule)`: the loop index for per-rule faults, `null` for the array-level `invalid_rules` (not an array, or more than `MaxRules`). Update all call sites:
   - `backend/InTheKnow/FilterApi.cs:21` (calendar filter PUT), `:53` (`CreateAsync`) and `:64` (`UpdateAsync`'s `is var (parsed, error)` pattern): on an error, return `Problem(400, error, rule is int i ? new() { ["rule"] = i } : null)`, using `Api.Problem`'s existing `extra` parameter;
   - the two-value deconstructions in the tests: `backend/InTheKnow.Tests/FilterRulesTests.cs:67` and `:79`, and `backend/InTheKnow.Tests/FilterEngineTests.cs:40`. Change them to `var (rules, error, _) =`;
   - `backend/InTheKnow/Presets.cs:202` and `FilterRulesTests.cs:9` use `.Rules`/`.Error` and need no change.
 
   Grep `FilterRules.Parse(` across `backend/` (excluding `obj/`) afterwards, to be sure no call site was missed.
-- [ ] T060 [US3] Add `followers` to personal presets on `GET /api/me/presets` only (contracts/api.md § 4). In `backend/InTheKnow/Presets.cs`, add `Task<Dictionary<long, int>> FollowersAsync(long owner, CancellationToken ct)`: `SELECT f.preset_id, count(*) FROM subscription_filter f WHERE f.subscriber = $1 AND f.preset_id IS NOT NULL AND EXISTS (SELECT 1 FROM calendar_link l WHERE l.calendar_id = f.calendar_id AND l.subscriber = f.subscriber) GROUP BY f.preset_id`. The `EXISTS` skips filter rows left behind when the user removed a calendar that other accounts still have. It is `EXISTS` and not a `JOIN` because one account can have several links to one calendar (check the column names against `002_filters.sql` and `004_accounts.sql`). In `backend/InTheKnow/FilterApi.cs`, the `me.MapGet("/presets", …)` handler passes that lookup to a variant of `Items`/`PresetJson` that sets `followers` (0 when absent) on rows whose `Owner` is not null. The admin route and global rows stay as they are. Don't change `PresetRow` or `ReadPreset`.
+- [X] T060 [US3] Add `followers` to personal presets on `GET /api/me/presets` only (contracts/api.md § 4). In `backend/InTheKnow/Presets.cs`, add `Task<Dictionary<long, int>> FollowersAsync(long owner, CancellationToken ct)`: `SELECT f.preset_id, count(*) FROM subscription_filter f WHERE f.subscriber = $1 AND f.preset_id IS NOT NULL AND EXISTS (SELECT 1 FROM calendar_link l WHERE l.calendar_id = f.calendar_id AND l.subscriber = f.subscriber) GROUP BY f.preset_id`. The `EXISTS` skips filter rows left behind when the user removed a calendar that other accounts still have. It is `EXISTS` and not a `JOIN` because one account can have several links to one calendar (check the column names against `002_filters.sql` and `004_accounts.sql`). In `backend/InTheKnow/FilterApi.cs`, the `me.MapGet("/presets", …)` handler passes that lookup to a variant of `Items`/`PresetJson` that sets `followers` (0 when absent) on rows whose `Owner` is not null. The admin route and global rows stay as they are. Don't change `PresetRow` or `ReadPreset`.
 
 ### Implementation for User Story 3 (frontend)
 
-- [ ] T061 [US3] Write `frontend/src/lib/server/rules.ts` (research R14):
+- [X] T061 [US3] Write `frontend/src/lib/server/rules.ts` (research R14):
   - `ruleSentence(rule, t): string`, for example "Hide changes to holidays when the location changes";
   - `inactiveReason(ruleIndex, inactiveRules, activeConditions, t)`: "group, room, teacher and activity type rules only work on MyTimetables calendars", or the matching reason;
   - `parseRules(data: FormData): { rules: unknown[] } | { reason: 'invalid_rules' }`, which `JSON.parse`s the hidden `rules` field and requires an array. The API stays the validator;
   - `editorRules(rules, inactiveRules, activeConditions, error, t)`: each rule plus `sentence`, `inactive`, `inactiveReason`, and `error` when `error.rule` is its index.
-- [ ] T062 [US3] Write `frontend/src/lib/components/RuleEditor.svelte` (research R14):
+- [X] T062 [US3] Write `frontend/src/lib/components/RuleEditor.svelte` (research R14):
   - props: `rules` (initial), `activeConditions`, `values` (per key, from the filter response, empty for presets), `errors` (per index), `formError`;
   - state: the rules array in `$state`, serialised into a hidden `<input name="rules">` (JSON) that the enclosing form submits;
   - per rule: the outcome `<select>` (Show only, Hide, Mark low priority); conditions added and removed with buttons; `changeKind` as checkboxes limited to `activeConditions`; `statusFrom`/`statusTo` as `<select>`s; `eventEnded` as one checkbox; `nameContains` as text with `maxlength="100"`; `activityType`, `group`, `room` and `teacher` as multi-value text entries with a `<datalist>` of `values[key]`, which still accept typed values (US3-2);
   - move up, move down and remove per rule, and "add rule";
   - an error under rule *n* when `errors[n]` is set, and `formError` above the editor. The user's edits stay after a refusal (FR-032);
   - every control is labelled and keyboard operable (FR-043).
-- [ ] T063 [US3] Write `frontend/src/routes/calendars/[id]/filter/` (FR-029 to FR-031, US3-1 to US3-5):
+- [X] T063 [US3] Write `frontend/src/routes/calendars/[id]/filter/` (FR-029 to FR-031, US3-1 to US3-5):
   - `load`: in parallel `GET /api/me/calendars/{id}/filter` and `GET /api/me/presets` (`must(…, { notFound: 'notInAccount' })`). Return the source (preset name, or "customised"), the rules via `editorRules`, and the preset list;
   - action `saveRules`: `parseRules`, then `PUT /api/me/calendars/{id}/filter { rules }`. On a refusal, `refuse()` carries `rule`. Also return the submitted rules so the editor keeps them;
   - action `applyPreset`: `PUT /api/me/calendars/{id}/filter/preset { presetId }` (US3-4);
   - action `saveAsPreset`: `POST /api/me/presets { name, rules }`. `name_taken` and `preset_limit` get their messages (US3-5);
   - Page: the source line; the rules as sentences, inactive ones marked with their reason; the `RuleEditor` in a form posting to `?/saveRules`; a preset `<select>` with an Apply button; a name field with "Save as preset"; a link to `/presets`.
-- [ ] T064 [US3] Write `frontend/src/routes/presets/` (US3-7, pages.md):
+- [X] T064 [US3] Write `frontend/src/routes/presets/` (US3-7, pages.md):
   - `load`: `GET /api/me/presets`, split into personal (with `followers` and the rule sentences) and global (Default marked);
   - action `create`: `POST /api/me/presets { name, rules: [] }` or with the rules of a new `RuleEditor`, then `303 /presets/{id}`;
   - action `copy`: `POST /api/me/presets { name, rules }` with a global preset's rules and a name from the form ("Copy of …" by default);
   - Page: personal presets linking to `/presets/{id}`; global presets with their sentences and a Copy button only (no edit, no delete); a create form.
-- [ ] T065 [US3] Write `frontend/src/routes/presets/[id]/` (US3-6):
+- [X] T065 [US3] Write `frontend/src/routes/presets/[id]/` (US3-6):
   - `load`: find the preset in `GET /api/me/presets`. A global or missing one → `error(404, { kind: 'notFound' })`;
   - action `save`: `PUT /api/me/presets/{id} { name, rules }`, with `rule` errors under their rule;
   - action `delete`: `DELETE /api/me/presets/{id}`, then `303 /presets`;
