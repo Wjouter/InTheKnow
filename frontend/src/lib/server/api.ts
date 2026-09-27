@@ -1,5 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
+import { returnPath } from '$lib/next';
 
 // The only module that talks to the API (research R2, R7). Server-only, so the token and API address never reach the
 // browser (FR-003).
@@ -17,12 +18,6 @@ const unavailable = (): ApiFailure => ({ ok: false, status: 503, reason: 'unavai
 
 /** The API path without its query, with numeric segments as {id}: safe to log (FR-047). */
 const template = (path: string) => path.split('?')[0].replace(/\/\d+(?=\/|$)/g, '/{id}');
-
-/** The current address for `next`, without form action keys (`?/remove`). */
-function here(url: URL): string {
-	const query = new URLSearchParams([...url.searchParams].filter(([k]) => !k.startsWith('/'))).toString();
-	return url.pathname + (query ? `?${query}` : '');
-}
 
 export async function api<T = unknown>(
 	event: RequestEvent,
@@ -76,7 +71,7 @@ export async function api<T = unknown>(
 
 	if (res.status === 401 && reason === 'not_signed_in') {
 		event.cookies.delete('itk_session', { path: '/' });
-		if (opts.on401 !== 'return') redirect(303, `/sign-in?next=${encodeURIComponent(here(event.url))}`);
+		if (opts.on401 !== 'return') redirect(303, `/sign-in?next=${encodeURIComponent(returnPath(event.url))}`);
 	}
 	return failure;
 }

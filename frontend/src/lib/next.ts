@@ -11,3 +11,9 @@ export function safeNext(next: string | null | undefined, origin: string): strin
 		return '/';
 	}
 }
+
+/** The current address as a `next` value, without form action keys (`?/remove`). */
+export function returnPath(url: URL): string {
+	const query = new URLSearchParams([...url.searchParams].filter(([k]) => !k.startsWith('/'))).toString();
+	return url.pathname + (query ? `?${query}` : '');
+}

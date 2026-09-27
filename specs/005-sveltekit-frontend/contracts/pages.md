@@ -74,52 +74,52 @@ second factor gets the "locked" page with a way forward (US8-1). Both come from 
 
 ## Coverage: every API action and the page that offers it (SC-002)
 
-| API route (001 to 004 + additions) | Page / action |
-|---|---|
-| `GET /api/auth/bot-check` | `load` of `/sign-in`, `/account/sign-up`, `/account/confirmation`, `/account/forgot-password` |
-| `POST /api/auth/sign-up` | `/account/sign-up` |
-| `POST /api/auth/confirmation` | `/account/confirmation` (also linked from `not_confirmed` on `/sign-in`) |
-| `POST /api/auth/confirm` | `/account/confirm` |
-| `POST /api/auth/sign-in` | `/sign-in` |
-| `POST /api/auth/sign-in/code` | `/sign-in/code` |
-| `POST /api/auth/password-reset` | `/account/forgot-password` |
-| `POST /api/auth/password-reset/complete` | `/account/reset` |
-| `POST /api/auth/email-change/confirm` | `/account/email` |
-| `POST /api/auth/invite/accept` | `/account/invite` |
-| `POST /api/auth/sign-out` | `/sign-out` (header and phone nav) |
-| `POST /api/auth/sign-out-everywhere` | `/settings/security` `?/signOutEverywhere` |
-| `POST /api/me/reauthenticate` | Step-up dialog, `?/reauthenticate` on `/settings/account` and `/settings/security` |
-| `GET /api/me` | Every signed-in request (`hooks.server.ts`) |
-| `DELETE /api/me` | `/settings/account` `?/deleteAccount` |
-| `PUT /api/me/password` | `/settings/security` `?/setPassword` |
-| `POST /api/me/email` | `/settings/account` `?/changeEmail` |
-| `GET /api/me/sessions`, `DELETE …/{id}` | `/settings/security` (list, `?/endSession`) |
-| `GET /api/me/methods`, `DELETE …/{id}` | `/settings/security` (list, `?/removeMethod`) |
-| `POST /api/me/2fa/setup`, `…/enable` | `/settings/security/two-factor` |
-| `DELETE /api/me/2fa` | `/settings/security` `?/disable2fa` |
-| `POST /api/me/2fa/recovery-codes` | `/settings/security` `?/newRecoveryCodes` |
-| `POST /api/me/links` | `/calendars` `?/addLink`, `/` empty state |
-| `GET /api/me/calendars` | `/calendars`, `/calendars/[id]/*`, `/changes`, `/` |
-| `DELETE /api/me/calendars/{id}` | `/calendars/[id]` `?/remove` |
-| `GET /api/me/changes` (+ `order=newest`, `before`) | `/changes`, `/` |
-| `GET`/`PUT /api/me/calendars/{id}/filter` | `/calendars/[id]/filter` (`?/saveRules`) |
-| `PUT /api/me/calendars/{id}/filter/preset` | `/calendars/[id]/filter` `?/applyPreset` |
-| `GET /api/me/presets` | `/presets`, `/calendars/[id]/filter` (picker) |
-| `POST /api/me/presets` | `/presets` `?/create`, `?/copy`; `/calendars/[id]/filter` `?/saveAsPreset` |
-| `PUT`/`DELETE /api/me/presets/{id}` | `/presets/[id]` |
-| `GET`/`PUT /api/me/notification-settings` | `/settings/preferences`; `effectiveTimeZone` read on every signed-in request |
-| `GET`/`PUT /api/me/calendars/{id}/notifications` | `/calendars/[id]/notifications` |
-| `GET /api/me/channel-types` | `/notifications` (add form availability) |
-| `GET`/`POST /api/me/channels`, `DELETE …/{id}` | `/notifications` |
-| `POST /api/me/channels/{id}/pause`, `…/resume`, `…/confirmation`, `…/test` | `/notifications` |
-| `PUT /api/me/settings` (addition) | `/settings/preferences` `?/save` (home page) |
-| `GET /api/admin/accounts`, role, disable, enable, delete, `DELETE …/2fa` | `/admin/accounts` |
-| `GET`/`PUT /api/admin/signup-settings` | `/admin/sign-up` |
-| `POST`/`GET /api/admin/invites`, `DELETE …/{id}`, `POST …/{id}/resend` | `/admin/sign-up` |
-| `GET`/`POST /api/admin/presets`, `PUT`/`DELETE …/{id}` | `/admin/presets`, `/admin/presets/[id]` |
-| `GET /api/admin/calendars` | `/admin/calendars` |
-| `GET /api/admin/channel-types` | `/admin/email` |
-| `/n/confirm`, `/n/decline`, `/n/unsubscribe` | **Out of scope**: served by the backend (spec Assumptions) |
+| API route (001 to 004 + additions) | Page / action | Walkthrough 2026-09-27 |
+|---|---|---|
+| `GET /api/auth/bot-check` | `load` of `/sign-in`, `/account/sign-up`, `/account/confirmation`, `/account/forgot-password` | ✓ |
+| `POST /api/auth/sign-up` | `/account/sign-up` | ✓ |
+| `POST /api/auth/confirmation` | `/account/confirmation` (also linked from `not_confirmed` on `/sign-in`) | — |
+| `POST /api/auth/confirm` | `/account/confirm` | — |
+| `POST /api/auth/sign-in` | `/sign-in` | ✓ |
+| `POST /api/auth/sign-in/code` | `/sign-in/code` | ✓ (code and recovery code) |
+| `POST /api/auth/password-reset` | `/account/forgot-password` | ✓ |
+| `POST /api/auth/password-reset/complete` | `/account/reset` | — |
+| `POST /api/auth/email-change/confirm` | `/account/email` | — |
+| `POST /api/auth/invite/accept` | `/account/invite` | ✓ |
+| `POST /api/auth/sign-out` | `/sign-out` (header and phone nav) | ✓ |
+| `POST /api/auth/sign-out-everywhere` | `/settings/security` `?/signOutEverywhere` | — |
+| `POST /api/me/reauthenticate` | Step-up dialog, `?/reauthenticate` on `/settings/account` and `/settings/security` | ✓ |
+| `GET /api/me` | Every signed-in request (`hooks.server.ts`) | ✓ |
+| `DELETE /api/me` | `/settings/account` `?/deleteAccount` | — |
+| `PUT /api/me/password` | `/settings/security` `?/setPassword` | — |
+| `POST /api/me/email` | `/settings/account` `?/changeEmail` | ✓ (after step-up) |
+| `GET /api/me/sessions`, `DELETE …/{id}` | `/settings/security` (list, `?/endSession`) | partial (list) |
+| `GET /api/me/methods`, `DELETE …/{id}` | `/settings/security` (list, `?/removeMethod`) | partial (list) |
+| `POST /api/me/2fa/setup`, `…/enable` | `/settings/security/two-factor` | ✓ |
+| `DELETE /api/me/2fa` | `/settings/security` `?/disable2fa` | — |
+| `POST /api/me/2fa/recovery-codes` | `/settings/security` `?/newRecoveryCodes` | — |
+| `POST /api/me/links` | `/calendars` `?/addLink`, `/` empty state | partial (refusal only) |
+| `GET /api/me/calendars` | `/calendars`, `/calendars/[id]/*`, `/changes`, `/` | ✓ |
+| `DELETE /api/me/calendars/{id}` | `/calendars/[id]` `?/remove` | — |
+| `GET /api/me/changes` (+ `order=newest`, `before`) | `/changes`, `/` | ✓ (newest, hidden) |
+| `GET`/`PUT /api/me/calendars/{id}/filter` | `/calendars/[id]/filter` (`?/saveRules`) | ✓ |
+| `PUT /api/me/calendars/{id}/filter/preset` | `/calendars/[id]/filter` `?/applyPreset` | — |
+| `GET /api/me/presets` | `/presets`, `/calendars/[id]/filter` (picker) | ✓ |
+| `POST /api/me/presets` | `/presets` `?/create`, `?/copy`; `/calendars/[id]/filter` `?/saveAsPreset` | — |
+| `PUT`/`DELETE /api/me/presets/{id}` | `/presets/[id]` | — |
+| `GET`/`PUT /api/me/notification-settings` | `/settings/preferences`; `effectiveTimeZone` read on every signed-in request | ✓ |
+| `GET`/`PUT /api/me/calendars/{id}/notifications` | `/calendars/[id]/notifications` | ✓ |
+| `GET /api/me/channel-types` | `/notifications` (add form availability) | ✓ |
+| `GET`/`POST /api/me/channels`, `DELETE …/{id}` | `/notifications` | ✓ |
+| `POST /api/me/channels/{id}/pause`, `…/resume`, `…/confirmation`, `…/test` | `/notifications` | partial (not confirmation) |
+| `PUT /api/me/settings` (addition) | `/settings/preferences` `?/save` (home page) | ✓ |
+| `GET /api/admin/accounts`, role, disable, enable, delete, `DELETE …/2fa` | `/admin/accounts` | partial (list) |
+| `GET`/`PUT /api/admin/signup-settings` | `/admin/sign-up` | partial (read) |
+| `POST`/`GET /api/admin/invites`, `DELETE …/{id}`, `POST …/{id}/resend` | `/admin/sign-up` | partial (create, list) |
+| `GET`/`POST /api/admin/presets`, `PUT`/`DELETE …/{id}` | `/admin/presets`, `/admin/presets/[id]` | partial (list, open Default) |
+| `GET /api/admin/calendars` | `/admin/calendars` | ✓ |
+| `GET /api/admin/channel-types` | `/admin/email` | ✓ |
+| `/n/confirm`, `/n/decline`, `/n/unsubscribe` | **Out of scope**: served by the backend (spec Assumptions) | n/a |
 
 ## Email link addresses (FR-012)
 

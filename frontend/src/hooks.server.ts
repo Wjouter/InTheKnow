@@ -2,6 +2,7 @@ import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
 import { api } from '$lib/server/api';
 import { dicts, pickLang } from '$lib/i18n';
 import { isPublic } from '$lib/paths';
+import { returnPath } from '$lib/next';
 
 // research R3 to R6, R9, R16, R17.
 
@@ -30,6 +31,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const allowed = site ? site === 'same-origin' : request.headers.get('origin') === url.origin;
 		if (!allowed) return finish(new Response('Forbidden', { status: 403 }));
 	}
+
+	// There is no icon yet. Answer browsers that ask anyway, instead of sending them through the sign-in gate.
+	if (url.pathname === '/favicon.ico') return finish(new Response(null, { status: 404 }));
 
 	// Who is signed in, and their time zone.
 	locals.token = cookies.get('itk_session') ?? null;
@@ -66,7 +70,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// The sign-in gate (R6). It is here, not in a layout, because layout loads don't run for form actions.
 	if (!locals.unavailable && !locals.me && !isPublic(url.pathname)) {
-		const location = `/sign-in?next=${encodeURIComponent(url.pathname + url.search)}`;
+		const location = `/sign-in?next=${encodeURIComponent(returnPath(url))}`;
 		// Client-side navigation and enhanced forms expect Kit's JSON redirect, which a thrown redirect gives.
 		if (event.isDataRequest || request.headers.get('x-sveltekit-action') === 'true') {
 			log(request.method, url.pathname, 303, started);
