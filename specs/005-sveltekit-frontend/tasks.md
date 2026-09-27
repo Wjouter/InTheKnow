@@ -540,24 +540,24 @@ export function submitter(opts?: { onResult?: (r: ActionResult) => void }): { re
 
 **Independent Test**: as an admin with 2FA, search for an account and promote it (refused without 2FA, then allowed), invite a named address, revoke a shareable invite, edit Default's rules, and list failing calendars.
 
-- [ ] T085 [US8] Write the admin layout (FR-035, US8-1, US8-2):
+- [X] T085 [US8] Write the admin layout (FR-035, US8-1, US8-2):
   - `frontend/src/routes/admin/+layout.server.ts`: `locals.me.role !== 'admin'` → `error(403, { kind: 'notAllowed' })`. Otherwise call `GET /api/admin/channel-types` through `must()`, so a session without a second factor gets the `locked` page from the API's `two_factor_required`. Return the channel types (reused by `/admin/email`);
   - `frontend/src/routes/admin/+layout.svelte`: a `PageIntro` ("Admin") and `TabNav` with Accounts, Sign-up, Presets, Calendars, Email;
   - `frontend/src/routes/admin/+page.server.ts`: `303 /admin/accounts`.
 
   Admin actions don't run the layout load. Their API refusals `admin_required` and `two_factor_required` go through `refuse()` with a message, and a demoted or disabled admin gets that message or the sign-in redirect (spec edge case).
-- [ ] T086 [P] [US8] Write `frontend/src/routes/admin/accounts/` (FR-036, US8-3, US8-4):
+- [X] T086 [P] [US8] Write `frontend/src/routes/admin/accounts/` (FR-036, US8-3, US8-4):
   - `load`: `GET /api/admin/accounts?q=&after=&limit=50`, with `q` passed through and `after` only as a positive integer. Rows: email, role, confirmed, disabled, 2FA, created;
   - actions `setRole` (body `{ role }`), `disable`, `enable`, `delete` and `remove2fa`, each taking `accountId`, the destructive ones (`disable`, `delete`, `remove2fa`, demote) behind a `Dialog`. Routes (004 contracts/api.md § Account actions): `PUT /api/admin/accounts/{id}/role`, `POST …/{id}/disable`, `POST …/{id}/enable`, `DELETE …/{id}`, `DELETE …/{id}/2fa`. The refusals `invalid_role`, `two_factor_required` (a `409` here: "turn on 2FA before becoming admin", not the locked page), `not_confirmed`, `account_disabled`, `last_admin`, `demote_first` and `two_factor_off` go through `refuse()`;
   - Page: a search `GET` form, the list (cards on phones, never a wide table), "Next page" when `next` is set.
-- [ ] T087 [P] [US8] Write `frontend/src/routes/admin/sign-up/` (FR-037, US8-5, US8-6):
+- [X] T087 [P] [US8] Write `frontend/src/routes/admin/sign-up/` (FR-037, US8-5, US8-6):
   - `load`: in parallel `GET /api/admin/signup-settings` and `GET /api/admin/invites`;
   - actions `saveSettings` (`PUT /api/admin/signup-settings { open, allowedDomains }`, with domains from a textarea, one per line; an invalid domain is reported), `createInvite` (`POST /api/admin/invites` with kind `named` + email + role + language, or `shareable` + uses + expiry, per 004 contracts/api.md), `resend` (`POST …/{id}/resend`) and `revoke` (`DELETE …/{id}`, `Dialog`);
   - a new shareable invite's link, built as `${url.origin}/account/sign-up?invite=${token}`, is returned once in the action result: shown with a Copy button and a "can't be shown again" warning, with `beforeNavigate`/`beforeunload` confirmation while shown (spec edge case);
   - Page: the settings form, the create form, and the pending invites with uses left and expiry.
-- [ ] T088 [P] [US8] Write `frontend/src/routes/admin/presets/` and `frontend/src/routes/admin/presets/[id]/` (FR-038, US8-7), mirroring T064 and T065 on `GET`/`POST /api/admin/presets` and `PUT`/`DELETE /api/admin/presets/{id}`, with the same `RuleEditor` and `rule` errors. Default is marked and has no Delete button. There is no followers text.
-- [ ] T089 [P] [US8] Write `frontend/src/routes/admin/calendars/` (FR-039, US8-8): `load` calls `GET /api/admin/calendars?status=&overdue=&after=&limit=50`, with `status` only `ok`/`failing` and `overdue` only `true`. Rows: name, status `Badge`, last error via `checkFailureMessage`, subscriber count and link counts. **No links or addresses.** A filter `GET` form and "Next page".
-- [ ] T090 [P] [US8] Write `frontend/src/routes/admin/email/+page.svelte` (and a `+page.server.ts` that formats dates) (FR-039, US8-9): per channel type from the layout data, show configured or not, the last attempt and its result (`channelFailureMessage`), consecutive failures, failing since, and messages waiting.
+- [X] T088 [P] [US8] Write `frontend/src/routes/admin/presets/` and `frontend/src/routes/admin/presets/[id]/` (FR-038, US8-7), mirroring T064 and T065 on `GET`/`POST /api/admin/presets` and `PUT`/`DELETE /api/admin/presets/{id}`, with the same `RuleEditor` and `rule` errors. Default is marked and has no Delete button. There is no followers text.
+- [X] T089 [P] [US8] Write `frontend/src/routes/admin/calendars/` (FR-039, US8-8): `load` calls `GET /api/admin/calendars?status=&overdue=&after=&limit=50`, with `status` only `ok`/`failing` and `overdue` only `true`. Rows: name, status `Badge`, last error via `checkFailureMessage`, subscriber count and link counts. **No links or addresses.** A filter `GET` form and "Next page".
+- [X] T090 [P] [US8] Write `frontend/src/routes/admin/email/+page.svelte` (and a `+page.server.ts` that formats dates) (FR-039, US8-9): per channel type from the layout data, show configured or not, the last attempt and its result (`channelFailureMessage`), consecutive failures, failing since, and messages waiting.
 
 **Checkpoint**: US8 works together with US3 and US6.
 
