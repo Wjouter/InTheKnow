@@ -45,6 +45,7 @@ public class OwnershipTests
         ["PUT /api/me/calendars/{calendarId:long}/notifications"] = ("""{"notify":false,"label":"Taken"}""", null),
         ["GET /api/me/notification-settings"] = (null, null),
         ["PUT /api/me/notification-settings"] = ("{}", null),
+        ["PUT /api/me/settings"] = ("""{"homePage":"combined"}""", null),
         ["GET /api/me/channel-types"] = (null, null),
         // US4 (T044)
         ["POST /api/me/2fa/setup"] = (null, null),
