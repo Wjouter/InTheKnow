@@ -436,6 +436,137 @@ public class ApiTests
         Assert.NotNull(all["next"]);
     }
 
+    // 005 contracts/api.md § 1 (FR-025): newest first, paged with `before`, across the account's calendars.
+    [Fact]
+    public async Task NewestFirstPaging()
+    {
+        await using var h = await ApiHost.CreateAsync();
+        var s1 = await h.SignInAsync();
+        var (a, b) = (await SeedAsync(h, s1), await SeedAsync(h, s1));
+        var ids = new List<long>();
+        for (var i = 0; i < 7; i++) ids.Add(await RecordAsync(h.Db, i % 2 == 0 ? a : b, "added", after: Ev($"E{i}")));
+        var newestFirst = Enumerable.Reverse(ids).ToList();
+
+        Assert.Equal(newestFirst, Outcomes(await s1.JsonAsync("/api/me/changes?order=newest")).Select(o => o.Id));
+
+        // `before` paging reaches the oldest change with no gaps or repeats.
+        var seen = new List<long>();
+        for (var path = "/api/me/changes?order=newest&limit=2"; ;)
+        {
+            var page = await s1.JsonAsync(path);
+            seen.AddRange(Outcomes(page).Select(o => o.Id));
+            if (page["next"] is null) break;
+            Assert.Equal(seen[^1], page["next"]!.GetValue<long>());
+            path = $"/api/me/changes?order=newest&limit=2&before={page["next"]}";
+        }
+        Assert.Equal(newestFirst, seen);
+
+        // Without `order` the answer is exactly the oldest-first one.
+        var implicitOldest = await s1.Client.GetStringAsync("/api/me/changes?limit=3", Ct);
+        Assert.Equal(implicitOldest, await s1.Client.GetStringAsync("/api/me/changes?order=oldest&limit=3", Ct));
+        Assert.Equal(ids.Take(3), Outcomes(JsonNode.Parse(implicitOldest)!).Select(o => o.Id));
+
+        await Expect(await s1.Client.GetAsync("/api/me/changes?order=sideways", Ct), HttpStatusCode.BadRequest, "invalid_order");
+        foreach (var bad in new[] { $"before={ids[3]}", $"order=oldest&before={ids[3]}", $"order=newest&after={ids[3]}" })
+            await Expect(await s1.Client.GetAsync($"/api/me/changes?{bad}", Ct), HttpStatusCode.BadRequest, "invalid_cursor");
+    }
+
+    // A newest-first page is filled past hidden changes, and never short while older visible ones remain.
+    [Fact]
+    public async Task NewestFirstReadsPastHiddenChanges()
+    {
+        await using var h = await ApiHost.CreateAsync();
+        var s1 = await h.SignInAsync();
+        var calendar = await SeedAsync(h, s1);
+        await HiddenAsync(h.Db, calendar, 600);
+        var older = await RecordAsync(h.Db, calendar, "added", after: Ev("Older"));
+        await HiddenAsync(h.Db, calendar, 700);
+        var newer = await RecordAsync(h.Db, calendar, "added", after: Ev("Newer"));
+        await HiddenAsync(h.Db, calendar, 1200);
+
+        var page = await s1.JsonAsync("/api/me/changes?order=newest&limit=1");
+        Assert.Equal([(newer, "normal")], Outcomes(page));
+        Assert.Equal(newer, page["next"]!.GetValue<long>());
+        page = await s1.JsonAsync($"/api/me/changes?order=newest&limit=1&before={newer}");
+        Assert.Equal([(older, "normal")], Outcomes(page));
+        Assert.Null(page["next"]);
+        Assert.Empty(Outcomes(await s1.JsonAsync($"/api/me/changes?order=newest&before={older}")));
+
+        var all = await s1.JsonAsync("/api/me/changes?order=newest&includeHidden=true&limit=500");
+        var items = Outcomes(all);
+        Assert.Equal(500, items.Count);
+        Assert.Equal(await h.Db.ScalarAsync("SELECT max(id) FROM detected_change"), items[0].Id);
+        Assert.Equal(items.Select(i => i.Id).OrderDescending(), items.Select(i => i.Id));
+        Assert.Contains(items, i => i.Outcome == "hidden");
+    }
+
+    // 005 contracts/api.md § 3: every route that takes rules names the rule at fault, and none for an array-level fault.
+    [Fact]
+    public async Task RuleIndexOnEveryRulesRoute()
+    {
+        await using var h = await ApiHost.CreateAsync();
+        var (s1, op) = (await h.SignInAsync(), await h.SignInAsync(admin: true, secondFactor: true));
+        var calendar = await SeedAsync(h, s1);
+        var mine = (await BodyAsync(await PostAsync(s1, "/api/me/presets", """{"name":"Mine","rules":[]}"""), HttpStatusCode.Created))["id"];
+        var global = (await BodyAsync(await PostAsync(op, "/api/admin/presets", """{"name":"Everyone","rules":[]}"""), HttpStatusCode.Created))["id"];
+        const string bad = """[{"outcome":"hide","when":{"eventEnded":true}},{"outcome":"hide","when":{}}]""";
+
+        foreach (var (who, post, path, name) in new[]
+        {
+            (s1, false, $"/api/me/calendars/{calendar}/filter", ""),
+            (s1, true, "/api/me/presets", "\"name\":\"New\","),
+            (s1, false, $"/api/me/presets/{mine}", ""),
+            (op, true, "/api/admin/presets", "\"name\":\"New\","),
+            (op, false, $"/api/admin/presets/{global}", ""),
+        })
+        {
+            Task<HttpResponseMessage> Send(string rules) => post ? PostAsync(who, path, $"{{{name}\"rules\":{rules}}}") : PutAsync(who, path, $"{{{name}\"rules\":{rules}}}");
+            var body = await BodyAsync(await Send(bad), HttpStatusCode.BadRequest);
+            Assert.Equal(("empty_conditions", 1), (body["reason"]!.GetValue<string>(), body["rule"]!.GetValue<int>()));
+            var arrayFault = await BodyAsync(await Send("{}"), HttpStatusCode.BadRequest);
+            Assert.Equal("invalid_rules", arrayFault["reason"]!.GetValue<string>());
+            Assert.Null(arrayFault["rule"]);
+        }
+    }
+
+    // 005 contracts/api.md § 4 (FR-031): followers counts the account's own calendars linked to a personal preset.
+    [Fact]
+    public async Task PresetFollowers()
+    {
+        await using var h = await ApiHost.CreateAsync();
+        var (a, b, op) = (await h.SignInAsync(), await h.SignInAsync(), await h.SignInAsync(admin: true, secondFactor: true));
+        var (c1, c2) = (await SeedAsync(h, a), await SeedAsync(h, a));
+        var preset = (await BodyAsync(await PostAsync(a, "/api/me/presets", """{"name":"Minor","rules":[]}"""), HttpStatusCode.Created))["id"]!.GetValue<long>();
+        async Task<int?> Followers() => (await a.JsonAsync("/api/me/presets"))["items"]!.AsArray()
+            .Single(p => p!["id"]!.GetValue<long>() == preset)!["followers"]?.GetValue<int>();
+
+        Assert.Equal(0, await Followers());
+        foreach (var c in new[] { c1, c2 })
+            await BodyAsync(await PutAsync(a, $"/api/me/calendars/{c}/filter/preset", $$"""{"presetId":{{preset}}}"""));
+        Assert.Equal(2, await Followers());
+        await BodyAsync(await PutAsync(a, $"/api/me/calendars/{c2}/filter", """{"rules":[]}""")); // customised
+        Assert.Equal(1, await Followers());
+
+        // Another account following its own preset on the same calendar doesn't count for a.
+        await h.Db.ExecAsync("INSERT INTO calendar_link (calendar_id, subscriber, url) VALUES ($1, $2, 'https://mytimetables.inholland.nl/ical?b')", c1, b.AccountId);
+        var theirs = (await BodyAsync(await PostAsync(b, "/api/me/presets", """{"name":"Minor","rules":[]}"""), HttpStatusCode.Created))["id"]!.GetValue<long>();
+        await BodyAsync(await PutAsync(b, $"/api/me/calendars/{c1}/filter/preset", $$"""{"presetId":{{theirs}}}"""));
+        Assert.Equal(1, await Followers());
+        Assert.Equal(1, (await b.JsonAsync("/api/me/presets"))["items"]!.AsArray().Single(p => p!["id"]!.GetValue<long>() == theirs)!["followers"]!.GetValue<int>());
+
+        // Global presets, and every row of the admin list, have no followers.
+        Assert.All((await a.JsonAsync("/api/me/presets"))["items"]!.AsArray().Where(p => p!["scope"]!.GetValue<string>() == "global"),
+            p => Assert.Null(p!["followers"]));
+        Assert.All((await op.JsonAsync("/api/admin/presets"))["items"]!.AsArray(), p => Assert.Null(p!["followers"]));
+
+        // A shared calendar: removing it keeps it for b, and a no longer follows. (002's calendar_link_drop_filter trigger
+        // drops a's filter row with a's last link; FollowersAsync's EXISTS guards the count should a row ever outlive it.)
+        Assert.Equal(HttpStatusCode.NoContent, (await a.Client.DeleteAsync($"/api/me/calendars/{c1}", Ct)).StatusCode);
+        Assert.Equal(1, await h.Db.ScalarAsync("SELECT count(*) FROM calendar WHERE id = $1", c1));
+        Assert.Equal(0, await Followers());
+        Assert.Equal(1, (await b.JsonAsync("/api/me/presets"))["items"]!.AsArray().Single(p => p!["id"]!.GetValue<long>() == theirs)!["followers"]!.GetValue<int>());
+    }
+
     static Task<HttpResponseMessage> PutAsync(SignedIn who, string path, string json) =>
         who.Client.PutAsync(path, new StringContent(json, System.Text.Encoding.UTF8, "application/json"), Ct);
 

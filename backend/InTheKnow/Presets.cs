@@ -119,6 +119,24 @@ sealed class Presets(NpgsqlDataSource db, Settings settings)
         return presets;
     }
 
+    // Per personal preset: how many of the owner's calendars follow it (005 contracts/api.md § 4). EXISTS, not a join:
+    // a filter row survives when its owner removed a calendar that other accounts still have, and one account can have
+    // several links to one calendar.
+    public async Task<Dictionary<long, int>> FollowersAsync(long owner, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("""
+            SELECT f.preset_id, count(*) FROM subscription_filter f
+            WHERE f.subscriber = $1 AND f.preset_id IS NOT NULL
+              AND EXISTS (SELECT 1 FROM calendar_link l WHERE l.calendar_id = f.calendar_id AND l.subscriber = f.subscriber)
+            GROUP BY f.preset_id
+            """);
+        cmd.Parameters.Add(new() { Value = owner });
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        var followers = new Dictionary<long, int>();
+        while (await r.ReadAsync(ct)) followers[r.GetInt64(0)] = (int)r.GetInt64(1);
+        return followers;
+    }
+
     public async Task<PresetResult> CreateAsync(long? owner, string? name, IReadOnlyList<Rule> rules, CancellationToken ct)
     {
         if (name is not { Length: >= 1 and <= 100 }) return Fail("invalid_name");
