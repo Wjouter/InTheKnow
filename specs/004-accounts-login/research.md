@@ -516,6 +516,8 @@ log files it does not own, and the stdout log must not hold addresses.
    - In steady state it is at most 20.
    - **Resolved**: SC-005 now reads "No more than 23 wrong passwords or codes per account per rolling hour are
      evaluated (20, then one per 15-minute wait)".
+   - **Amended after /speckit-analyze**: the throttle keeps two keys per account (the address at sign-in, and
+     `account:{id}` for the code step, re-authentication and confirmation), so SC-005 now states the bound per key.
 2. **FR-037 and invite kinds**: the bot check must come before anything about the request is looked at, but only
    shareable invites need it. Resolved by the route split of R10.
 3. **"Entering the current password" (FR-018, FR-021, FR-022, FR-024) and "confirming who they are with an existing
@@ -523,4 +525,5 @@ log files it does not own, and the stdout log must not hold addresses.
    current password". It is also the only form in which the test-only method passes the same suites (SC-006), and
    in which an account without a password can still delete itself (US6-5, US6-7). **Resolved**: FR-018, FR-022
    and FR-024 now say "after confirming who they are (FR-027a)", and FR-027a fixes the 10-minute validity per
-   session. FR-021 keeps "entering the current one", since only an account with a password can change it.
+   session. FR-021 first kept "entering the current one". After /speckit-analyze it refers to FR-027a too: any method can
+   already remove and re-add the password, so requiring the current password specifically protected nothing.

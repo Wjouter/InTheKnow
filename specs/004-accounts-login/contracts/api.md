@@ -175,7 +175,7 @@ whose admin routes stay locked until 2FA is on. `language` defaults to the invit
 | Status | `reason` |
 |---|---|
 | `400` | `password_length`, `password_common`, `password_is_email`, `invalid_language` |
-| `410` | `invite_invalid` (also for a shareable token) |
+| `410` | `invite_invalid` (also for a shareable token, and when the address has had a confirmed account since the invite was made; the invite is then deleted) |
 
 ## Signed-in routes
 
@@ -294,8 +294,8 @@ Every action here queues the email the spec names and writes a security event wi
 
 | Route | Body | Result and reasons |
 |---|---|---|
-| `PUT /api/admin/accounts/{id}/role` | `{ "role": "admin" \| "user" }` | `200` with the account. `409 two_factor_required` (US7-9), `409 not_confirmed`, `409 account_disabled`, `409 last_admin` (US7-7) |
-| `POST /api/admin/accounts/{id}/disable` | none | `200`. Sessions end. `409 demote_first` for an admin or for oneself (US7-15) |
+| `PUT /api/admin/accounts/{id}/role` | `{ "role": "admin" \| "user" }` | `200` with the account. `400 invalid_role`, `409 two_factor_required` (US7-9), `409 not_confirmed`, `409 account_disabled`, `409 last_admin` (US7-7) |
+| `POST /api/admin/accounts/{id}/disable` | none | `200`. Sessions end, and messages queued for its channels are dropped. `409 demote_first` for an admin or for oneself (US7-15) |
 | `POST /api/admin/accounts/{id}/enable` | none | `200` |
 | `DELETE /api/admin/accounts/{id}` | none | `204`, as `DELETE /api/me`. `409 demote_first` for an admin or oneself |
 | `DELETE /api/admin/accounts/{id}/2fa` | none | `204`. 2FA and recovery codes are removed and every session ends (FR-019). `409 two_factor_off`. `409 demote_first` for one's own id (FR-032a point 3) |
@@ -327,7 +327,7 @@ Every action here queues the email the spec names and writes a security event wi
 | Status | `reason` |
 |---|---|
 | `400` | `invalid_kind`, `invalid_email`, `invalid_language`, `invalid_valid_days` (not 1–90), `invalid_max_uses` (not 1–1000, or not 1 for named), `admin_needs_named` (US8-8) |
-| `409` | `account_exists` (named, confirmed account, edge case), `invite_exists` (a pending named invite for that address) |
+| `409` | `account_exists` (named, confirmed account, edge case), `invite_exists` (a pending named invite for that address; an expired one is replaced) |
 
 `Invite`:
 
@@ -339,4 +339,4 @@ Every action here queues the email the spec names and writes a security event wi
 - `GET /api/admin/invites` → `{ "items": [Invite…] }`, the pending invites, newest first.
 - `DELETE /api/admin/invites/{id}` → `204`. The link stops working at once (US8-9).
 - `POST /api/admin/invites/{id}/resend` → `202`, named invites only (`409 not_named`). The previous link stops
-  working when the new email is sent.
+  working when the new email is sent, and the invite's validity starts again from now.
