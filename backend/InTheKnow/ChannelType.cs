@@ -16,11 +16,13 @@ enum SendStatus { Sent, TargetFailed, TargetRejected, TypeUnavailable }
 // Reason: a code such as "smtp_550", never server text (FR-031).
 sealed record SendResult(SendStatus Status, string? Reason = null);
 
-enum MessageKind { Confirmation, Changes, Test }
+enum MessageKind { Confirmation, Changes, Test, Account }
 
 // One neutral message; each type renders it in its own way. Never holds a calendar link or another subscriber's data (FR-020).
+// Account: an account email of specs/004 contracts/account-emails.md, with its kind, optional link and non-secret args.
 sealed record Message(MessageKind Kind, string Language, TimeZoneInfo TimeZone, string? ConfirmUrl, string? DeclineUrl,
-                      string? UnsubscribeUrl, string? SettingsUrl, IReadOnlyList<CalendarGroup> Calendars, int NotListed);
+                      string? UnsubscribeUrl, string? SettingsUrl, IReadOnlyList<CalendarGroup> Calendars, int NotListed,
+                      string? AccountKind = null, string? Link = null, IReadOnlyDictionary<string, string>? Args = null);
 
 sealed record CalendarGroup(long CalendarId, string Name, string SettingsUrl, IReadOnlyList<ChangeItem> Changes);
 

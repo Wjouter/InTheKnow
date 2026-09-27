@@ -30,6 +30,8 @@ sealed class FakeHttp(TimeProvider? time = null) : HttpMessageHandler
     public readonly ConcurrentQueue<(string Host, DateTimeOffset At)> Requests = new();
     // While set, every request waits for one release of the gate.
     public SemaphoreSlim? Gate { get; set; }
+    // While set, answers every request that has no fixture mapped (004: the bot check provider reads the posted token).
+    public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? Respond { get; set; }
     int inFlight, maxInFlight;
     public int InFlight => Volatile.Read(ref inFlight);
     public int MaxInFlight => Volatile.Read(ref maxInFlight);
@@ -51,7 +53,8 @@ sealed class FakeHttp(TimeProvider? time = null) : HttpMessageHandler
         try
         {
             if (Gate is { } gate) await gate.WaitAsync(ct);
-            return Map.TryGetValue(url, out var reply) ? await AnswerAsync(reply, ct) : new HttpResponseMessage(HttpStatusCode.NotFound);
+            if (Map.TryGetValue(url, out var reply)) return await AnswerAsync(reply, ct);
+            return Respond is { } respond ? await respond(request, ct) : new HttpResponseMessage(HttpStatusCode.NotFound);
         }
         finally { Interlocked.Decrement(ref inFlight); }
     }
