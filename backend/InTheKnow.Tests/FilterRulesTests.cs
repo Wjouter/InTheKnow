@@ -56,6 +56,30 @@ public class FilterRulesTests
         Assert.Equal("invalid_condition", Error(Rule($$"""{ "teacher": ["{{new string('x', 101)}}"] }""")));
     }
 
+    // 005 contracts/api.md § 3: the index of the first rule at fault, and none when the array itself is.
+    [Theory]
+    [InlineData(0, """{ "when": { "eventEnded": true } }""", "invalid_outcome")]
+    [InlineData(2, """{ "outcome": "hide", "when": {} }""", "empty_conditions")]
+    [InlineData(4, """{ "outcome": "hide", "when": { "eventEnded": false } }""", "invalid_condition")]
+    [InlineData(2, """{ "outcome": "hide", "when": { "eventEnded": true, "unknown": 1 } }""", "invalid_rules")]
+    [InlineData(4, """{ "outcome": "hide", "when": { "eventEnded": true }, "extra": 1 }""", "invalid_rules")]
+    public void RuleIndex(int index, string bad, string reason)
+    {
+        var good = """{ "outcome": "hide", "when": { "eventEnded": true } }""";
+        var json = "[" + string.Join(",", Enumerable.Range(0, 5).Select(i => i == index ? bad : good)) + "]";
+        var (rules, error, rule) = FilterRules.Parse(JsonNode.Parse(json));
+        Assert.Equal((null, reason, index), (rules, error, rule));
+    }
+
+    [Fact]
+    public void NoRuleIndexForTheArray()
+    {
+        Assert.Equal(("invalid_rules", (int?)null), Pair(FilterRules.Parse(JsonNode.Parse("{}"))));
+        var rule = """{ "outcome": "hide", "when": { "eventEnded": true } }""";
+        Assert.Equal(("invalid_rules", (int?)null), Pair(FilterRules.Parse(JsonNode.Parse(Many(51, rule)))));
+        static (string?, int?) Pair((IReadOnlyList<Rule>?, string? Error, int? Rule) r) => (r.Error, r.Rule);
+    }
+
     [Fact]
     public void ValidRulesRoundTrip()
     {
@@ -64,7 +88,7 @@ public class FilterRulesTests
             [{"outcome":"showOnly","when":{"group":["ES1"],"room":["R1"],"teacher":["Last, First"],"activityType":["test"],"changeKind":["teachers","time"]}},
              {"outcome":"lowPriority","when":{"statusFrom":"none","statusTo":"cancelled","nameContains":"Zelfstudie"}}]
             """;
-        var (rules, error) = FilterRules.Parse(JsonNode.Parse(json));
+        var (rules, error, _) = FilterRules.Parse(JsonNode.Parse(json));
         Assert.Null(error);
         Assert.Equal(["showOnly", "lowPriority"], rules!.Select(r => r.Outcome));
         Assert.True(JsonNode.DeepEquals(JsonNode.Parse(json), FilterRules.ToJson(rules!)));
@@ -76,7 +100,7 @@ public class FilterRulesTests
         using var stream = typeof(Db).Assembly.GetManifestResourceStream("InTheKnow.Migrations.002_filters.sql")!;
         var sql = new StreamReader(stream).ReadToEnd();
         var json = sql[(sql.IndexOf("'[", StringComparison.Ordinal) + 1)..(sql.IndexOf("]'", StringComparison.Ordinal) + 1)];
-        var (rules, error) = FilterRules.Parse(JsonNode.Parse(json));
+        var (rules, error, _) = FilterRules.Parse(JsonNode.Parse(json));
         Assert.Null(error);
         return rules!;
     }

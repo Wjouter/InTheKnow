@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Identity;
 using Npgsql;
 using static InTheKnow.Api;
@@ -109,7 +110,7 @@ static class AccountApi
                        EXISTS (SELECT 1 FROM sign_in_method m WHERE m.account_id = a.id AND m.type = 'password'),
                        (SELECT to_address FROM account_message m WHERE m.account_id = a.id AND m.kind = 'emailChange' AND m.sent_at IS NOT NULL
                           AND m.used_at IS NULL AND m.token_expires_at > $2 ORDER BY m.id DESC LIMIT 1),
-                       a.created_at
+                       a.created_at, a.home_page
                 FROM account a LEFT JOIN two_factor t ON t.account_id = a.id WHERE a.id = $1
                 """);
             cmd.Parameters.Add(new() { Value = user.AccountId() });
@@ -126,7 +127,22 @@ static class AccountApi
                 hasPassword = r.GetBoolean(5),
                 pendingEmail = r.IsDBNull(6) ? null : r.GetString(6),
                 createdAt = r.GetFieldValue<DateTimeOffset>(7).UtcDateTime,
+                homePage = r.GetString(8),
             });
+        });
+
+        // Display preferences that follow the account (005 contracts/api.md § 2). No step-up: nothing sensitive.
+        me.MapPut("/settings", async (ClaimsPrincipal user, JsonNode? body, NpgsqlDataSource db, CancellationToken ct) =>
+        {
+            if (body is not JsonObject fields || !fields.ContainsKey("homePage")) return Problem(400, "empty_body");
+            if (fields.Any(f => f.Key != "homePage")) return Problem(400, "invalid_settings");
+            if (fields["homePage"] is not JsonValue v || !v.TryGetValue(out string? homePage) || homePage is not ("changes" or "combined"))
+                return Problem(400, "invalid_home_page");
+            await using var cmd = db.CreateCommand("UPDATE account SET home_page = $2 WHERE id = $1");
+            cmd.Parameters.Add(new() { Value = user.AccountId() });
+            cmd.Parameters.Add(new() { Value = homePage });
+            await cmd.ExecuteNonQueryAsync(ct);
+            return Results.Json(new { homePage });
         });
 
         // Step-up re-authentication with the password, plus a code when 2FA is on (research R6).

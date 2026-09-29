@@ -37,7 +37,7 @@ public class FilterEngineTests
 
     internal static IReadOnlyList<Rule> R(string json)
     {
-        var (rules, error) = FilterRules.Parse(JsonNode.Parse(json));
+        var (rules, error, _) = FilterRules.Parse(JsonNode.Parse(json));
         Assert.Null(error);
         return rules!;
     }

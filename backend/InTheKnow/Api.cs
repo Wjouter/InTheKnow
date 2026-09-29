@@ -74,21 +74,26 @@ static class Api
 
         // Read-only: delivery status lives in `delivery` (003).
         // Each change carries its outcome under the subscriber's filter; hidden ones only with includeHidden (FR-008).
-        me.MapGet("/changes", async (ClaimsPrincipal user, long? after, int? limit, string? includeHidden,
+        // order=newest with a `before` cursor reads the same batches backwards (005 contracts/api.md § 1).
+        me.MapGet("/changes", async (ClaimsPrincipal user, long? after, long? before, int? limit, string? includeHidden, string? order,
                                      NpgsqlDataSource db, Presets presets, CancellationToken ct) =>
         {
             if (limit is < 1 or > 500) return Problem(400, "invalid_limit");
             if (includeHidden is not (null or "true" or "false")) return Problem(400, "invalid_include_hidden");
+            if (order is not (null or "oldest" or "newest")) return Problem(400, "invalid_order");
+            var newest = order == "newest";
+            if (before is not null && !newest || after is not null && newest) return Problem(400, "invalid_cursor");
             var take = limit ?? 100;
             var filters = await presets.LoadFiltersAsync(user.AccountId(), ct);
             var items = new List<(long Id, object Json)>();
             // Keyset batches until the page is full, so a page is never empty while visible changes remain (research R3).
             // ponytail: a full keyset scan per page; upgrade to an indexed pre-filter or a materialised outcome only if SC-009 measurement fails
-            for (long from = after ?? 0, read = Batch; filters.Count > 0 && items.Count <= take && read == Batch;)
+            for (long from = newest ? before ?? long.MaxValue : after ?? 0, read = Batch; filters.Count > 0 && items.Count <= take && read == Batch;)
             {
                 await using var cmd = db.CreateCommand($"""
                     SELECT {ChangeView.Columns}
-                    FROM detected_change c WHERE c.calendar_id = ANY($1) AND c.id > $2 ORDER BY c.id LIMIT $3
+                    FROM detected_change c WHERE c.calendar_id = ANY($1) AND c.id {(newest ? "<" : ">")} $2
+                    ORDER BY c.id {(newest ? "DESC" : "")} LIMIT $3
                     """);
                 cmd.Parameters.Add(new() { Value = filters.Keys.ToArray() });
                 cmd.Parameters.Add(new() { Value = from });

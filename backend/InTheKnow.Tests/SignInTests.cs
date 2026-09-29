@@ -62,7 +62,7 @@ public class SignInTests
         Assert.False(body["secondFactorRequired"]!.GetValue<bool>());
         var client = h.ClientFor(body["token"]!.GetValue<string>());
         var me = JsonNode.Parse(await (await Me(client)).Content.ReadAsStringAsync(Ct))!;
-        Assert.Equal(["email", "role", "language", "twoFactor", "recoveryCodesLeft", "hasPassword", "pendingEmail", "createdAt"], me.AsObject().Select(kv => kv.Key));
+        Assert.Equal(["email", "role", "language", "twoFactor", "recoveryCodesLeft", "hasPassword", "pendingEmail", "createdAt", "homePage"], me.AsObject().Select(kv => kv.Key));
         Assert.Equal((a.Email, "user", method == "password"), (me["email"]!.GetValue<string>(), me["role"]!.GetValue<string>(), me["hasPassword"]!.GetValue<bool>()));
 
         // Two devices: signing out of one leaves the other (US1-6).

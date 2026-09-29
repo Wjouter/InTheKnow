@@ -63,7 +63,7 @@ public class MakeAdminTests
         Assert.True(await Db.SchemaCurrentAsync(db.DataSource));
         await using (var held = await Db.TakeInstanceLockAsync(db.DataSource))
             Assert.Equal("invite queued", await Accounts.MakeAdminAsync(db.DataSource, "admin@example.nl", "en", Now));
-        await db.ExecAsync("DELETE FROM schema_migration WHERE version = 4");
+        await db.ExecAsync("DELETE FROM schema_migration WHERE version = (SELECT max(version) FROM schema_migration)");
         Assert.False(await Db.SchemaCurrentAsync(db.DataSource));
     }
 
