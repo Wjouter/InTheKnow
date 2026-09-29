@@ -81,6 +81,7 @@ export const reasons = [
 	'target_taken',
 	'channel_limit',
 	'target_declined',
+	'account_address',
 	'channel_not_active',
 	'confirmation_limit',
 	'test_limit',

@@ -72,6 +72,7 @@ export const en = {
 		invalid_target: 'Enter a valid email address.',
 		target_taken: 'You already added this address.',
 		channel_limit: 'You can add at most 5 addresses.',
+		account_address: 'This is your account address, so it can’t be removed. Change it in your account settings.',
 		target_declined: 'The owner of this address said the notifications weren’t for them, so it can’t be used.',
 		channel_not_active: 'Test messages go only to confirmed addresses that aren’t paused.',
 		confirmation_limit: 'Enough confirmation emails were sent to this address today.',

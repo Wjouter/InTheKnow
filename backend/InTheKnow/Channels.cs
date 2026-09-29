@@ -185,10 +185,16 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
     // FR-029: the cascade removes its deliveries and messages.
     public async Task<ChannelResult> RemoveAsync(long subscriber, long id, CancellationToken ct)
     {
-        await using var cmd = db.CreateCommand("DELETE FROM channel WHERE id = $1 AND subscriber = $2");
+        // The account address goes only with the account or a confirmed email change (004).
+        await using var cmd = db.CreateCommand("""
+            WITH d AS (DELETE FROM channel WHERE id = $1 AND subscriber = $2 AND NOT is_account_address RETURNING 1)
+            SELECT (SELECT count(*) FROM d), EXISTS (SELECT 1 FROM channel WHERE id = $1 AND subscriber = $2 AND is_account_address)
+            """);
         cmd.Parameters.Add(new() { Value = id });
         cmd.Parameters.Add(new() { Value = subscriber });
-        return await cmd.ExecuteNonQueryAsync(ct) == 0 ? Fail("not_found") : new(null, null);
+        await using var rd = await cmd.ExecuteReaderAsync(ct);
+        await rd.ReadAsync(ct);
+        return rd.GetInt64(0) > 0 ? new(null, null) : Fail(rd.GetBoolean(1) ? "account_address" : "not_found");
     }
 
     // FR-006, research R10: at most 3 confirmation emails per channel per 24 h, the initial one included.
