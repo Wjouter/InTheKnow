@@ -21,6 +21,8 @@ This project is tailored for use with Semestry MyTimetables (the scheduling soft
 
 ## Run it
 
+New here? [QUICKSTART.md](QUICKSTART.md) walks through a local development setup step by step.
+
 Needs the .NET 10 SDK and Docker (or Podman) with Compose.
 
 ```bash
