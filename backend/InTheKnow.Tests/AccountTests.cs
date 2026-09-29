@@ -27,6 +27,32 @@ public class AccountTests
         Assert.Equal(HttpStatusCode.NoContent, status);
     }
 
+    // 005 contracts/api.md § 2 (FR-046): the home page setting follows the account.
+    [Fact]
+    public async Task HomePageSetting()
+    {
+        await using var h = await ApiHost.CreateAsync();
+        var (a, b) = (await h.SignInAsync(), await h.SignInAsync());
+        Assert.Equal("changes", (await a.JsonAsync("/api/me"))["homePage"]!.GetValue<string>());
+
+        var saved = await Put(a, "/api/me/settings", new { homePage = "combined" });
+        await Expect(saved, HttpStatusCode.OK);
+        Assert.Equal("""{"homePage":"combined"}""", await saved.Content.ReadAsStringAsync(Ct));
+        Assert.Equal("combined", (await a.JsonAsync("/api/me"))["homePage"]!.GetValue<string>());
+        Assert.Equal("changes", (await b.JsonAsync("/api/me"))["homePage"]!.GetValue<string>());
+
+        async Task Refused(string json, string reason) => await Expect(
+            await a.Client.PutAsync("/api/me/settings", new StringContent(json, Encoding.UTF8, "application/json"), Ct),
+            HttpStatusCode.BadRequest, reason);
+        await Refused("{}", "empty_body");
+        await Refused("""{"x":1}""", "empty_body");
+        await Refused("[]", "empty_body");
+        await Refused("""{"homePage":"combined","x":1}""", "invalid_settings");
+        await Refused("""{"homePage":"grid"}""", "invalid_home_page");
+        await Refused("""{"homePage":1}""", "invalid_home_page");
+        Assert.Equal("combined", (await a.JsonAsync("/api/me"))["homePage"]!.GetValue<string>());
+    }
+
     static Task<HttpResponseMessage> Put(SignedIn who, string path, object body) => who.Client.PutAsJsonAsync(path, body, Ct);
     static Task<HttpResponseMessage> Post(SignedIn who, string path, object body) => who.Client.PostAsJsonAsync(path, body, Ct);
 

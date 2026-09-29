@@ -17,6 +17,18 @@ public class DbTests
         Assert.Equal(1, await db.ScalarAsync("SELECT count(*) FROM schema_migration WHERE version = 1"));
     }
 
+    // 005 data-model.md: home_page defaults to changes, and the CHECK backs the API's validation.
+    [Fact]
+    public async Task HomePageDefaultsAndIsChecked()
+    {
+        await using var db = await TestDb.CreateAsync();
+        var id = await db.ScalarAsync("INSERT INTO account (email, language, created_at) VALUES ('h@example.nl', 'en', now()) RETURNING id");
+        Assert.Equal(1, await db.ScalarAsync("SELECT count(*) FROM account WHERE id = $1 AND home_page = 'changes'", id));
+        await db.ExecAsync("UPDATE account SET home_page = 'combined' WHERE id = $1", id);
+        var e = await Assert.ThrowsAsync<PostgresException>(() => db.ExecAsync("UPDATE account SET home_page = 'grid' WHERE id = $1", id));
+        Assert.Equal(PostgresErrorCodes.CheckViolation, e.SqlState);
+    }
+
     [Fact]
     public async Task SecondInstanceIsRefused()
     {

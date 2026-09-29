@@ -18,8 +18,8 @@ static class FilterApi
 
         me.MapPut(filter, async (ClaimsPrincipal user, long calendarId, JsonNode? body, Presets presets, CancellationToken ct) =>
         {
-            var (rules, error) = FilterRules.Parse(Field(body, "rules"));
-            if (error is not null) return Problem(400, error);
+            var (rules, error, rule) = FilterRules.Parse(Field(body, "rules"));
+            if (error is not null) return RulesProblem(error, rule);
             return await presets.ReplaceFilterAsync(user.AccountId(), calendarId, rules!, ct)
                 ? FilterResult(await presets.GetFilterAsync(user.AccountId(), calendarId, ct))
                 : Results.NotFound();
@@ -32,7 +32,19 @@ static class FilterApi
                 : Results.NotFound());
 
         // Personal presets: the account's own, plus the global ones to list and apply (FR-015, FR-016).
-        me.MapGet("/presets", async (ClaimsPrincipal user, Presets presets, CancellationToken ct) => Items(await presets.ListAsync(user.AccountId(), ct)));
+        me.MapGet("/presets", async (ClaimsPrincipal user, Presets presets, CancellationToken ct) =>
+        {
+            var followers = await presets.FollowersAsync(user.AccountId(), ct);
+            return Results.Json(new
+            {
+                items = (await presets.ListAsync(user.AccountId(), ct)).Select(p =>
+                {
+                    var json = PresetJson(p);
+                    if (p.Owner is not null) json["followers"] = followers.GetValueOrDefault(p.Id);
+                    return json;
+                }),
+            });
+        });
         me.MapPost("/presets", (ClaimsPrincipal user, JsonNode? body, Presets presets, CancellationToken ct) =>
             CreateAsync(presets, user.AccountId(), body, ct));
         me.MapPut("/presets/{id:long}", (ClaimsPrincipal user, long id, JsonNode? body, Presets presets, CancellationToken ct) =>
@@ -50,8 +62,8 @@ static class FilterApi
 
     static async Task<IResult> CreateAsync(Presets presets, long? owner, JsonNode? body, CancellationToken ct)
     {
-        var (rules, error) = FilterRules.Parse(Field(body, "rules"));
-        if (error is not null) return Problem(400, error);
+        var (rules, error, rule) = FilterRules.Parse(Field(body, "rules"));
+        if (error is not null) return RulesProblem(error, rule);
         var r = await presets.CreateAsync(owner, FilterRules.Text(Field(body, "name")), rules!, ct);
         return r.Error is null ? Results.Json(PresetJson(r.Preset!), statusCode: 201) : Error(r.Error);
     }
@@ -61,9 +73,9 @@ static class FilterApi
         var (nameNode, rulesNode) = (Field(body, "name"), Field(body, "rules"));
         if (nameNode is null && rulesNode is null) return Problem(400, "invalid_rules");
         IReadOnlyList<Rule>? rules = null;
-        if (rulesNode is not null && FilterRules.Parse(rulesNode) is var (parsed, error))
+        if (rulesNode is not null && FilterRules.Parse(rulesNode) is var (parsed, error, rule))
         {
-            if (error is not null) return Problem(400, error);
+            if (error is not null) return RulesProblem(error, rule);
             rules = parsed;
         }
         var name = FilterRules.Text(nameNode);
@@ -71,6 +83,9 @@ static class FilterApi
         var r = await presets.UpdateAsync(owner, id, name, rules, ct);
         return r.Error is null ? Results.Json(PresetJson(r.Preset!)) : Error(r.Error);
     }
+
+    // A rules refusal names the rule at fault when one rule is (005 contracts/api.md § 3).
+    static IResult RulesProblem(string error, int? rule) => Problem(400, error, rule is int i ? new() { ["rule"] = i } : null);
 
     static IResult Deleted(string? error) => error is null ? Results.NoContent() : Error(error);
 
