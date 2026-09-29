@@ -143,6 +143,17 @@ public class ChannelsTests
         Assert.Null(await f.Channels.GetSubscriptionAsync(f.S2, calendar, Ct));
     }
 
+    // 004: the account address is not removable.
+    [Fact]
+    public async Task AccountAddressStays()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var channel = await f.AddAsync(type: "email");
+        await f.Db.ExecAsync("UPDATE channel SET is_account_address = true");
+        Assert.Equal("account_address", (await f.Channels.RemoveAsync(f.S1, channel, Ct)).Error);
+        Assert.Equal(1, await f.Db.ScalarAsync("SELECT count(*) FROM channel"));
+    }
+
     // US2: pause, resume, remove, request a confirmation.
     [Fact]
     public async Task Lifecycle()
