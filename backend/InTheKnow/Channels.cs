@@ -226,7 +226,7 @@ sealed partial class Channels(NpgsqlDataSource db, IEnumerable<IChannelType> typ
         foreach (var (sql, arg) in new (string, DateTimeOffset)[]
         {
             ("""
-             DELETE FROM channel ch WHERE ch.status IN ('awaitingConfirmation', 'unsubscribed') AND ch.status_since < $1
+             DELETE FROM channel ch WHERE ch.status IN ('awaitingConfirmation', 'unsubscribed') AND ch.status_since < $1 AND NOT ch.is_account_address
                AND NOT EXISTS (SELECT 1 FROM channel_message m WHERE m.channel_id = ch.id AND m.kind = 'confirmation' AND m.sent_at >= $1)
              """, now - Unused),
             ("DELETE FROM channel_message WHERE requested_at < $1", now - Unused),
