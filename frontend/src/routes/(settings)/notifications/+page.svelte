@@ -43,6 +43,7 @@
 							<Button size="sm" variant="secondary" disabled={s.pending}>{w.actions[action]}</Button>
 						</form>
 					{/each}
+					{#if !c.accountAddress}
 					<ConfirmAction
 						label={w.actions.remove}
 						title={w.removeTitle}
@@ -56,6 +57,7 @@
 					>
 						<p>{w.removeBody(c.target)}</p>
 					</ConfirmAction>
+					{/if}
 				</div>
 			</li>
 		{/each}

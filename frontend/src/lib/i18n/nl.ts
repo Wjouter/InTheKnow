@@ -72,6 +72,7 @@ export const nl: Dict = {
 		invalid_target: 'Vul een geldig e-mailadres in.',
 		target_taken: 'Je hebt dit adres al toegevoegd.',
 		channel_limit: 'Je kunt maximaal 5 adressen toevoegen.',
+		account_address: 'Dit is je accountadres en kan dus niet verwijderd worden. Wijzig het in je accountinstellingen.',
 		target_declined:
 			'De eigenaar van dit adres gaf aan dat de meldingen niet voor hem of haar waren, dus je kunt het niet gebruiken.',
 		channel_not_active: 'Testberichten gaan alleen naar bevestigde adressen die niet gepauzeerd zijn.',
