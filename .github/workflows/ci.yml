@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:18
+        env:
+          POSTGRES_USER: intheknow
+          POSTGRES_PASSWORD: intheknow
+          POSTGRES_DB: intheknow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U intheknow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      INTHEKNOW_TEST_DB: Host=localhost;Username=intheknow;Password=intheknow;Database=postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore --locked-mode
+      - run: dotnet test --no-restore
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
