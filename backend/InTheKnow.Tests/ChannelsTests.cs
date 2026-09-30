@@ -293,6 +293,18 @@ public class ChannelsTests
         Assert.Equal(1, await f.Db.ScalarAsync("SELECT count(*) FROM declined_address"));
     }
 
+    // 004: an unsubscribed account address is kept, whatever its age.
+    [Fact]
+    public async Task CleanupKeepsAccountAddress()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var channel = await f.AddAsync(type: "email");
+        await f.Db.ExecAsync("UPDATE channel SET is_account_address = true, status = 'unsubscribed'");
+        f.Time.Advance(TimeSpan.FromDays(365));
+        await f.Channels.CleanupAsync(f.Time.GetUtcNow(), Ct);
+        Assert.Equal([channel], (await f.Db.RowsAsync("SELECT id FROM channel")).Select(r => (long)r[0]!));
+    }
+
     // FR-023: test messages.
     [Fact]
     public async Task RequestTest()
