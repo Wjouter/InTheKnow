@@ -37,7 +37,10 @@ leak, and defaults are what actually ships.
 
 - InTheKnow is a web application (browser frontend plus server/API).
 - The project is licensed GPL-3.0; every dependency MUST have a GPL-3.0-compatible license.
-- Dependencies MUST be pinned via a lockfile committed to the repository.
+- App dependencies (NuGet and npm packages) MUST be pinned via a lockfile committed to the
+  repository. Container base images MAY track a major-version tag (e.g. `aspnet:10.0`) so
+  OS and runtime security patches land on each build; the published image is the immutable
+  record of what shipped.
 - Backend: .NET (C#), exposing the server/API.
 - Database: PostgreSQL is the system of record; data integrity rules (NOT NULL, unique,
   foreign keys, checks) MUST be enforced as database constraints, not only in app code.
@@ -66,4 +69,4 @@ leak, and defaults are what actually ships.
 - Compliance is checked at each plan's Constitution Check gate and when reviewing a feature
   before merge; unjustified violations block the feature.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24
+**Version**: 1.2.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
