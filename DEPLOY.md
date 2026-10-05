@@ -236,7 +236,19 @@ Docker's default `json-file` log driver doesn't rotate. To rotate, set `"log-dri
 
 ## Upgrade and rollback
 
-TODO (T018)
+1. Back up (see [Backup and restore](#backup-and-restore)).
+2. Keep the current definition: `mv compose.yaml compose-X.Y.Z.yaml`.
+3. Download the new release's `compose.yaml`.
+4. Add any new settings that its release notes list to `.env`.
+5. `docker compose pull`. If this fails, nothing changed and the old version keeps running.
+6. `docker compose up -d`. The API applies new migrations at startup.
+
+- Migrations only go forward.
+- **Rolling back**: first put the previous definition back (`mv compose-X.Y.Z.yaml compose.yaml`), then restore the
+  pre-upgrade backup onto a fresh volume (see [Backup and restore](#backup-and-restore)). With the new definition
+  still in place, the final `up -d` would apply its migrations again.
+- If the API fails during a migration, it doesn't start. The way back is that backup.
+- Scheduling backups and copying them off the host are your job.
 
 ## Backup and restore
 
@@ -244,7 +256,26 @@ TODO (T027)
 
 ## Podman
 
-TODO (T019)
+- `podman compose` works with either provider, `docker-compose` v2 or `podman-compose`. The provider must support
+  `${VAR:?}`, the top-level `name:`, `ipam` subnets and `depends_on: condition: service_healthy`.
+- Minimum `podman-compose` version: TODO: fill in after quickstart §8 (T020).
+- One-time host step so the stack comes back after a reboot:
+  - rootful: `sudo systemctl enable --now podman-restart.service`
+  - rootless: `systemctl --user enable --now podman-restart.service` and `sudo loginctl enable-linger $USER`
+
+Docker needs no extra step.
+
+**Rootful check**: Docker 28 or later blocks other LAN hosts from reaching container addresses. Rootful Podman is not
+verified yet. Test it from another machine on the server's LAN:
+
+```bash
+sudo ip route add 172.30.250.0/24 via <server LAN address>
+nmap -Pn -p 3000,5432,8080 172.30.250.0/28          # every port must show filtered
+sudo ip route del 172.30.250.0/24
+```
+
+If a port answers, the stack is reachable from your LAN. Add a host firewall rule that drops forwarded traffic to
+`STACK_SUBNET` from off-host addresses.
 
 ## Building and publishing images
 
