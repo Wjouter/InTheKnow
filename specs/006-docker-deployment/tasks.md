@@ -498,7 +498,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T032 Fill `DEPLOY.md` § Troubleshooting. Write one entry per spec edge case, each with its symptom and fix:
+- [X] T032 Fill `DEPLOY.md` § Troubleshooting. Write one entry per spec edge case, each with its symptom and fix:
   - `PUBLIC_URL` with a trailing slash, a path or `http://`: the API restarts and logs the `…PublicBaseUrl` key (see § Settings).
   - Proxy missing or misrouted: the stack is healthy, and the § Reverse proxy checks show which rule fails.
   - Host port in use: the error names it; set `WEB_PORT`/`API_PORT`.
@@ -512,12 +512,12 @@ Restart policies, healthchecks and `depends_on` are already in T008.
   - Wrong host clock: enable time sync. Two-step codes depend on it.
 
   Then remove every remaining `TODO (Txxx)` stub except the T019 Podman version, which T020 fills.
-- [ ] T033 Run every automated check: `dotnet test`, and `cd frontend && npm run check && npm test && npm run build` (quickstart §1). All must pass.
-- [ ] T034 Secret and scope sweep.
+- [X] T033 Run every automated check: `dotnet test`, and `cd frontend && npm run check && npm test && npm run build` (quickstart §1). All must pass.
+- [X] T034 Secret and scope sweep.
   - `grep -nE '^(PUBLIC_URL|POSTGRES_PASSWORD|SMTP_HOST|SMTP_FROM|SMTP_PASSWORD)=.' deploy/env.example` prints nothing (no uncommented line holds a value).
   - No committed file holds a real password, token or the private links file.
   - The file list matches plan.md's post-design re-check: 7 new files, plus edits to `Settings.cs`, `SettingsTests.cs`, `SignInTests.cs`, `ci.yml` and `README.md`. Nothing else.
-- [ ] T035 Read `DEPLOY.md` top to bottom against FR-029's list and contracts/stack.md's command table.
+- [X] T035 Read `DEPLOY.md` top to bottom against FR-029's list and contracts/stack.md's command table.
   - Every command must match the contracts exactly: service names, `-T` flags, the `make-admin` form.
   - Every section must be filled.
   - Fix any mismatch.

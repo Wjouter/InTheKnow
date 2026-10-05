@@ -335,4 +335,23 @@ operators can pull without signing in.
 
 ## Troubleshooting
 
-TODO (T032)
+- **The API keeps restarting, and its log names `InTheKnow:Notifications:PublicBaseUrl`**: `PUBLIC_URL` has a
+  trailing slash, a path, a query or `http://`. See [Settings](#required).
+- **Everything is `healthy`, but the site doesn't work**: the proxy is missing or misrouted. The
+  [Reverse proxy checks](#checks) show which rule fails.
+- **`up` fails with "address already in use"**: the error names the port. Set `WEB_PORT` or `API_PORT` in `.env`,
+  and change the proxy to match.
+- **`up` fails with "Pool overlaps with other one on this address space"**: set `STACK_SUBNET` to a free range, for
+  example `172.30.251.0/24`.
+- **`make-admin` prints `invite queued`, but no email arrives**: the SMTP server may reject the credentials.
+  `docker compose logs api` shows the delivery failure.
+- **`make-admin` says the database schema is behind**: the API hasn't finished starting. Wait for `healthy`.
+- **An upgrade failed during a migration**: restore the pre-upgrade backup. See
+  [Upgrade and rollback](#upgrade-and-rollback).
+- **`docker compose pull` fails**: the registry is unreachable. The old version keeps running. Try again later.
+- **A new release needs a new setting**: its release notes name it. A required one is named at startup.
+- **The disk is full**: PostgreSQL stops writing, and existing data is safe. Free space, then restart the stack.
+- **Two-step codes are always wrong**: the host clock is off. Enable time sync.
+- **The API log shows `libgssapi_krb5.so.2` or a DataProtection warning at startup**: harmless. The database driver
+  probes for Kerberos, which the stack doesn't use, and sign-in sessions live in the database, not in DataProtection
+  keys.
