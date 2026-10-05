@@ -349,7 +349,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Fill `DEPLOY.md` § Upgrade and rollback (FR-026, FR-028, research R13). The steps:
+- [X] T018 [US3] Fill `DEPLOY.md` § Upgrade and rollback (FR-026, FR-028, research R13). The steps:
   1. Back up (link § Backup and restore).
   2. Keep the current `compose.yaml` (for example `mv compose.yaml compose-X.Y.Z.yaml`).
   3. Download the new release's `compose.yaml`.
@@ -362,7 +362,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
   - rolling back means restoring the pre-upgrade backup (fresh-volume restore) and starting the previous `compose.yaml`;
   - if the API fails mid-migration, it does not start, and the way back is that backup;
   - scheduling backups and copying them off the host are the operator's job.
-- [ ] T019 [US3] Fill `DEPLOY.md` § Podman (FR-008, FR-019, research R14).
+- [X] T019 [US3] Fill `DEPLOY.md` § Podman (FR-008, FR-019, research R14).
   - `podman compose` works with either provider (`docker-compose` v2 or `podman-compose`).
   - **The four required provider features**: `${VAR:?}`, top-level `name:`, `ipam` subnets, and `depends_on: condition: service_healthy`.
   - The minimum `podman-compose` version: write `TODO: fill in after quickstart §8 (T020)`. **Do not invent a version number.**
