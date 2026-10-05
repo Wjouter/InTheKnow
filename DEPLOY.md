@@ -252,7 +252,25 @@ Docker's default `json-file` log driver doesn't rotate. To rotate, set `"log-dri
 
 ## Backup and restore
 
-TODO (T027)
+**Backup**, while the stack runs:
+
+```bash
+docker compose exec -T db pg_dump -U intheknow -Fc intheknow > intheknow-$(date +%F).dump
+```
+
+The file holds every account and token hash. Store it as carefully as the database.
+
+**Restore**, onto a fresh volume only:
+
+1. `docker compose down -v`. **This deletes all current data.**
+2. `docker compose up -d db`, then wait until `docker compose ps` shows it `healthy`.
+3. `docker compose exec -T db pg_restore -U intheknow -d intheknow --no-owner --exit-on-error < intheknow-YYYY-MM-DD.dump`
+4. `docker compose up -d`
+
+Start only `db` first. If the API ran before the restore, it would migrate and seed the empty database, and the
+restore would collide with those rows. Restoring over existing data is not supported.
+
+Scheduling backups and copying them off the host are your job.
 
 ## Podman
 
