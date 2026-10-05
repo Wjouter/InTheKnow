@@ -1,0 +1,80 @@
+# InTheKnow production stack (specs/006 contracts/stack.md).
+# This is a template: each release renders the image and version into the compose.yaml attached to it
+# (contracts/images.md). Operators never edit it; settings go in .env next to it (see DEPLOY.md).
+name: intheknow-prod
+
+services:
+  db:
+    image: docker.io/library/postgres:18
+    restart: always
+    environment:
+      POSTGRES_USER: intheknow
+      POSTGRES_DB: intheknow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, see DEPLOY.md}
+    volumes:
+      - db:/var/lib/postgresql
+    networks: [stack]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "intheknow", "-d", "intheknow"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  api:
+    image: ghcr.io/wjouter/intheknow-api:VERSION
+    restart: always
+    env_file: .env
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Default: Host=db;Username=intheknow;Database=intheknow
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, see DEPLOY.md}
+      InTheKnow__Accounts__TrustedProxies__0: ${STACK_SUBNET:-172.30.250.0/24}
+      InTheKnow__Accounts__TrustedProxies__1: 127.0.0.1
+      InTheKnow__Accounts__TrustedProxies__2: "::1"
+      InTheKnow__Notifications__PublicBaseUrl: ${PUBLIC_URL:?PUBLIC_URL is required, see DEPLOY.md}
+      InTheKnow__Notifications__FrontendBaseUrl: ${PUBLIC_URL:?PUBLIC_URL is required, see DEPLOY.md}
+      InTheKnow__Notifications__Email__Host: ${SMTP_HOST:?SMTP_HOST is required, see DEPLOY.md}
+      InTheKnow__Notifications__Email__Port: ${SMTP_PORT:-587}
+      InTheKnow__Notifications__Email__Username: ${SMTP_USERNAME:-}
+      InTheKnow__Notifications__Email__Password: ${SMTP_PASSWORD:-}
+      InTheKnow__Notifications__Email__FromAddress: ${SMTP_FROM:?SMTP_FROM is required, see DEPLOY.md}
+    ports:
+      - "127.0.0.1:${API_PORT:-5000}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [stack]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  web:
+    image: ghcr.io/wjouter/intheknow-web:VERSION
+    restart: always
+    environment:
+      ORIGIN: ${PUBLIC_URL:?PUBLIC_URL is required, see DEPLOY.md}
+      API_URL: http://api:8080
+      ADDRESS_HEADER: X-Forwarded-For
+      XFF_DEPTH: "1"
+      HOST: 0.0.0.0
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    networks: [stack]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+networks:
+  stack:
+    ipam:
+      config:
+        - subnet: ${STACK_SUBNET:-172.30.250.0/24}
+
+volumes:
+  db:

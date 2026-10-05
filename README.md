@@ -80,18 +80,8 @@ git). It has the settings above. Its variables override the ones you exported.
 
 ### Behind a reverse proxy
 
-List the proxy and the frontend's server in `InTheKnow__Accounts__TrustedProxies`. Otherwise every user shares one
-address for sign-in throttling. `InTheKnow__ApiKey` from 001 is retired: it is ignored, with a warning.
-
-In production, build the frontend with `npm run build` and run `node build` from `frontend/` with:
-- `ORIGIN`: the public origin, the same value as `InTheKnow__Notifications__FrontendBaseUrl`;
-- `API_URL`: the API's internal address (default `http://localhost:5000`);
-- `ADDRESS_HEADER=X-Forwarded-For` and `XFF_DEPTH=1`, so it sees the browser's address;
-- `HOST=127.0.0.1` (or the container network) and `PORT` (default 3000).
-
-The proxy terminates TLS, sends HSTS, sends `/n/…` to the API, answers `404` for `/api/…` (the browser never
-reaches the API), and sends everything else to the frontend. The whole list is in the
-[005 configuration contract](specs/005-sveltekit-frontend/contracts/configuration.md).
+Production runs as the container stack in [DEPLOY.md](DEPLOY.md). A non-container install follows the same proxy
+rules and the [005 configuration contract](specs/005-sveltekit-frontend/contracts/configuration.md).
 
 ## Documentation
 
@@ -102,6 +92,7 @@ Every feature has a spec, a quickstart with a manual walkthrough, and contracts 
 - [003 Notification channels](specs/003-notification-channels/quickstart.md) — [API](specs/003-notification-channels/contracts/api.md), [configuration](specs/003-notification-channels/contracts/configuration.md)
 - [004 Accounts and login](specs/004-accounts-login/quickstart.md) — [API](specs/004-accounts-login/contracts/api.md), [configuration](specs/004-accounts-login/contracts/configuration.md)
 - [005 Web interface](specs/005-sveltekit-frontend/quickstart.md) — [pages](specs/005-sveltekit-frontend/contracts/pages.md), [API additions](specs/005-sveltekit-frontend/contracts/api.md), [configuration](specs/005-sveltekit-frontend/contracts/configuration.md)
+- [Deploying to production](DEPLOY.md): the container stack, reverse proxy, upgrades and backups
 
 Since 004, the API routes of 001 to 003 live under `/api/me/…` (your own data) and `/api/admin/…` (admins), and
 every request sends `Authorization: Bearer <session token>` from sign-in.
