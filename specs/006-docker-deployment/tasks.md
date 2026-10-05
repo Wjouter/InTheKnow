@@ -389,10 +389,10 @@ Restart policies, healthchecks and `depends_on` are already in T008.
 
 ### Implementation for User Story 4
 
-- [ ] T021 [P] [US4] Add `workflow_call:` to the `on:` block of `.github/workflows/ci.yml` (research R11).
+- [X] T021 [P] [US4] Add `workflow_call:` to the `on:` block of `.github/workflows/ci.yml` (research R11).
   - Leave everything else as is, including `permissions: contents: read` and the `ci-${{ github.ref }}` concurrency group.
   - For a tag, `github.ref` is `refs/tags/vX.Y.Z`, so it never collides with a branch run.
-- [ ] T022 [US4] Create `.github/workflows/release.yml` (research R11, contracts/images.md, FR-002 to FR-004b).
+- [X] T022 [US4] Create `.github/workflows/release.yml` (research R11, contracts/images.md, FR-002 to FR-004b).
   - `name: Release`.
   - `on: push: tags: ['v[0-9]+.[0-9]+.[0-9]+']` only. **No `release:` trigger, and no `concurrency` group** (a group named like `ci.yml`'s would deadlock the called workflow).
   - Top-level `permissions: contents: read`.
@@ -413,7 +413,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
     8. `gh release upload "$GITHUB_REF_NAME" compose.yaml deploy/env.example --clobber`.
   - **Hardcode the image as lowercase `ghcr.io/wjouter/…`**. Never derive it from `github.repository_owner` (`Wjouter`), which GHCR rejects.
   - No marketplace actions besides `actions/checkout`.
-- [ ] T023 [US4] Fill `DEPLOY.md` § Building and publishing images (FR-004, FR-004a, FR-004b, contracts/images.md).
+- [X] T023 [US4] Fill `DEPLOY.md` § Building and publishing images (FR-004, FR-004a, FR-004b, contracts/images.md).
   - **Local build** (no registry): the two `docker build` lines with `IMAGE` and `VERSION` as inputs.
   - **Manual push to any registry**: `docker login <registry>` (the maintainer's own sign-in, never stored in the repository), then the two `docker push` lines.
     - A manual push holds only the builder's processor type.
@@ -422,7 +422,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
   - **Automatic releases**: push a `vX.Y.Z` tag, or publish a GitHub release that creates one. A release for an existing tag builds nothing.
   - **The one-time step after the first release**: make both GHCR packages public, under the package settings → visibility.
   - Note that every command works with `podman`.
-- [ ] T024 [US4] Validate locally.
+- [X] T024 [US4] Validate locally.
   - Read `release.yml` against `ci.yml` once more: the trigger, `needs`, permissions, and no `concurrency`.
   - If `actionlint` is installed, run it on both workflows.
   - Run the T022 `sed` render with `VERSION=1.2.3` into a scratch file. Check both image lines read `ghcr.io/wjouter/intheknow-{api,web}:1.2.3`, and no `:VERSION` remains.
