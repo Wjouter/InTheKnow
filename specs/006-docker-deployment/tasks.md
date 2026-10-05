@@ -53,7 +53,7 @@ description: "Task list for Production Container Stack (006)"
 
 ### Tests first
 
-- [ ] T002 [P] Add origin-only cases to `backend/InTheKnow.Tests/SettingsTests.cs` (research R5, quickstart §1). They fail until T004.
+- [X] T002 [P] Add origin-only cases to `backend/InTheKnow.Tests/SettingsTests.cs` (research R5, quickstart §1). They fail until T004.
   - In the `InvalidNotificationSettingsFailStartup` theory (`withEmail: true`), add rejected rows for `PublicBaseUrl`:
     - `https://intheknow.example.nl/` (trailing slash)
     - `https://intheknow.example.nl/app` (path)
@@ -64,7 +64,7 @@ description: "Task list for Production Container Stack (006)"
   - In `NotificationSettingsBoundaries`, add accepted loads through `WithEmail(...)`:
     - `FrontendBaseUrl = http://localhost:5173`, with `Email:Host = localhost` and `Email:StartTls = false`, the same as the existing `http://localhost:5000` line;
     - `PublicBaseUrl = https://intheknow.example.nl:8443`.
-- [ ] T003 [P] Add an IPv4-mapped trusted peer case to `backend/InTheKnow.Tests/SignInTests.cs` (research R7).
+- [X] T003 [P] Add an IPv4-mapped trusted peer case to `backend/InTheKnow.Tests/SignInTests.cs` (research R7).
   - Before writing it, read how `Settings.TrustedProxyNetworks` is consumed in `backend/InTheKnow/Program.cs` and `SignIn.cs`, and how the test-only `X-Test-Source` header sets the peer (`backend/InTheKnow.Tests/ApiTests.cs:112`).
   - Model it on `ForwardedForOnlyFromTrustedProxies` (`SignInTests.cs:210`), as a new `[Fact]` (or a second assertion in that test).
   - Send `X-Test-Source: ::ffff:192.0.2.1` and `X-Forwarded-For: 203.0.113.9`, with `InTheKnow:Accounts:TrustedProxies:0 = 192.0.2.0/24`. Expect `host(source)` to be `203.0.113.9`.
@@ -75,7 +75,7 @@ description: "Task list for Production Container Stack (006)"
 
 ### Implementation
 
-- [ ] T004 Make `Settings.BaseUrl` origin-only in `backend/InTheKnow/Settings.cs:180` (research R5, FR-010, FR-014).
+- [X] T004 Make `Settings.BaseUrl` origin-only in `backend/InTheKnow/Settings.cs:180` (research R5, FR-010, FR-014).
   - Keep today's rule: an absolute URL; `https`, or `http` only when the host is `localhost`.
   - Add all of these:
     - `!url.EndsWith('/')`. `Uri` normalizes `https://x.nl` and `https://x.nl/` to the same `AbsolutePath` `/`, so the trailing slash must be checked on the string;
@@ -84,7 +84,7 @@ description: "Task list for Production Container Stack (006)"
   - Update both messages at `Settings.cs:137` and `:138`. They must keep the full key name (`InTheKnow:Notifications:PublicBaseUrl` / `…FrontendBaseUrl`). The new text: `must be an origin only (https://host[:port], no path, trailing slash, query or fragment; http only on localhost) when email is configured`.
   - All existing values are already origin-only (`EmailChannelTests.Public`/`Frontend`, QUICKSTART, README, `launchSettings.example.json`). Grep `PublicBaseUrl|FrontendBaseUrl` across `backend/` once more to confirm.
   - T002 and T003 must pass. Run `dotnet test`.
-- [ ] T005 [P] Create `backend/Dockerfile` (research R2, contracts/images.md). It is built with the repository root as context (`docker build -f backend/Dockerfile .`).
+- [X] T005 [P] Create `backend/Dockerfile` (research R2, contracts/images.md). It is built with the repository root as context (`docker build -f backend/Dockerfile .`).
   - **Build stage**: `FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build`.
     - `COPY` only `Directory.Build.props`, `global.json` and `backend/InTheKnow/`, never `COPY . .`.
     - `RUN dotnet restore backend/InTheKnow/InTheKnow.csproj --locked-mode`, with **no** `-r`/`-a`. The lockfile has no runtime section.
@@ -93,7 +93,7 @@ description: "Task list for Production Container Stack (006)"
     - `WORKDIR /app`, `COPY --from=build /app .`, `USER $APP_UID`, `ENTRYPOINT ["dotnet", "InTheKnow.dll"]`.
     - **No `RUN` in the runtime stage.** An arm64 `RUN` would need QEMU, which the release workflow does not install.
     - No `HEALTHCHECK` and no `ENV ASPNETCORE_HTTP_PORTS`. Both are in the stack (R8, R2).
-- [ ] T006 [P] Create `frontend/Dockerfile` (research R3, contracts/images.md). Context is the repository root.
+- [X] T006 [P] Create `frontend/Dockerfile` (research R3, contracts/images.md). Context is the repository root.
   - **Build stage**: `FROM --platform=$BUILDPLATFORM docker.io/library/node:24-alpine AS build`, `WORKDIR /src`.
     - `COPY frontend/package.json frontend/package-lock.json ./`, `RUN npm ci`.
     - `COPY frontend/ ./`, `RUN npm run build`.
@@ -103,7 +103,7 @@ description: "Task list for Production Container Stack (006)"
     - `USER node`, `CMD ["node", "build"]`.
     - **No `RUN` in the runtime stage.** No init process: adapter-node handles `SIGTERM`.
     - No setting is baked in. The frontend reads only `$env/dynamic/private`.
-- [ ] T007 Build both images locally and inspect them (quickstart §2, FR-004, FR-005). Skip with a note if no container runtime is installed.
+- [X] T007 Build both images locally and inspect them (quickstart §2, FR-004, FR-005). Skip with a note if no container runtime is installed.
   - Run `docker build -f backend/Dockerfile -t localhost/intheknow-api:0.0.0-test .` and the same for `frontend/Dockerfile` → `localhost/intheknow-web:0.0.0-test`. Both must succeed with no registry sign-in.
   - Run the two `docker run --rm --entrypoint sh … find …` commands from quickstart §2.
     - The users must be `app` and `node`.
