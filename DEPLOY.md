@@ -103,7 +103,110 @@ before it reports healthy.
 
 ## Reverse proxy
 
-TODO (T014)
+The stack listens on `127.0.0.1` only. Your proxy must:
+
+- terminate TLS and redirect HTTP to HTTPS;
+- send `Strict-Transport-Security: max-age=31536000`;
+- route `/n/…` to the API (`127.0.0.1:${API_PORT}`), answer `404` for `/api` and `/api/…`, and send everything else
+  to the web interface (`127.0.0.1:${WEB_PORT}`);
+- replace any client-sent `X-Forwarded-For` with the real client address;
+- pass the `Host` header through;
+- not strip the app's security headers;
+- not log the query strings of `/account/…` requests (they carry one-time tokens).
+
+### Caddy
+
+```caddyfile
+intheknow.example.nl {
+	header Strict-Transport-Security "max-age=31536000"
+	@api path /api /api/*
+	handle @api {
+		respond 404
+	}
+	handle /n/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}
+```
+
+How it meets each rule:
+
+- **TLS and redirect**: Caddy gets a certificate and redirects HTTP for a named site automatically.
+- **HSTS**: the `header` line.
+- **Routing**: `handle` blocks are mutually exclusive, and the first match wins. `respond` sits **inside** a
+  `handle` on purpose: Caddy sorts `handle` before `respond`, so a top-level `respond @api 404` would never run and
+  `/api/…` would reach the web interface.
+- **Forwarded address**: Caddy replaces a client-sent `X-Forwarded-For` with the real peer, unless the peer is in its
+  own `trusted_proxies`, which is empty by default.
+- **Host**: passed through by default.
+- **Security headers**: Caddy doesn't strip response headers unless told to.
+- **Query strings**: Caddy writes no access log without a `log` directive. If you enable one, delete the query:
+
+  ```caddyfile
+  log {
+  	format filter {
+  		request>uri query {
+  			delete *
+  		}
+  	}
+  }
+  ```
+
+  Check your Caddyfile with `caddy adapt --config Caddyfile --pretty`: the `/api` route must come before the
+  catch-all.
+
+**Other proxies**: meet the rule list above. With nginx, set `proxy_set_header X-Forwarded-For $remote_addr;`, **not**
+`$proxy_add_x_forwarded_for`, which keeps the client's own value and lets anyone choose their address.
+
+### Checks
+
+Run these **from another machine** after the proxy is up (`D=https://intheknow.example.nl`):
+
+```bash
+curl -sI http://intheknow.example.nl/ | head -1                       # 301 or 308 to https
+curl -sI $D/ | grep -i '^strict-transport-security: max-age=31536000'
+curl -s -D - $D/api/me                                                # 404, empty body, no content-security-policy
+curl -s -D - $D/api                                                   # the same: answered by the proxy
+curl -s $D/n/unsubscribe/x | grep -i intheknow                        # answered by the API's public page
+curl -sI $D/ | grep -iE '^(x-frame-options|referrer-policy|x-content-type-options|content-security-policy):'  # all four
+nmap -p 3000,5000,5432 <server address>                               # all closed or filtered
+```
+
+**Spoofed address** (from another machine): sign in with a wrong password through the web interface while sending
+`X-Forwarded-For: 198.51.100.7` (for example with a browser extension, or by replaying the form post with
+`curl -H`). Then, **on the server**:
+
+```bash
+docker compose exec db psql -U intheknow -c "SELECT host(source) FROM security_event ORDER BY id DESC LIMIT 3"
+```
+
+It must show your real address, not `198.51.100.7`.
+
+**Two visitors**: from machine A, fail sign-in until it is throttled. From machine B, sign in normally: it must
+work. (Set `InTheKnow__Accounts__SourceFailuresPerHour=20` in `.env` for a quicker test, and remove it after.)
+
+### Trusted addresses
+
+- The API believes `X-Forwarded-For` only from `STACK_SUBNET` and loopback: the web container, and your proxy's
+  connection through the published port.
+- To check which peer address your runtime shows, run this **on the server** (use the address of an existing
+  account):
+
+  ```bash
+  curl -s -o /dev/null -H 'Content-Type: application/json' -d '{"email":"you@example.nl","password":"wrong-password"}' http://127.0.0.1:5000/api/auth/sign-in
+  curl -s -o /dev/null -H 'Content-Type: application/json' -H 'X-Forwarded-For: 203.0.113.5' -d '{"email":"you@example.nl","password":"wrong-password"}' http://127.0.0.1:5000/api/auth/sign-in
+  docker compose exec db psql -U intheknow -c "SELECT type, host(source) FROM security_event ORDER BY id DESC LIMIT 2"
+  ```
+
+  The older row is the runtime's peer, which must be in `STACK_SUBNET` or loopback. The newer one must be
+  `203.0.113.5`.
+- If your runtime shows a different peer, add it to `.env` as `InTheKnow__Accounts__TrustedProxies__4=<address>`.
+  Index 3 is reserved for the stack.
+- Docker's firewall rules for published ports bypass `ufw`. That is why the stack binds to `127.0.0.1` instead of
+  relying on a firewall.
 
 ## First admin
 

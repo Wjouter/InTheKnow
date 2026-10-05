@@ -281,7 +281,7 @@ The exposure itself (loopback ports, no db port, trusted proxies, empty required
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Fill `DEPLOY.md` § Reverse proxy (FR-017, FR-018, research R12).
+- [X] T014 [US2] Fill `DEPLOY.md` § Reverse proxy (FR-017, FR-018, research R12).
   - **The rule list, one bullet each**. The operator's proxy must:
     - terminate TLS and redirect HTTP to HTTPS;
     - send `Strict-Transport-Security: max-age=31536000`;
@@ -324,12 +324,12 @@ The exposure itself (loopback ports, no db port, trusted proxies, empty required
     Note that this needs verifying with `caddy adapt` (T016).
   - **Checks**: the curl/nmap block, the spoofed-address check and the two-visitor check from quickstart §5, each with its expected result. Mark which run from another machine and which on the server.
   - Other proxies: meet the rule list. nginx users must set `X-Forwarded-For $remote_addr`, **not** `$proxy_add_x_forwarded_for` (R12).
-- [ ] T015 [US2] Add the R7 trust explanation to `DEPLOY.md` § Reverse proxy, under a short "Trusted addresses" subheading.
+- [X] T015 [US2] Add the R7 trust explanation to `DEPLOY.md` § Reverse proxy, under a short "Trusted addresses" subheading.
   - The API trusts forwarded addresses only from `STACK_SUBNET` and loopback.
   - The peer-address check from quickstart §5 verifies this per runtime.
   - Fallback if a runtime shows another peer: add it as `InTheKnow__Accounts__TrustedProxies__4` in `.env` (index 3 is reserved for the stack's mapped-subnet fallback, T003).
   - Docker's published-port firewall rules bypass `ufw`, which is why the stack binds to `127.0.0.1` rather than relying on a firewall.
-- [ ] T016 [US2] If `caddy` is installed, put the T014 Caddyfile (with the `log` block) in a scratch file and run `caddy adapt --config <file> --pretty`.
+- [X] T016 [US2] If `caddy` is installed, put the T014 Caddyfile (with the `log` block) in a scratch file and run `caddy adapt --config <file> --pretty`.
   - The `/api` route must come before the catch-all.
   - The `log` filter must be accepted.
   - Fix `DEPLOY.md` if not. Otherwise leave this check to T017.
