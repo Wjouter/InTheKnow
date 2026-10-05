@@ -481,7 +481,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
 
 ### Implementation for User Story 6
 
-- [ ] T030 [US6] Verify:
+- [X] T030 [US6] Verify:
   - `git diff main -- compose.yaml QUICKSTART.md` is empty;
   - `git status --porcelain` shows no `.env` (an ignored file would not show, so also `git check-ignore deploy/.env` must print the path);
   - README's `#behind-a-reverse-proxy` anchor still exists (`grep -n '^### Behind a reverse proxy$' README.md`).
