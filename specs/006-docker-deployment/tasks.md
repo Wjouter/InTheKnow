@@ -124,7 +124,7 @@ description: "Task list for Production Container Stack (006)"
 
 ### Implementation for User Story 1
 
-- [ ] T008 [P] [US1] Create `deploy/compose.yaml` exactly as [contracts/stack.md](./contracts/stack.md) specifies (research R6 to R10, R13, R14).
+- [X] T008 [P] [US1] Create `deploy/compose.yaml` exactly as [contracts/stack.md](./contracts/stack.md) specifies (research R6 to R10, R13, R14).
   - **Top level**:
     - `name: intheknow-prod`;
     - network `stack` with `ipam: config: - subnet: ${STACK_SUBNET:-172.30.250.0/24}`;
@@ -183,7 +183,7 @@ description: "Task list for Production Container Stack (006)"
       - web: `["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]`.
   - No `deploy.replicas` and no scale setting (FR-022).
   - A header comment says: this is a template; the release renders `VERSION` (contracts/images.md); operators never edit it.
-- [ ] T009 [P] [US1] Create `deploy/env.example` per [contracts/settings.md](./contracts/settings.md) (research R6).
+- [X] T009 [P] [US1] Create `deploy/env.example` per [contracts/settings.md](./contracts/settings.md) (research R6).
   - **Header comment**:
     - copy it to `.env` next to `compose.yaml`, then `chmod 600 .env`;
     - one `NAME=value` per line;
@@ -206,7 +206,7 @@ description: "Task list for Production Container Stack (006)"
     - `InTheKnow__MyTimetables__Domains__0__Host=mytimetables.inholland.nl`
     - a line linking the 001, 003 and 004 `contracts/configuration.md` files for every other key
   - **A "set by the stack, setting them here has no effect" comment**, listing the stack-owned keys of contracts/settings.md.
-- [ ] T010 [US1] Check the stack definition locally (depends on T008, T009). Skip with a note if no runtime is installed. In a scratch directory:
+- [X] T010 [US1] Check the stack definition locally (depends on T008, T009). Skip with a note if no runtime is installed. In a scratch directory:
   1. Copy `deploy/compose.yaml` and `deploy/env.example` to `compose.yaml` and `.env`.
   2. Run `docker compose config`. It must fail naming `PUBLIC_URL` (or the first required setting), with `… is required, see DEPLOY.md`.
   3. Fill the four required settings and `SMTP_PASSWORD='pa$$ w#rd'`, then run `docker compose config`.
@@ -220,7 +220,7 @@ description: "Task list for Production Container Stack (006)"
      - `ss -tlnp` must show only `127.0.0.1:3000` and `127.0.0.1:5000`.
      - The local SMTP host may log delivery failures. That's fine here.
   5. Then `docker compose down -v`.
-- [ ] T011 [US1] Create `DEPLOY.md` at the repository root, with **every FR-029 section as a heading**. Later phases fill their own section, so leave those as one-line `TODO (Txxx)` stubs:
+- [X] T011 [US1] Create `DEPLOY.md` at the repository root, with **every FR-029 section as a heading**. Later phases fill their own section, so leave those as one-line `TODO (Txxx)` stubs:
   - Prerequisites
   - Settings
   - First start
@@ -259,7 +259,7 @@ description: "Task list for Production Container Stack (006)"
     - `docker compose ps`, `docker compose logs [-f] [db|api|web]`;
     - Docker's `json-file` driver does not rotate logs: the optional `daemon.json` `"log-driver": "local"`, and disk space is the operator's job.
   - Note at the top that every command runs in the directory holding `compose.yaml` and `.env`, and that `podman compose` takes the same arguments.
-- [ ] T012 [US1] Replace the body of README's `### Behind a reverse proxy` section in `README.md:81`.
+- [X] T012 [US1] Replace the body of README's `### Behind a reverse proxy` section in `README.md:81`.
   - Keep the heading text **exactly**: QUICKSTART links `README.md#behind-a-reverse-proxy`, and QUICKSTART must not change.
   - Replace the body with two lines:
     - production runs as the container stack in [DEPLOY.md](DEPLOY.md);
