@@ -450,7 +450,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
 
 ### Implementation for User Story 5
 
-- [ ] T027 [US5] Fill `DEPLOY.md` § Backup and restore (FR-027, FR-028, research R9).
+- [X] T027 [US5] Fill `DEPLOY.md` § Backup and restore (FR-027, FR-028, research R9).
   - **Backup**, while running: `docker compose exec -T db pg_dump -U intheknow -Fc intheknow > intheknow-$(date +%F).dump`.
     - The file holds every account and token hash, so store it like the database.
   - **Restore** (fresh volume only):
@@ -461,7 +461,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
   - Explain why only `db` starts first: the API would migrate and seed the empty database, and the restore would collide with those rows.
   - Restoring over existing data is not supported.
   - Scheduling backups and copying them off the host are the operator's job.
-- [ ] T028 [US5] Back up and restore locally with the T010 scratch stack (runtime required, otherwise skip with a note).
+- [X] T028 [US5] Back up and restore locally with the T010 scratch stack (runtime required, otherwise skip with a note).
   - Create one account with `make-admin` and one row of data.
   - Run the T027 commands.
   - Check the row is back with `docker compose exec db psql -U intheknow -c "SELECT count(*) FROM account"`. Use the actual table name from `backend/InTheKnow/Migrations/`.
