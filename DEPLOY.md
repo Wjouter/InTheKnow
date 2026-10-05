@@ -279,7 +279,41 @@ If a port answers, the stack is reachable from your LAN. Add a host firewall rul
 
 ## Building and publishing images
 
-TODO (T023)
+For maintainers. Run these from a clone, at the repository root. Every command also works with `podman`.
+
+**Build locally** (no registry needed):
+
+```bash
+IMAGE=registry.example.com/me/intheknow
+VERSION=1.2.0
+docker build -f backend/Dockerfile  -t "$IMAGE-api:$VERSION" .
+docker build -f frontend/Dockerfile -t "$IMAGE-web:$VERSION" .
+```
+
+**Push to any registry**, with your own sign-in (never stored in the repository):
+
+```bash
+docker login registry.example.com
+docker push "$IMAGE-api:$VERSION"
+docker push "$IMAGE-web:$VERSION"
+```
+
+A manual build holds only your machine's processor type (amd64 or arm64).
+
+**Render a stack definition** for those images:
+
+```bash
+sed -e "s|ghcr.io/wjouter/intheknow|$IMAGE|" -e "s|:VERSION|:$VERSION|" deploy/compose.yaml > compose.yaml
+```
+
+**Never reuse a version**: pushing an existing version replaces it for everyone. Bump the version instead.
+
+**Automatic releases**: push a `vX.Y.Z` tag, or publish a GitHub release that creates one. After the checks pass, the
+release workflow publishes `ghcr.io/wjouter/intheknow-api` and `-web` for amd64 and arm64, and attaches
+`compose.yaml` and `env.example` to the release. Publishing a release for an existing tag builds nothing.
+
+**One-time step after the first release**: make both packages public on GitHub (package settings → visibility), so
+operators can pull without signing in.
 
 ## Troubleshooting
 
