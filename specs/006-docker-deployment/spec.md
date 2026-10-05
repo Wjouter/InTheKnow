@@ -8,7 +8,7 @@
 
 **Input**: User description: "I want to create a docker container / stack to easily put this app in production."
 
-**Builds on**: [001-ical-change-detection](../001-ical-change-detection/spec.md) (the API and background checker, the database, configuration from the environment), [003-notification-channels](../003-notification-channels/spec.md) (outgoing email, the public `/n/…` pages), [004-accounts-login](../004-accounts-login/spec.md) (the `make-admin` command, trusted proxies for sign-in throttling) and [005-sveltekit-frontend](../005-sveltekit-frontend/spec.md) (the web interface and its [deployment contract](../005-sveltekit-frontend/contracts/configuration.md): public origin, reverse proxy routing, HTTPS, HSTS, forwarded client address). This feature changes no app behavior; it packages what exists so an operator can run it on a server.
+**Builds on**: [001-ical-change-detection](../001-ical-change-detection/spec.md) (the API and background checker, the database, configuration from the environment), [003-notification-channels](../003-notification-channels/spec.md) (outgoing email, the public `/n/…` pages), [004-accounts-login](../004-accounts-login/spec.md) (the `make-admin` command, trusted proxies for sign-in throttling) and [005-sveltekit-frontend](../005-sveltekit-frontend/spec.md) (the web interface and its [deployment contract](../005-sveltekit-frontend/contracts/configuration.md): public origin, reverse proxy routing, HTTPS, HSTS, forwarded client address). This feature packages what exists so an operator can run it on a server. Its one app change is stricter startup validation: the public and frontend base URLs must be an origin only (the first edge case below).
 
 ## Clarifications
 
@@ -161,7 +161,7 @@ A developer following QUICKSTART still starts only the database and the mail cat
 - **FR-004**: Anyone with a clone of the repository MUST be able to build both images locally with documented commands, without the registry.
 - **FR-004a**: The maintainer MUST be able to publish locally built images to any container registry by hand with documented commands. A manual push MAY contain only the processor type of the machine that built it; FR-003 applies to automatic publishing. The registry address and image name MUST be an input to the build and push commands, not fixed in the project; switching registry MUST need only a different address and the maintainer's sign-in to it.
 - **FR-004b**: Registry credentials MUST NOT be stored in the repository. Manual publishing uses the maintainer's own sign-in; automatic publishing uses the CI's own short-lived credentials.
-- **FR-005**: Images MUST NOT contain secrets, development tools or test code, and MUST run the app as a non-root user.
+- **FR-005**: Images MUST NOT contain secrets, test code or the project's build tooling (SDKs, compilers, dev dependencies, test runners), and MUST run the app as a non-root user. What the official runtime base image itself ships (for example the shell, or npm in the Node image) is acceptable.
 
 **Stack**
 
