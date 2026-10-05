@@ -33,7 +33,7 @@ description: "Task list for Production Container Stack (006)"
 
 **Purpose**: keep secrets and build junk out of every build context (research R4)
 
-- [ ] T001 Create `.dockerignore` at the repository root. Patterns are anchored at the context root, so write `**/…` wherever a file can sit in a subdirectory. Exclude at least:
+- [X] T001 Create `.dockerignore` at the repository root. Patterns are anchored at the context root, so write `**/…` wherever a file can sit in a subdirectory. Exclude at least:
   - `.git`, `.github`, `.idea`, `.claude`, `.junie`, `.specify`, `specs`
   - `**/bin`, `**/obj`, `**/node_modules`, `frontend/build`, `frontend/.svelte-kit`
   - `**/.env`, `**/.env.*` (not just `.env`, which only matches the root)
