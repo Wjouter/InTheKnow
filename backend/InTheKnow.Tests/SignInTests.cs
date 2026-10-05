@@ -209,17 +209,19 @@ public class SignInTests
     [Fact]
     public async Task ForwardedForOnlyFromTrustedProxies()
     {
-        async Task<string> SourceAsync(ApiHost h)
+        async Task<string> SourceAsync(ApiHost h, string peer = "192.0.2.1")
         {
             var a = await h.SignInAsync();
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/sign-in") { Content = JsonContent.Create(new { email = a.Email, password = TestHost.Password }) };
-            request.Headers.Add("X-Test-Source", "192.0.2.1");
+            request.Headers.Add("X-Test-Source", peer);
             request.Headers.Add("X-Forwarded-For", "203.0.113.9");
             await Expect(await h.Client.SendAsync(request, Ct), HttpStatusCode.OK);
             return (string)(await h.Db.RowsAsync("SELECT host(source) FROM security_event WHERE type = 'signIn'")).Single()[0]!;
         }
         await using (var h = await HostAsync()) Assert.Equal("192.0.2.1", await SourceAsync(h));
         await using (var h = await HostAsync(null, ("InTheKnow:Accounts:TrustedProxies:0", "192.0.2.0/24"))) Assert.Equal("203.0.113.9", await SourceAsync(h));
+        // 006 R7: Kestrel listens dual-stack, so the stack's IPv4 peer can arrive IPv4-mapped.
+        await using (var h = await HostAsync(null, ("InTheKnow:Accounts:TrustedProxies:0", "192.0.2.0/24"))) Assert.Equal("203.0.113.9", await SourceAsync(h, "::ffff:192.0.2.1"));
     }
 
     // --- US3: password reset (FR-009, FR-010) ---------------------------------------------------------------------
