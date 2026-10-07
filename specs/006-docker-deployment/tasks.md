@@ -265,7 +265,7 @@ description: "Task list for Production Container Stack (006)"
     - production runs as the container stack in [DEPLOY.md](DEPLOY.md);
     - a non-container install follows the same proxy rules and the [005 configuration contract](specs/005-sveltekit-frontend/contracts/configuration.md).
   - Also add `DEPLOY.md` to the `## Documentation` list (FR-029: README links it).
-- [ ] T013 [US1] Manual (maintainer): run quickstart §3 (first start, missing and malformed `PUBLIC_URL`, `ss`, port in use) and §4 (Caddy, `make-admin`, invite, two-step, the channel test email's `/n/…` links, timing under 30 minutes, 3 commands) on a real server with locally built images. Record the results in the PR description.
+- [x] T013 [US1] Manual (maintainer): run quickstart §3 (first start, missing and malformed `PUBLIC_URL`, `ss`, port in use) and §4 (Caddy, `make-admin`, invite, two-step, the channel test email's `/n/…` links, timing under 30 minutes, 3 commands) on a real server with locally built images. Record the results in the PR description.
 
 **Checkpoint**: the stack starts from one settings file. The required settings are enforced, and the admin flow works.
 
@@ -333,7 +333,7 @@ The exposure itself (loopback ports, no db port, trusted proxies, empty required
   - The `/api` route must come before the catch-all.
   - The `log` filter must be accepted.
   - Fix `DEPLOY.md` if not. Otherwise leave this check to T017.
-- [ ] T017 [US2] Manual (maintainer): run quickstart §5 in full on the real server, for every runtime the maintainer supports, including the routed-subnet check from a LAN neighbour. Record the peer address each runtime shows, and whether the routed-subnet check passed. Apply the R7 fallbacks in `DEPLOY.md` (trusted peer; firewall rule for rootful Podman) where a runtime fails.
+- [x] T017 [US2] Manual (maintainer): run quickstart §5 in full on the real server, for every runtime the maintainer supports, including the routed-subnet check from a LAN neighbour. Record the peer address each runtime shows, and whether the routed-subnet check passed. Apply the R7 fallbacks in `DEPLOY.md` (trusted peer; firewall rule for rootful Podman) where a runtime fails.
 
 **Checkpoint**: US1 + US2 = MVP. The stack is reachable only through a proxy that passes every check.
 
@@ -370,7 +370,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
     - rootful: `sudo systemctl enable --now podman-restart.service`;
     - rootless: `systemctl --user enable --now podman-restart.service` plus `sudo loginctl enable-linger $USER`.
   - Docker needs no extra step.
-- [ ] T020 [US3] Manual (maintainer):
+- [x] T020 [US3] Manual (maintainer):
   - Run quickstart §7: kill, scale to 2, db stopped while the API starts, reboot under 2 minutes.
   - Run quickstart §8: the other runtime, rootless and rootful.
   - Record the `podman compose` provider and version, and replace the T019 TODO with it.
@@ -467,7 +467,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
   - Check the row is back with `docker compose exec db psql -U intheknow -c "SELECT count(*) FROM account"`. Use the actual table name from `backend/InTheKnow/Migrations/`.
   - Check `api` restarts without applying a migration.
   - Then `down -v`.
-- [ ] T029 [US5] Manual (maintainer): run quickstart §6 on the real server, ending with a full sign-in that shows calendars and changes (SC-006).
+- [x] T029 [US5] Manual (maintainer): run quickstart §6 on the real server, ending with a full sign-in that shows calendars and changes (SC-006).
 
 **Checkpoint**: backups and restore work as documented.
 
@@ -490,7 +490,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
   - `docker compose up -d db mailpit` from the root starts only those two;
   - `dotnet test` passes against it;
   - `docker compose down`.
-- [ ] T031 [US6] Manual (maintainer): run quickstart §10, including the dev stack and the `~/itk` stack side by side with `API_PORT=5001`.
+- [x] T031 [US6] Manual (maintainer): run quickstart §10, including the dev stack and the `~/itk` stack side by side with `API_PORT=5001`.
 
 **Checkpoint**: development is unaffected.
 

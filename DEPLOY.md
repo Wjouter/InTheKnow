@@ -161,6 +161,29 @@ How it meets each rule:
 **Other proxies**: meet the rule list above. With nginx, set `proxy_set_header X-Forwarded-For $remote_addr;`, **not**
 `$proxy_add_x_forwarded_for`, which keeps the client's own value and lets anyone choose their address.
 
+### Cloudflare tunnel
+
+Routes in the tunnel's ingress rules, in this order (the first match wins):
+
+```yaml
+ingress:
+  - hostname: intheknow.example.nl
+    path: ^/n/
+    service: http://127.0.0.1:5000
+  - hostname: intheknow.example.nl
+    path: ^/api(/|$)
+    service: http_status:404
+  - hostname: intheknow.example.nl
+    service: http://127.0.0.1:3000
+  - service: http_status:404
+```
+
+- HTTPS and HSTS are zone settings in the Cloudflare dashboard (SSL/TLS, Edge Certificates): turn on "Always Use
+  HTTPS", and enable HSTS with a max-age of 12 months. Leave `includeSubDomains` and `preload` off unless every
+  subdomain of the zone serves HTTPS.
+- Cloudflare appends the visitor's address to `X-Forwarded-For`, and the stack reads only the last entry, so a
+  client-sent value is ignored.
+
 ### Checks
 
 Run these **from another machine** after the proxy is up (`D=https://intheknow.example.nl`):
@@ -276,7 +299,11 @@ Scheduling backups and copying them off the host are your job.
 
 - `podman compose` works with either provider, `docker-compose` v2 or `podman-compose`. The provider must support
   `${VAR:?}`, the top-level `name:`, `ipam` subnets and `depends_on: condition: service_healthy`.
-- Minimum `podman-compose` version: TODO: fill in after quickstart §8 (T020).
+- Podman 4.7 or later: it adds `podman compose`, container DNS with netavark and `service_healthy` conditions.
+  Verified rootless with Podman 6.1.3 and the `docker-compose` 5.6.0 provider. Rootful and the `podman-compose`
+  provider are not verified.
+- Podman 3.4 (Ubuntu 22.04's package) does not work: it ignores `service_healthy`, its CNI plugins publish no ports,
+  and rootless containers can't resolve `db`.
 - One-time host step so the stack comes back after a reboot:
   - rootful: `sudo systemctl enable --now podman-restart.service`
   - rootless: `systemctl --user enable --now podman-restart.service` and `sudo loginctl enable-linger $USER`
@@ -341,10 +368,21 @@ operators can pull without signing in.
   [Reverse proxy checks](#checks) show which rule fails.
 - **`up` fails with "address already in use"**: the error names the port. Set `WEB_PORT` or `API_PORT` in `.env`,
   and change the proxy to match.
-- **`up` fails with "Pool overlaps with other one on this address space"**: set `STACK_SUBNET` to a free range, for
-  example `172.30.251.0/24`.
+- **`up` fails with "Pool overlaps with other one on this address space"** (Podman: "is being used by a network
+  interface", for example when Docker and Podman both run the stack on one host): set `STACK_SUBNET` to a free
+  range, for example `172.30.251.0/24`.
+- **A service stays `Exited` after `docker compose kill` or `stop`**: expected. `restart: always` covers crashes and
+  reboots, not a manual stop. `docker compose up -d` starts it again.
+- **The API keeps restarting with `Resource temporarily unavailable` after a failed start** (for example a
+  `--scale api=2` attempt): the container was left without a network. Run `docker compose up -d --force-recreate api`.
+- **The web interface answers 500 and its log says the address header is absent**: something reaches `WEB_PORT`
+  without the proxy. Every request must go through the proxy, which sets `X-Forwarded-For`.
 - **`make-admin` prints `invite queued`, but no email arrives**: the SMTP server may reject the credentials.
   `docker compose logs api` shows the delivery failure.
+- **The API keeps restarting with `password authentication failed for user "intheknow"`**: the `intheknow-prod_db`
+  volume was created earlier with a different `POSTGRES_PASSWORD`, and PostgreSQL ignores the new one. Put the old
+  password back, or change it as in [Changing the database password](#changing-the-database-password). If the
+  volume holds nothing you need, `docker compose down -v` and `up -d` start fresh.
 - **`make-admin` says the database schema is behind**: the API hasn't finished starting. Wait for `healthy`.
 - **An upgrade failed during a migration**: restore the pre-upgrade backup. See
   [Upgrade and rollback](#upgrade-and-rollback).
@@ -352,6 +390,7 @@ operators can pull without signing in.
 - **A new release needs a new setting**: its release notes name it. A required one is named at startup.
 - **The disk is full**: PostgreSQL stops writing, and existing data is safe. Free space, then restart the stack.
 - **Two-step codes are always wrong**: the host clock is off. Enable time sync.
-- **The API log shows `libgssapi_krb5.so.2` or a DataProtection warning at startup**: harmless. The database driver
+- **The API log or a `make-admin` run shows `Cannot load library libgssapi_krb5.so.2`, or the log shows a
+  DataProtection warning at startup**: harmless. The database driver
   probes for Kerberos, which the stack doesn't use, and sign-in sessions live in the database, not in DataProtection
   keys.
