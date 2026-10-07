@@ -71,7 +71,7 @@ In `~/itk`:
 
 1. Leave `.env` as copied and run `docker compose up -d`.
    **Expected**: it fails before creating anything, naming `PUBLIC_URL` (or the first missing required setting).
-   `docker compose ps -a` lists nothing.
+   No containers exist (`docker compose ps -a` repeats the error).
 2. Fill in:
    - `PUBLIC_URL=https://<your domain>`
    - `POSTGRES_PASSWORD=$(openssl rand -hex 32)` (paste the value)
@@ -165,7 +165,8 @@ nmap -p 3000,5000,5432 <server address>                               # all clos
   - The second records `203.0.113.5`, which proves that peer is trusted.
   - If the first address is outside both, apply the R7 fallback.
 - **Two visitors** (SC-007):
-  1. From machine A, fail sign-in until the source throttle triggers. Use a low limit for the test:
+  1. From machine A, fail sign-in until the source throttle triggers, with a different email address each time (one
+     address hits the per-account limit first). Use a low limit for the test:
      `InTheKnow__Accounts__SourceFailuresPerHour=20`.
   2. From machine B, sign in successfully.
 - **Logs**: `journalctl -u caddy` and Caddy's own log output contain no `/account/…?token=` query (no access log by
@@ -190,7 +191,8 @@ docker compose up -d
 
 ## 7. Restarts (US3; FR-019 to FR-022; SC-004)
 
-1. `docker compose kill api`. **Expected**: it is restarted and healthy again.
+1. `docker compose exec api bash -c "kill -TERM 1"`. **Expected**: it is restarted and healthy again. (`docker compose
+   kill` and `stop` don't trigger `restart: always`.)
 2. **One API instance**: `docker compose up -d --scale api=2`. **Expected**: the second instance fails on the port
    (or the instance lock), and the first keeps serving.
 3. **The API starts before the database is ready** (US3 AS2):
@@ -198,7 +200,7 @@ docker compose up -d
    2. `docker compose restart api`
    3. `docker compose ps` and `logs api`: the API exits and is restarted, again and again.
    4. **The web interface tolerates it** (FR-020): `web` stays `healthy` in `docker compose ps`, and opening the
-      public address shows the "couldn't reach the server" state, not a proxy error.
+      public address shows the "Temporarily unavailable" page (503), not a proxy error.
    5. `docker compose start db`
    6. **Expected**: the API becomes healthy without anyone touching it, and the page loads again on reload.
 4. **Reboot** the host. **Expected**: everything is healthy again within 2 minutes, with nobody touching it, and a
