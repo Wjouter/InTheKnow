@@ -44,6 +44,7 @@ public partial class AccountEmailTests
                 Assert.Equal(["text/plain", "text/html"], mail.AlternateViews.Select(v => v.ContentType.MediaType));
                 Assert.Null(mail.Headers["List-Unsubscribe"]);
                 Assert.Null(mail.Headers["List-Unsubscribe-Post"]);
+                Assert.Matches("^<[0-9a-f]{32}@localhost>$", mail.Headers["Message-ID"]);
                 Assert.Equal(Texts.Get(language, $"account.{kind}.subject"), mail.Subject);
                 var footer = Texts.Get(language, "account.footer");
                 Assert.Contains(footer, text);

@@ -75,6 +75,7 @@ public partial class EmailChannelTests
         Assert.Equal("3 timetable changes – Minor robotics", mail.Subject);
         Assert.Equal($"<{Public}/n/unsubscribe/UNSUB>", mail.Headers["List-Unsubscribe"]);
         Assert.Equal("List-Unsubscribe=One-Click", mail.Headers["List-Unsubscribe-Post"]);
+        Assert.Matches("^<[0-9a-f]{32}@localhost>$", mail.Headers["Message-ID"]);
 
         foreach (var part in new[] { text, html })
         {
@@ -279,6 +280,7 @@ public partial class EmailChannelTests
         Assert.Equal(subject, mail.Subject);
         Assert.Equal($"<{Public}/n/unsubscribe/UNSUB>", mail.Headers["List-Unsubscribe"]);
         Assert.Equal("List-Unsubscribe=One-Click", mail.Headers["List-Unsubscribe-Post"]);
+        Assert.Matches("^<[0-9a-f]{32}@localhost>$", mail.Headers["Message-ID"]);
         foreach (var part in new[] { text, html })
         {
             Assert.Contains(Texts.Get(language, "test.body"), part);

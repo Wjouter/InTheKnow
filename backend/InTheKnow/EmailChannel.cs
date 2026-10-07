@@ -92,6 +92,8 @@ sealed class EmailChannel(Settings settings) : IChannelType
         mail.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(
             $"<!DOCTYPE html><html lang=\"{m.Language}\"><body style=\"font-family:sans-serif;font-size:14px;color:#222\">{html}</body></html>",
             Encoding.UTF8, "text/html"));
+        // System.Net.Mail adds no Message-ID, and Gmail rejects mail without one.
+        mail.Headers.Add("Message-ID", $"<{Guid.NewGuid():N}@{mail.From!.Host}>");
         // Account emails are about the account, not optional news: no unsubscribe (specs/004 contracts/account-emails.md).
         if (m.Kind is not (MessageKind.Confirmation or MessageKind.Account))
         {
