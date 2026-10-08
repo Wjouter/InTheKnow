@@ -1,0 +1,48 @@
+name: Release
+
+# Version tags only, which includes a GitHub release that creates its tag (specs/006 research R11).
+# No concurrency group: one named like ci.yml's would deadlock the called workflow.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  publish:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # Lowercase and hardcoded: GHCR rejects the repository owner's capital letter.
+      IMAGE: ghcr.io/wjouter/intheknow
+    steps:
+      - uses: actions/checkout@v5
+      - run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - run: docker buildx create --use
+      - name: Build and push the images
+        run: |
+          for svc in api:backend web:frontend; do
+            docker buildx build --platform linux/amd64,linux/arm64 -f "${svc#*:}/Dockerfile" \
+              --label org.opencontainers.image.source=https://github.com/Wjouter/InTheKnow \
+              -t "$IMAGE-${svc%%:*}:$VERSION" --push .
+          done
+      - name: Render the stack definition
+        run: |
+          sed -e "s|ghcr.io/wjouter/intheknow|$IMAGE|" -e "s|:VERSION|:$VERSION|" deploy/compose.yaml > compose.yaml
+          grep -q ":$VERSION" compose.yaml
+          ! grep -q ':VERSION' compose.yaml
+      - name: Attach to the release
+        run: |
+          gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+          gh release upload "$GITHUB_REF_NAME" compose.yaml deploy/env.example --clobber

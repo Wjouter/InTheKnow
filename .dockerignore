@@ -1,0 +1,24 @@
+# Second layer: the Dockerfiles already COPY named paths only (allowlist). Research R4.
+.git
+.github
+.idea
+.claude
+.junie
+.specify
+specs
+deploy
+
+**/bin
+**/obj
+**/node_modules
+frontend/build
+frontend/.svelte-kit
+
+**/.env
+**/.env.*
+**/appsettings.*.local.json
+backend/InTheKnow/Properties/launchSettings.json
+**/*.user
+
+mytimetable example links.md
+backend/InTheKnow.Tests/
