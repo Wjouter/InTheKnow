@@ -120,6 +120,13 @@ public class SettingsTests
     [InlineData("Email:FromAddress", "", "Email:FromAddress", true)]
     [InlineData("PublicBaseUrl", "http://intheknow.example.nl", "PublicBaseUrl", true)]
     [InlineData("FrontendBaseUrl", "http://app.example.nl", "FrontendBaseUrl", true)]
+    [InlineData("PublicBaseUrl", "https://intheknow.example.nl/", "PublicBaseUrl", true)] // 006 R5: origin only
+    [InlineData("PublicBaseUrl", "https://intheknow.example.nl/app", "PublicBaseUrl", true)]
+    [InlineData("PublicBaseUrl", "https://intheknow.example.nl?a=1", "PublicBaseUrl", true)]
+    [InlineData("PublicBaseUrl", "https://intheknow.example.nl#x", "PublicBaseUrl", true)]
+    [InlineData("PublicBaseUrl", "https://user@intheknow.example.nl", "PublicBaseUrl", true)]
+    [InlineData("FrontendBaseUrl", "https://app.example.nl/", "FrontendBaseUrl", true)]
+    [InlineData("FrontendBaseUrl", "https://app.example.nl/app", "FrontendBaseUrl", true)]
     [InlineData("Email:Port", "0", "Email:Port", true)]
     [InlineData("Email:Port", "65536", "Email:Port", true)]
     [InlineData("Email:StartTls", "false", "Email:StartTls", true)]
@@ -146,6 +153,8 @@ public class SettingsTests
         Load(NullLogger.Instance, (N + "Email:FromName", new string('x', 100)));
         Assert.Throws<InvalidOperationException>(() => Load(NullLogger.Instance, (N + "Email:FromName", new string('x', 101))));
         Load(NullLogger.Instance, WithEmail((N + "Email:Host", "localhost"), (N + "Email:StartTls", "false"), (N + "PublicBaseUrl", "http://localhost:5000")));
+        Load(NullLogger.Instance, WithEmail((N + "Email:Host", "localhost"), (N + "Email:StartTls", "false"), (N + "FrontendBaseUrl", "http://localhost:5173")));
+        Load(NullLogger.Instance, WithEmail((N + "PublicBaseUrl", "https://intheknow.example.nl:8443")));
         Load(NullLogger.Instance, WithEmail((N + "Email:Username", "u"), (N + "Email:Password", "p")));
     }
 

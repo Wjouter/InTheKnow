@@ -134,8 +134,8 @@ sealed class Settings
         var e = no.Email;
         if (e.Host != "")
         {
-            Require(BaseUrl(no.PublicBaseUrl), n + "PublicBaseUrl must be an absolute https URL (http only on localhost) when email is configured");
-            Require(BaseUrl(no.FrontendBaseUrl), n + "FrontendBaseUrl must be an absolute https URL (http only on localhost) when email is configured");
+            Require(BaseUrl(no.PublicBaseUrl), n + "PublicBaseUrl must be an origin only (https://host[:port], no path, trailing slash, query or fragment; http only on localhost) when email is configured");
+            Require(BaseUrl(no.FrontendBaseUrl), n + "FrontendBaseUrl must be an origin only (https://host[:port], no path, trailing slash, query or fragment; http only on localhost) when email is configured");
             Require(MailAddress.TryCreate(e.FromAddress, out _), n + "Email:FromAddress must be an email address when email is configured");
         }
         Require(e.Port is >= 1 and <= 65535, n + "Email:Port must be between 1 and 65535");
@@ -177,8 +177,10 @@ sealed class Settings
         };
     }
 
+    // Origin only (006 R5): links are joined as {base}/path. Uri normalizes a trailing slash away, so check the string.
     static bool BaseUrl(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var u) && (u.Scheme == "https" || u.Scheme == "http" && u.Host == "localhost");
+        Uri.TryCreate(url, UriKind.Absolute, out var u) && (u.Scheme == "https" || u.Scheme == "http" && u.Host == "localhost")
+        && !url.EndsWith('/') && u.AbsolutePath == "/" && u.Query == "" && u.Fragment == "" && u.UserInfo == "";
 
     static void Require(bool ok, string message)
     {
