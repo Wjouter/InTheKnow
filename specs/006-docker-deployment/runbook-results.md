@@ -57,10 +57,10 @@ HSTS header (paste): strict-transport-security: max-age=2592000  (1 month on pur
 /n/unsubscribe/x mentions InTheKnow (count): 1
 Security headers present (which of the 4): all 4
 nmap public address: 3000 open (unrelated older stack, 0.0.0.0:3000), 3001/5000/5432/8080 filtered
-Spoofed sign-in: HTTP status: 200     recorded source: 145.81.138.41     your real public address: 145.81.138.41
+Spoofed sign-in: HTTP status: 200     recorded source: <my public IPv4>     your real public address: <my public IPv4>
 Peer check, Docker: older row source: ::ffff:172.30.250.1     newer row source: 203.0.113.5
 Two visitors: A throttled at attempt #: the 21st source failure (#16 of the run; the run used distinct email addresses, because with one address the per-account limit hits first, at #6)
-              B signed in (yes/no): yes (phone on mobile data, 2a02:26f7:…)     SourceFailuresPerHour removed (yes/no): yes
+              B signed in (yes/no): yes (phone on mobile data, <IPv6 on mobile data>)     SourceFailuresPerHour removed (yes/no): yes
 Routed subnet, Docker: n/a (VPS, no LAN neighbour)
 Caddy log token= count: n/a (no Caddy); cloudflared journal token= count: 0
 ```
