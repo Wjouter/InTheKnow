@@ -22,6 +22,11 @@ dependency is future maintenance and attack surface.
   field MUST be named and justified in the feature's data model.
 - Secrets (API keys, tokens, credentials) MUST NOT be committed; they are supplied via
   environment or a secret store, and example config uses placeholders only.
+- Deployment details MUST NOT be committed either: real IP addresses, hostnames, domains,
+  mail servers and SSH aliases. Docs, specs, runbook results and tests use placeholders
+  (`example.com`, `203.0.113.x`). Before every push, search the diff for them
+  (`git diff origin/main | grep -nE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|<your domains>'`);
+  a leaked value in history means rewriting history, so catch it before it is pushed.
 - All input crossing a trust boundary (HTTP requests, forms, query params, third-party API
   responses) MUST be validated server-side; client-side validation is a convenience only.
 - Output rendered in the browser MUST be escaped/encoded by default; raw HTML injection
@@ -69,4 +74,4 @@ leak, and defaults are what actually ships.
 - Compliance is checked at each plan's Constitution Check gate and when reviewing a feature
   before merge; unjustified violations block the feature.
 
-**Version**: 1.2.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
+**Version**: 1.3.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-20
