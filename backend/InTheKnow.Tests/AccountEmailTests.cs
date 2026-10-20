@@ -48,9 +48,21 @@ public partial class AccountEmailTests
                 Assert.Equal(Texts.Get(language, $"account.{kind}.subject"), mail.Subject);
                 var footer = Texts.Get(language, "account.footer");
                 Assert.Contains(footer, text);
-                Assert.Contains(footer, html);
+                EmailChannelTests.AssertFooterBelowCard(html, footer);
                 if (LinkKinds.Contains(kind))
+                {
+                    var link = $"{EmailChannelTests.Frontend}/account/x?token=TOKEN";
                     foreach (var part in new[] { text, html }) Assert.Contains("/account/x?token=TOKEN", part);
+                    // One button with the action, then a muted line with the full link as selectable text.
+                    Assert.Equal(1, EmailChannelTests.Count(html, "mso-padding-alt"));
+                    Assert.Contains($"<a href=\"{link}\" style=\"display:inline-block;padding:12px 24px;line-height:20px;color:#ffffff;font-weight:700;text-decoration:none\">{Texts.Get(language, $"account.{kind}.action")}</a>", html);
+                    Assert.Contains($"{Texts.Get(language, "account.linkFallback")}<br><a href=\"{link}\" style=\"color:#c70b70;text-decoration:underline\">{link}</a>", html);
+                }
+                else
+                {
+                    Assert.DoesNotContain("mso-padding-alt", html);
+                    Assert.DoesNotContain(Texts.Get(language, "account.linkFallback"), html);
+                }
                 Assert.DoesNotContain("{0}", text);
             }
         Assert.Contains("You have 9 recovery codes left.", EmailChannelTests.Render(Account("recoveryCodeUsed", "en")).Text);
@@ -67,6 +79,16 @@ public partial class AccountEmailTests
         Assert.Contains("<b>x</b>", text);
         Assert.DoesNotContain("<b>x</b>", html);
         Assert.Contains("&lt;b&gt;x&lt;/b&gt;", html);
+
+        // SC-005: the other inserted values, and the link.
+        foreach (var (kind, key) in new[] { ("recoveryCodeUsed", "remaining"), ("invite", "expires") })
+        {
+            html = EmailChannelTests.Render(Account(kind, "en", new Dictionary<string, string> { [key] = "<b>x</b>" })).Html;
+            Assert.DoesNotContain("<b>x</b>", html);
+        }
+        html = EmailChannelTests.Render(Account("reset", "en") with { Link = "http://localhost/x?a=\"><b>x</b>" }).Html;
+        Assert.DoesNotContain("<b>x</b>", html);
+        Assert.Contains("&quot;&gt;&lt;b&gt;x&lt;/b&gt;", html);
     }
 
     // Both languages have every account key: a subject and a body (or its variants) per kind, and an action per link kind.

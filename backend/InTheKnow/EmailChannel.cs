@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Mail;
 using System.Net.Sockets;
+using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
@@ -51,23 +52,39 @@ sealed class EmailChannel(Settings settings) : IChannelType
         catch (Exception e) when (e is SocketException or IOException) { return new(SendStatus.TypeUnavailable, "unreachable"); }
     }
 
-    // One email as contracts/messages.md describes it: multipart/alternative, text first, HTML with inline styles only.
+    // The palette (specs/007 research R9): the only colours the HTML part uses. Tests check the contrast of TextPairs.
+    internal const string Ink = "#1d1d1b", Magenta = "#e20e80", LinkColor = "#c70b70", Body = "#3d3d3d", Muted = "#5a5a5a",
+        Page = "#f0f0f0", Card = "#ffffff", Border = "#e3e3e3", Box = "#f7f7f7",
+        AddedFg = "#16673a", AddedBg = "#e3f4ea", RemovedFg = "#a50d26", RemovedBg = "#fbe3e7", FieldFg = "#7a4a00", FieldBg = "#fdf0d9";
+
+    // Text colour on background; the wordmark ("Know" on Page) is a logotype and exempt.
+    internal static readonly (string Fg, string Bg)[] TextPairs =
+    [
+        (Ink, Card), (Body, Card), (Body, Box), (LinkColor, Card), (Card, Magenta), (AddedFg, AddedBg), (RemovedFg, RemovedBg),
+        (FieldFg, FieldBg), (Muted, Card), (Muted, Page), (Muted, Box),
+    ];
+    internal static readonly HashSet<string> Palette = [Ink, Magenta, LinkColor, Body, Muted, Page, Card, Border, Box, AddedFg, AddedBg, RemovedFg, RemovedBg, FieldFg, FieldBg];
+
+    const string Font = "Lato,Helvetica,Arial,sans-serif", Mono = "Menlo,Consolas,'Courier New',monospace";
+    const int MaxValueBytes = 200; // FR-022: each calendar value in the HTML, encoded, "…" included
+
+    // One email as contracts/messages.md describes it: multipart/alternative, text first, HTML with inline styles and one small <style> block.
     internal static MailMessage Build(string target, Message m, EmailOptions o)
     {
-        var (text, html) = (new StringBuilder(), new StringBuilder());
-        var r = new Renderer(m, text, html);
+        var (text, html, footer) = (new StringBuilder(), new StringBuilder(), new StringBuilder());
+        var r = new Renderer(m, text, html, footer);
         switch (m.Kind)
         {
             case MessageKind.Confirmation:
                 r.Paragraph(r.T("confirmation.intro"));
-                r.Link(r.T("confirmation.confirm"), m.ConfirmUrl!);
+                r.Link(r.T("confirmation.confirm"), m.ConfirmUrl!, button: true);
                 r.Link(r.T("confirmation.decline"), m.DeclineUrl!);
-                r.Paragraph(r.T("confirmation.expiry"));
+                r.Paragraph(r.T("confirmation.expiry"), muted: true);
                 break;
             case MessageKind.Changes:
                 foreach (var g in m.Calendars) r.Calendar(g);
-                if (m.NotListed > 0) r.Paragraph(Texts.Format(m.Language, "changes.more", m.NotListed));
-                r.Paragraph(r.T("changes.footer"));
+                if (m.NotListed > 0) r.Box(Texts.Format(m.Language, "changes.more", m.NotListed));
+                r.Footer(r.T("changes.footer"));
                 break;
             case MessageKind.Test:
                 r.Paragraph(r.T("test.body"));
@@ -76,7 +93,7 @@ sealed class EmailChannel(Settings settings) : IChannelType
             case MessageKind.Account:
                 r.Paragraph(Texts.Format(m.Language, AccountBody(m), AccountValue(m)));
                 if (m.Link is not null) r.Button(r.T($"account.{m.AccountKind}.action"), m.Link);
-                r.Paragraph(r.T("account.footer"));
+                r.Footer(r.T("account.footer"));
                 break;
         }
 
@@ -90,8 +107,7 @@ sealed class EmailChannel(Settings settings) : IChannelType
         mail.To.Add(new MailAddress(target));
         mail.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(text.ToString(), Encoding.UTF8, "text/plain"));
         mail.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(
-            $"<!DOCTYPE html><html lang=\"{m.Language}\"><body style=\"font-family:sans-serif;font-size:14px;color:#222\">{html}</body></html>",
-            Encoding.UTF8, "text/html"));
+            Document(m, mail.Subject, html.ToString(), footer.ToString()), Encoding.UTF8, "text/html"));
         // System.Net.Mail adds no Message-ID, and Gmail rejects mail without one.
         mail.Headers.Add("Message-ID", $"<{Guid.NewGuid():N}@{mail.From!.Host}>");
         // Account emails are about the account, not optional news: no unsubscribe (specs/004 contracts/account-emails.md).
@@ -102,6 +118,35 @@ sealed class EmailChannel(Settings settings) : IChannelType
         }
         return mail;
     }
+
+    // The shell every kind shares (contracts/email-html.md "Document"): table layout, a 600px card, the footer below it.
+    const string Css = "<style>@media (max-width:480px){.px{padding:20px!important}.h1{font-size:24px!important}}:root{color-scheme:light;supported-color-schemes:light}a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important;font:inherit!important}</style>";
+
+    static string Document(Message m, string subject, string body, string footer)
+    {
+        if (footer != "") footer = $"<div style=\"max-width:600px;margin:0 auto;padding:16px 4px 0;text-align:left;font-size:12px;line-height:1.5;color:{Muted};word-break:break-word;overflow-wrap:anywhere\">{footer}</div>";
+        return $$"""
+        <!DOCTYPE html><html lang="{{m.Language}}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <meta name="x-apple-disable-message-reformatting"><meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
+        <meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
+        {{Css}}
+        <!--[if mso]><style>body,table,td,a{font-family:Arial,sans-serif}</style><![endif]--></head>
+        <body bgcolor="{{Page}}" style="margin:0;padding:0;background-color:{{Page}}">
+        <table role="presentation" width="100%" bgcolor="{{Page}}" cellspacing="0" cellpadding="0" border="0" style="background-color:{{Page}}"><tr><td align="center" style="padding:24px 12px;font-family:{{Font}}">
+        <div style="padding:0 0 16px;text-align:center;font-size:28px;line-height:1;font-weight:900;color:{{Ink}}">InThe<span style="color:{{Magenta}}">Know</span></div>
+        <!--[if mso]><table role="presentation" width="600" align="center"><tr><td><![endif]-->
+        <table role="presentation" width="100%" align="center" bgcolor="{{Card}}" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;margin:0 auto;background-color:{{Card}};border:1px solid {{Border}};border-radius:2px">
+        <tr><td height="4" bgcolor="{{Magenta}}" style="height:4px;font-size:0;line-height:0;background-color:{{Magenta}}">&nbsp;</td></tr>
+        <tr><td class="px" style="padding:32px;font-family:{{Font}};font-size:16px;line-height:1.5;color:{{Body}};text-align:left;word-break:break-word;overflow-wrap:anywhere">
+        <h1 class="h1" style="margin:0 0 24px;font-size:28px;line-height:1.25;font-weight:900;color:{{Ink}}">{{Encoder.Encode(subject)}}</h1>{{body}}</td></tr></table>
+        {{footer}}
+        <!--[if mso]></td></tr></table><![endif]-->
+        </td></tr></table></body></html>
+        """;
+    }
+
+    // The HTML encoder, shared by the shell and the renderer.
+    static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
 
     // roleChanged and invite have one body per role.
     static string AccountBody(Message m) => m.AccountKind switch
@@ -135,41 +180,79 @@ sealed class EmailChannel(Settings settings) : IChannelType
     static int Count(Message m) => m.Calendars.Sum(g => g.Changes.Count) + m.NotListed;
 
     // Writes the text and HTML parts side by side. Every inserted value is HTML-encoded in the HTML part (FR-020).
-    sealed class Renderer(Message m, StringBuilder text, StringBuilder html)
+    sealed class Renderer(Message m, StringBuilder text, StringBuilder html, StringBuilder footer)
     {
         // Every character range allowed, so Dutch text and arrows stay readable; markup characters are still encoded.
-        static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
         static string E(string s) => Encoder.Encode(s);
+
+        // E(s) cut to MaxValueBytes encoded, whole text elements only, so no character or entity is split (R8).
+        static string Short(string s)
+        {
+            var e = E(s);
+            if (Encoding.UTF8.GetByteCount(e) <= MaxValueBytes) return e;
+            var (cut, bytes, parts) = (new StringBuilder(), 0, StringInfo.GetTextElementEnumerator(s));
+            while (parts.MoveNext())
+            {
+                var part = E((string)parts.Current);
+                var n = Encoding.UTF8.GetByteCount(part);
+                if (bytes + n > MaxValueBytes - 3) break;
+                bytes += n;
+                cut.Append(part);
+            }
+            return cut.Append('…').ToString();
+        }
 
         public string T(string key) => Texts.Get(m.Language, key);
 
-        public void Paragraph(string s)
+        public void Paragraph(string s, bool muted = false)
         {
             text.Append(s).Append("\n\n");
-            html.Append("<p style=\"margin:0 0 12px\">").Append(E(s)).Append("</p>");
+            html.Append("<p style=\"margin:0 0 16px").Append(muted ? $";color:{Muted}" : "").Append("\">").Append(E(s)).Append("</p>");
         }
 
-        public void Link(string label, string url)
+        // After the card, not inside it (FR-008).
+        public void Footer(string s)
+        {
+            text.Append(s).Append("\n\n");
+            footer.Append("<p style=\"margin:0 0 12px\">").Append(E(s)).Append("</p>");
+        }
+
+        // A note in a grey box.
+        public void Box(string s)
+        {
+            text.Append(s).Append("\n\n");
+            html.Append($"<table role=\"presentation\" width=\"100%\" bgcolor=\"{EmailChannel.Box}\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:16px 0;background-color:{EmailChannel.Box}\"><tr><td style=\"padding:12px 16px\">")
+                .Append(E(s)).Append("</td></tr></table>");
+        }
+
+        // The text part is always "label: url"; the HTML part is a text link, or the main action's button.
+        public void Link(string label, string url, bool button = false)
         {
             text.Append(label).Append(": ").Append(url).Append("\n\n");
-            html.Append("<p style=\"margin:0 0 12px\"><a href=\"").Append(E(url)).Append("\">").Append(E(label)).Append("</a></p>");
+            if (button) ButtonHtml(label, url);
+            else html.Append("<p style=\"margin:0 0 16px\">").Append(Anchor(label, url)).Append("</p>");
         }
 
-        // The link as a button in HTML, and on a line of its own in text.
+        // The link on a line of its own in text; a button and a copyable fallback line in HTML.
         public void Button(string label, string url)
         {
             text.Append(label).Append(":\n").Append(url).Append("\n\n");
-            html.Append("<p style=\"margin:16px 0\"><a href=\"").Append(E(url))
-                .Append("\" style=\"display:inline-block;padding:10px 16px;background:#2a6;color:#fff;text-decoration:none;border-radius:4px\">")
-                .Append(E(label)).Append("</a></p>");
+            ButtonHtml(label, url);
+            html.Append($"<p style=\"margin:0 0 16px;font-size:14px;color:{Muted}\">").Append(E(T("account.linkFallback"))).Append("<br>").Append(Anchor(url, url)).Append("</p>");
         }
+
+        static string Anchor(string label, string url) =>
+            $"<a href=\"{E(url)}\" style=\"color:{LinkColor};text-decoration:underline\">{E(label)}</a>";
+
+        // A bulletproof button: a coloured cell around a padded link (research R3).
+        void ButtonHtml(string label, string url) => html.Append($"<table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:8px 0 16px\"><tr><td bgcolor=\"{Magenta}\" style=\"background-color:{Magenta};border-radius:4px;mso-padding-alt:12px 24px\">")
+            .Append($"<a href=\"{E(url)}\" style=\"display:inline-block;padding:12px 24px;line-height:20px;color:{Card};font-weight:700;text-decoration:none\">{E(label)}</a></td></tr></table>");
 
         public void Calendar(CalendarGroup g)
         {
             text.Append(g.Name).Append('\n').Append(T("changes.settings")).Append(": ").Append(g.SettingsUrl).Append("\n\n");
-            html.Append("<h2 style=\"font-size:16px;margin:16px 0 4px\">").Append(E(g.Name)).Append("</h2>")
-                .Append("<p style=\"margin:0 0 8px;font-size:12px\"><a href=\"").Append(E(g.SettingsUrl)).Append("\">")
-                .Append(E(T("changes.settings"))).Append("</a></p>");
+            html.Append($"<h2 style=\"margin:24px 0 4px;font-size:20px;line-height:1.3;color:{Ink}\">").Append(Short(g.Name)).Append("</h2>")
+                .Append("<p style=\"margin:0 0 8px;font-size:14px\">").Append(Anchor(T("changes.settings"), g.SettingsUrl)).Append("</p>");
             foreach (var item in g.Changes) Change(item);
             text.Append('\n');
         }
@@ -181,12 +264,38 @@ sealed class EmailChannel(Settings settings) : IChannelType
             string[] lines = [When(c), What(c), Texts.Format(m.Language, "changes.detectedAt", Date(c.DetectedAt))];
             text.Append("- ").Append(title).Append('\n');
             foreach (var l in lines) text.Append("  ").Append(l).Append('\n');
-            html.Append("<div style=\"margin:0 0 10px;padding-left:8px;border-left:3px solid ")
-                .Append(item.LowPriority ? "#bbb" : "#2a6").Append("\"><strong>").Append(E(c.EventName)).Append("</strong>");
-            if (item.LowPriority) html.Append(" <em style=\"color:#777\">(").Append(E(T("changes.lowPriority"))).Append(")</em>");
-            foreach (var l in lines) html.Append("<br>").Append(E(l));
-            html.Append("</div>");
+
+            var (label, fg, bg) = (c.Kind, item.LowPriority) switch
+            {
+                (_, true) => (LabelText(c), Muted, Page),
+                ("added", _) => (LabelText(c), AddedFg, AddedBg),
+                ("removed", _) => (LabelText(c), RemovedFg, RemovedBg),
+                _ => (LabelText(c), FieldFg, FieldBg),
+            };
+            var what = c.Kind switch
+            {
+                "added" or "removed" => WhereOf(c) is { } w ? Short(w) : null,
+                _ when c.Field == "time" => null,
+                _ => $"{Short(Value(c.OldValue))} → {Short(Value(c.NewValue))}",
+            };
+            html.Append($"<div style=\"border-top:1px solid {Border};padding:12px 0{(item.LowPriority ? $";color:{Muted}" : "")}\">")
+                .Append($"<span style=\"display:inline-block;padding:2px 6px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:{fg};background-color:{bg}\">").Append(E(label)).Append("</span> ")
+                .Append("<strong").Append(item.LowPriority ? "" : $" style=\"color:{Ink}\"").Append('>').Append(Short(c.EventName)).Append("</strong>");
+            if (item.LowPriority) html.Append(" <span>(").Append(E(T("changes.lowPriority"))).Append(")</span>");
+            html.Append($"<div style=\"margin-top:6px;font-family:{Mono};font-size:14px\">").Append(Short(lines[0])).Append("</div>");
+            if (what is not null) html.Append("<div style=\"margin-top:4px\">").Append(what).Append("</div>");
+            html.Append($"<div style=\"margin-top:4px;font-size:12px;color:{Muted}\">").Append(E(lines[2])).Append("</div></div>");
         }
+
+        string LabelText(ChangeView c) => c.Kind switch
+        {
+            "added" or "removed" => T("kind." + c.Kind),
+            _ when c.Field == "time" => T("kind.time"),
+            _ => KindName(c.Field!),
+        };
+
+        // Where an added or removed event is or was (FR-019).
+        string? WhereOf(ChangeView c) => (c.Kind == "added" ? c.NewValue : c.OldValue)?["fields"] is JsonObject f ? Where(f) : null;
 
         // The event's date and time; before → after for a time change.
         string When(ChangeView c) => c is { Kind: "changed", Field: "time" }
@@ -199,7 +308,7 @@ sealed class EmailChannel(Settings settings) : IChannelType
         string What(ChangeView c) => c.Kind switch
         {
             // FR-019: an added or removed event shows where it is or was.
-            "added" or "removed" => (c.Kind == "added" ? c.NewValue : c.OldValue)?["fields"] is JsonObject f && Where(f) is { } w
+            "added" or "removed" => WhereOf(c) is { } w
                 ? $"{T("kind." + c.Kind)}: {w}"
                 : T("kind." + c.Kind),
             _ when c.Field == "time" => T("kind.time"),
