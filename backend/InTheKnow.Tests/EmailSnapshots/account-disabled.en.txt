@@ -1,0 +1,10 @@
+Subject: Your InTheKnow account was disabled
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+An admin disabled your InTheKnow account. You cannot sign in and get no timetable notifications until it is enabled again.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

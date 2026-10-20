@@ -1,0 +1,10 @@
+Subject: Two-step verification is off for your InTheKnow account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Two-step verification was turned off for your InTheKnow account, and your other devices were signed out.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

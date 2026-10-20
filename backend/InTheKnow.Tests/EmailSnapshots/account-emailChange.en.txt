@@ -1,0 +1,13 @@
+Subject: Confirm your new email address for InTheKnow
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Someone asked to use this email address for their InTheKnow account. Open the link to confirm it. The link is valid for 24 hours. Until then, the account keeps its current address.
+
+Confirm this address:
+http://localhost:5173/account/x?token=TOKEN
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

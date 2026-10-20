@@ -1,0 +1,46 @@
+Subject: 14 timetable changes in 2 calendars
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: <http://localhost:5000/n/unsubscribe/UNSUB>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+
+Minor robotics
+Notification settings for this calendar: http://localhost:5173/calendars/1/notifications
+
+- Robotics
+  Tue 6 Oct 2026 08:30–10:00
+  Rooms: AL00.A1.38 → AL00.A1.20
+  detected at Thu 1 Oct 2026 14:00
+- Robotics (low priority)
+  Tue 6 Oct 2026 08:30–10:00
+  Status: tentative → confirmed
+  detected at Thu 1 Oct 2026 14:00
+- Robotics
+  Tue 6 Oct 2026 08:30–10:00 → Tue 6 Oct 2026 09:30–11:00
+  Time
+  detected at Thu 1 Oct 2026 14:00
+- Physics
+  Tue 6 Oct 2026 08:30–10:00 → Wed 7 Oct 2026 08:30–10:00
+  Time
+  detected at Thu 1 Oct 2026 14:00
+- New lesson
+  Tue 6 Oct 2026 08:30–10:00
+  Added: AL00.A1.20, AL00.A1.23
+  detected at Thu 1 Oct 2026 14:00
+- Old lesson
+  Tue 6 Oct 2026 08:30–10:00
+  Removed: Online
+  detected at Thu 1 Oct 2026 14:00
+
+Electives
+Notification settings for this calendar: http://localhost:5173/calendars/2/notifications
+
+- Elective (low priority)
+  Tue 6 Oct 2026 08:30–10:00
+  Rooms: AL00.A1.38 → AL00.A1.20
+  detected at Thu 1 Oct 2026 14:00
+
+and 7 more changes
+
+You receive this email because this address was confirmed for InTheKnow timetable notifications. Use your mail client's unsubscribe option to stop these notifications to this address.
+

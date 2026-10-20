@@ -1,0 +1,14 @@
+Subject: Confirm your InTheKnow notifications
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+A student added this email address to InTheKnow to receive notifications about their timetable changes.
+
+Confirm notifications for this address: http://localhost:5000/n/confirm/TOKEN
+
+This wasn't me: http://localhost:5000/n/decline/TOKEN
+
+The confirmation link expires after 48 hours. If you did not expect this email, choose "This wasn't me" and this address gets no more email from InTheKnow for this student.
+

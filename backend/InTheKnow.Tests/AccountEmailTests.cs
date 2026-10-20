@@ -29,7 +29,7 @@ public partial class AccountEmailTests
         _ => [],
     };
 
-    static Message Account(string kind, string language, IReadOnlyDictionary<string, string>? args = null) =>
+    internal static Message Account(string kind, string language, IReadOnlyDictionary<string, string>? args = null) =>
         new(MessageKind.Account, language, Amsterdam, null, null, null, null, [], 0, kind,
             LinkKinds.Contains(kind) ? $"{EmailChannelTests.Frontend}/account/x?token=TOKEN" : null, args ?? Args(kind));
 

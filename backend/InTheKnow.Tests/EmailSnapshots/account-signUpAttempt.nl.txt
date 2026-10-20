@@ -1,0 +1,10 @@
+Subject: Iemand probeerde zich aan te melden met je InTheKnow-adres
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Iemand probeerde een InTheKnow-account te maken met dit e-mailadres, maar dat heeft er al een. Er is niets veranderd. Ben je je wachtwoord vergeten, dan kun je het op de aanmeldpagina opnieuw instellen.
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

@@ -1,0 +1,13 @@
+Subject: You are invited to InTheKnow
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+You are invited to create an admin account on InTheKnow. Open the link to choose a password. The admin pages open once two-step verification is on. The invitation is valid until Tue 6 Oct 2026 08:30.
+
+Accept the invitation:
+http://localhost:5173/account/x?token=TOKEN
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

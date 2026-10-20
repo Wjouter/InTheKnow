@@ -1,4 +1,5 @@
 using System.Net.Mail;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -287,5 +288,53 @@ public partial class EmailChannelTests
             Assert.Contains($"{Frontend}/notifications", part);
         }
         Assert.Equal([$"{Frontend}/notifications"], Url().Matches(text).Select(u => u.Value));
+    }
+
+    static JsonObject RangeOf(string start, string end) => new() { ["start"] = start, ["end"] = end };
+
+    // Every email shape in one language, for the snapshot test (SC-004) and the opt-in Mailpit preview.
+    internal static IEnumerable<(string Name, Message Message)> EmailFixtures(string language)
+    {
+        JsonObject Event(string name, JsonObject fields) => new() { ["name"] = name, ["start"] = "2026-10-06T06:30:00Z", ["end"] = "2026-10-06T08:00:00Z", ["fields"] = fields };
+        var added = new ChangeItem(View(7, "added", null, null, Event("New lesson", new JsonObject { ["rooms"] = new JsonArray("AL00.A1.20", "AL00.A1.23") }), name: "New lesson"), false);
+        var removed = new ChangeItem(View(8, "removed", null, Event("Old lesson", new JsonObject { ["location"] = "Online" }), null, name: "Old lesson"), false);
+        var acrossDays = new ChangeItem(View(10, "changed", "time",
+            RangeOf("2026-10-06T06:30:00Z", "2026-10-06T08:00:00Z"), RangeOf("2026-10-07T06:30:00Z", "2026-10-07T08:00:00Z"), name: "Physics"), false);
+        var lowRooms = new ChangeItem(View(11, "changed", "rooms", new JsonArray("AL00.A1.38"), new JsonArray("AL00.A1.20"), name: "Elective", calendarId: 2), true);
+        yield return ("changes", Changes(language, Amsterdam, 7,
+            Group(1, "Minor robotics", Room, Status, Time, acrossDays, added, removed), Group(2, "Electives", lowRooms)));
+        yield return ("confirmation", Confirmation(language));
+        yield return ("test", Test(language));
+        foreach (var kind in AccountEmailTests.Kinds) yield return ($"account-{kind}", AccountEmailTests.Account(kind, language));
+        yield return ("account-roleChanged-user", AccountEmailTests.Account("roleChanged", language, new Dictionary<string, string> { ["role"] = "user" }));
+        yield return ("account-invite-admin", AccountEmailTests.Account("invite", language,
+            new Dictionary<string, string> { ["admin"] = "true", ["expires"] = "Tue 6 Oct 2026 08:30" }));
+    }
+
+    static string SnapshotDir([CallerFilePath] string file = "") => Path.Combine(Path.GetDirectoryName(file)!, "EmailSnapshots");
+
+    // SC-004: the text part, subject and headers do not change with the HTML layout. Set INTHEKNOW_UPDATE_SNAPSHOTS=1 to (re)write them.
+    [Fact]
+    public void TextPartMatchesSnapshot()
+    {
+        var update = Environment.GetEnvironmentVariable("INTHEKNOW_UPDATE_SNAPSHOTS") == "1";
+        Directory.CreateDirectory(SnapshotDir());
+        var problems = new List<string>();
+        foreach (var language in new[] { "en", "nl" })
+            foreach (var (name, message) in EmailFixtures(language))
+            {
+                var (text, _, mail) = Render(message);
+                var actual = string.Join("\n", new[]
+                {
+                    "Subject: " + mail.Subject, "To: " + mail.To, "From: " + mail.From,
+                    "List-Unsubscribe: " + mail.Headers["List-Unsubscribe"], "List-Unsubscribe-Post: " + mail.Headers["List-Unsubscribe-Post"],
+                    "", text,
+                });
+                var path = Path.Combine(SnapshotDir(), $"{name}.{language}.txt");
+                if (update) File.WriteAllBytes(path, Encoding.UTF8.GetBytes(actual));
+                else if (!File.Exists(path)) problems.Add($"{path} is missing");
+                else if (!File.ReadAllBytes(path).SequenceEqual(Encoding.UTF8.GetBytes(actual))) problems.Add($"{name}.{language} differs");
+            }
+        Assert.Empty(problems);
     }
 }

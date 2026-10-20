@@ -1,0 +1,10 @@
+Subject: Verificatie in twee stappen staat uit voor je InTheKnow-account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Verificatie in twee stappen is uitgezet voor je InTheKnow-account, en je andere apparaten zijn afgemeld.
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

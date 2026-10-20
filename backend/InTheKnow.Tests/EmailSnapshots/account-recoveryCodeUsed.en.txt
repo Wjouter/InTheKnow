@@ -1,0 +1,10 @@
+Subject: A recovery code was used for your InTheKnow account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+A recovery code was used to sign in to your InTheKnow account. You have 9 recovery codes left.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

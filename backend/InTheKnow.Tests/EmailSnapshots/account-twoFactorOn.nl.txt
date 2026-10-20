@@ -1,0 +1,10 @@
+Subject: Verificatie in twee stappen staat aan voor je InTheKnow-account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Verificatie in twee stappen met een authenticator-app is aangezet voor je InTheKnow-account. Bewaar je herstelcodes op een veilige plek.
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

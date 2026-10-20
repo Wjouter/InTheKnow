@@ -1,0 +1,14 @@
+Subject: Bevestig je InTheKnow-meldingen
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Een student heeft dit e-mailadres aan InTheKnow toegevoegd om meldingen over zijn of haar roosterwijzigingen te krijgen.
+
+Meldingen voor dit adres bevestigen: http://localhost:5000/n/confirm/TOKEN
+
+Dit was ik niet: http://localhost:5000/n/decline/TOKEN
+
+De bevestigingslink verloopt na 48 uur. Verwachtte je deze e-mail niet, kies dan "Dit was ik niet" en dit adres krijgt geen e-mail meer van InTheKnow voor deze student.
+

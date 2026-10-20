@@ -1,0 +1,13 @@
+Subject: Je bent uitgenodigd voor InTheKnow
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Je bent uitgenodigd om een beheerdersaccount te maken bij InTheKnow. Open de link om een wachtwoord te kiezen. De beheerpagina's gaan open zodra verificatie in twee stappen aanstaat. De uitnodiging is geldig tot Tue 6 Oct 2026 08:30.
+
+Uitnodiging accepteren:
+http://localhost:5173/account/x?token=TOKEN
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

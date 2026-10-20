@@ -1,0 +1,13 @@
+Subject: Bevestig je InTheKnow-account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Iemand heeft zich met dit e-mailadres aangemeld bij InTheKnow. Open de link en vul je wachtwoord in om het account te bevestigen. De link is 24 uur geldig.
+
+Mijn account bevestigen:
+http://localhost:5173/account/x?token=TOKEN
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

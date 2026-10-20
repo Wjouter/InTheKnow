@@ -1,0 +1,10 @@
+Subject: Your InTheKnow role was changed
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Your InTheKnow account is now an admin. The admin pages open once two-step verification is on for your account.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+
