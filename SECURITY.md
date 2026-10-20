@@ -6,7 +6,7 @@ security reports are welcome.
 ## Reporting a vulnerability
 
 Please **do not open a public issue**. Report it privately through GitHub instead:
-[report a vulnerability](https://github.com/Wjouter/InTheKnow-tifier/security/advisories/new).
+[report a vulnerability](https://github.com/Wjouter/InTheKnow/security/advisories/new).
 
 Include what you can:
 

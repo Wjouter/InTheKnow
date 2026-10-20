@@ -434,7 +434,7 @@ Restart policies, healthchecks and `depends_on` are already in T008.
   - Step 6: a branch push or PR builds no image.
   - Step 7: a manual publish to a non-GitHub registry.
   - Record the time from tag to images (SC-008, under 30 minutes).
-- [ ] T026 [US3] Manual (maintainer), after T025: run quickstart §9 steps 3 and 4.
+- [X] T026 [US3] Manual (maintainer), after T025: run quickstart §9 steps 3 and 4.
   - Step 3: the upgrade from `v0.1.0` to `v0.1.1` with data. Downtime must be under 2 minutes, all data must be kept, and `.env` must be unchanged.
   - Step 4: the registry is unreachable during `pull`, and the old version keeps serving.
 

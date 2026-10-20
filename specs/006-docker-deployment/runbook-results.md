@@ -18,8 +18,8 @@ Run on 2026-10-07 by the maintainer and Claude, following [manual-runbook.md](./
 | T020 | ✅ Docker pass. Podman passes on 6.1.3 rootless; **3.4.4 is not supported**. Rootful and the Podman reboot were not run |
 | T029 | ✅ pass |
 | T031 | ✅ pass |
-| T025 | ⏳ needs F (merge) first |
-| T026 | ⏳ needs T025 |
+| T025 | 🟡 steps 1, 2, 5 and 6 pass (2026-10-19/20); signed-out pull not run (packages stay private in beta); arm64 hardware and step 7 open |
+| T026 | ✅ pass (2026-10-20); the registry was blocked with an unresolvable registry name instead of `/etc/hosts` (no sudo) |
 
 ---
 
@@ -144,6 +144,58 @@ Cleanup: down -v on the prod scratch stack only; dev volumes untouched
 ```
 
 ---
+
+## T025: Publishing
+
+Run on 2026-10-19 and 2026-10-20. The packages stay **private** during the beta (deviation from FR-002 "public registry"), so
+every pull below is signed in with a `read:packages` token.
+
+```text
+Step 1: tag push v0.1.0 (10:24:17 UTC) -> checks passed: yes, publish passed: yes
+        minutes from tag push to images published (SC-008, < 30): 5 min 17 s (release published 10:29:30)
+        release assets present (compose.yaml, env.example): yes
+        image lines in release compose.yaml: ghcr.io/wjouter/intheknow-api:0.1.0, ghcr.io/wjouter/intheknow-web:0.1.0 (+ postgres:18)
+        packages made public: no (private beta)   linked to repo: yes (both Wjouter/InTheKnow-tifier, created fresh by this release)
+        image index platforms: linux/amd64 + linux/arm64 for both (plus build provenance)
+        anonymous pull: not run (private)   signed-in pull amd64: yes, arch amd64   arm64 hardware: not run
+        stack from release files healthy: yes, 19 s (itk-server ~/itk-rel, project itk-rel, 172.30.252.0/24, ports 5003/3003;
+                                          /api/me 401, web / 200; `compose images` shows the ghcr 0.1.0 images)
+Step 2: release v0.1.1 created with `gh release create v0.1.1 --target main` (API, not the UI) -> Release run on the tag push,
+        checks + publish passed, assets attached to the existing release, images tagged 0.1.1: yes
+        release edit for existing v0.1.0 (notes edited 09:34:15) -> workflow run: none
+Step 5: v0.1.2-broken -> run: none
+        v0.1.2 -> backend checks failed on DifferTests.DeliberatelyBroken, frontend passed, publish skipped: yes
+        no 0.1.2 image (package tags: 0.1.0, 0.1.1) and no v0.1.2 release: yes     tags and branch cleaned up: yes
+Step 6: PR #9 showed CI only, no Release run: yes
+        branch push (t025-broken-check): no run at all. CI runs only on pushes to main and on pull requests (ci.yml), so
+        "CI only" holds in the sense that no Release run started
+Step 7: not run yet (needs a Docker Hub or Quay account)
+```
+
+Before this, the old app's stack (`/opt/intheknow`, project `intheknow`) was stopped, not removed, and backed up to
+`itk-server:~/backup-old-intheknow-2026-10-20` (720 MB): `pg_dumpall`, a `pg_dump -Fc` of the `intheknow` database, a tar of
+the `intheknow_pgdata` volume taken with the database stopped, a copy of `/opt/intheknow` (with its `.env` files), `docker save`
+of its six images (no longer on GHCR) and `docker inspect` output, with `SHA256SUMS`.
+
+## T026: Upgrade and unreachable registry
+
+Run on 2026-10-20 on `itk-server`, in place on the `~/itk` test stack, so its data never left that stack. First switched
+from the local `0.0.0-test` images to the `v0.1.0` release `compose.yaml` (same code), backup `pre-release-0.1.0.dump` first.
+
+```text
+Data before: 1 account, 1 calendar, 1 channel, 11 deliveries; all 21 table counts saved (counts-before.txt)
+pull + up time: pull 17.0 s, up -d 2.1 s, all three healthy 12.9 s after up     downtime (SC-005, < 2 min): one failed probe
+                (502) out of 32 one-second probes of https://test.example.com/ through Cloudflare
+All data kept: yes, all 21 table counts identical     api exceptions or migration failures: none
+.env md5 unchanged: yes
+Registry blocked: 0.1.0 images removed, then `docker compose -f compose-blocked.yaml pull` with ghcr.io renamed to ghcr.invalid:
+                  "Error Get "https://ghcr.invalid/v2/": dial tcp: lookup ghcr.invalid ... no such host", exit 255
+                  0.1.1 site kept serving: yes (200, all healthy)
+hosts entry removed and 0.1.1 compose.yaml restored: n/a (no hosts entry; compose.yaml stayed 0.1.1 throughout)
+```
+
+The `~/itk` test stack now runs `v0.1.1` from the release files (`compose.yaml`); `compose-local.yaml` is the old local one.
+The empty `~/itk-rel` stack from T025 is removed (`down -v`; it only held what the release start created).
 
 ## Still to do
 

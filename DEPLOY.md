@@ -183,6 +183,9 @@ ingress:
   subdomain of the zone serves HTTPS.
 - Cloudflare appends the visitor's address to `X-Forwarded-For`, and the stack reads only the last entry, so a
   client-sent value is ignored.
+- Turn off **Rocket Loader** for the hostname: Rules → Configuration Rules, match `Hostname` equals your host, set
+  Rocket Loader off. It rewrites the app's scripts and adds its own without the page's CSP nonce, so the app's
+  JavaScript never runs. Sign-in still works without it, but two-step setup does nothing.
 
 ### Checks
 
@@ -360,6 +363,10 @@ release workflow publishes `ghcr.io/wjouter/intheknow-api` and `-web` for amd64 
 **One-time step after the first release**: make both packages public on GitHub (package settings → visibility), so
 operators can pull without signing in.
 
+**While the packages are private**: `curl` can't download the release files and `docker compose pull` is refused.
+Download with `gh release download vX.Y.Z -R Wjouter/InTheKnow`, and sign the server in once with
+`docker login ghcr.io -u <user>` and a classic personal access token that has only `read:packages`.
+
 ## Troubleshooting
 
 - **The API keeps restarting, and its log names `InTheKnow:Notifications:PublicBaseUrl`**: `PUBLIC_URL` has a
@@ -377,6 +384,9 @@ operators can pull without signing in.
   `--scale api=2` attempt): the container was left without a network. Run `docker compose up -d --force-recreate api`.
 - **The web interface answers 500 and its log says the address header is absent**: something reaches `WEB_PORT`
   without the proxy. Every request must go through the proxy, which sets `X-Forwarded-For`.
+- **Buttons do nothing, for example "Start" in two-step setup**: the page's JavaScript doesn't run. Behind
+  Cloudflare, turn off Rocket Loader (see [Cloudflare tunnel](#cloudflare-tunnel)). If the page source contains
+  `rocket-loader`, it is still on.
 - **`make-admin` prints `invite queued`, but no email arrives**: the SMTP server may reject the credentials.
   `docker compose logs api` shows the delivery failure.
 - **The API keeps restarting with `password authentication failed for user "intheknow"`**: the `intheknow-prod_db`
