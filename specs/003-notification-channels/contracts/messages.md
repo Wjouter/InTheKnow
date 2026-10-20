@@ -11,7 +11,7 @@ HTML-encoded (FR-020).
 |---|---|
 | From | `Notifications:Email:FromName` `<Notifications:Email:FromAddress>` (FR-022) |
 | To | the channel's address only. One recipient per message, no Cc or Bcc (FR-020). |
-| Body | `multipart/alternative`: `text/plain` first, then `text/html` (FR-021). The HTML uses inline styles only, with no images, scripts or remote resources. |
+| Body | `multipart/alternative`: `text/plain` first, then `text/html` (FR-021). The HTML uses inline styles plus one optional `<style>` block and one MSO-only `<style>`, with no images, scripts or remote resources (layout: [007 email-html.md](../../007-branded-email-layout/contracts/email-html.md)). |
 | Dates | `ddd d MMM yyyy HH:mm` in the message's time zone, formatted with `en-GB` or `nl-NL` (research R9) |
 | `List-Unsubscribe` | `<{UnsubscribeUrl}>` on every kind **except** Confirmation (FR-010) |
 | `List-Unsubscribe-Post` | `List-Unsubscribe=One-Click`, next to the header above |
