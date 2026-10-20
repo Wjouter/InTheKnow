@@ -1,0 +1,10 @@
+Subject: Er is een herstelcode gebruikt voor je InTheKnow-account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Er is een herstelcode gebruikt om je aan te melden bij je InTheKnow-account. Je hebt nog 9 herstelcodes.
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

@@ -1,0 +1,10 @@
+Subject: Een beheerder heeft verificatie in twee stappen uitgezet voor je InTheKnow-account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Een beheerder heeft verificatie in twee stappen van je InTheKnow-account verwijderd, en al je apparaten zijn afgemeld. Meld je opnieuw aan en zet het weer aan.
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

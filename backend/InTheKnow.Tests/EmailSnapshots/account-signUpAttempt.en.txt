@@ -1,0 +1,10 @@
+Subject: Someone tried to sign up with your InTheKnow address
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Someone tried to create an InTheKnow account with this email address, but it already has one. Nothing was changed. If you forgot your password, you can reset it on the sign-in page.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

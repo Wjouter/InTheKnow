@@ -1,5 +1,10 @@
 using System.Net.Mail;
+using System.Runtime.CompilerServices;
+using System.Globalization;
+using System.Net;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Xunit;
@@ -63,6 +68,27 @@ public partial class EmailChannelTests
 
     [GeneratedRegex(@"https?://[^\s""<>]+")] private static partial Regex Url();
 
+    static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
+
+    internal static int Count(string html, string needle) => Regex.Count(html, Regex.Escape(needle));
+
+    // FR-008: the footer sits below the card, not in it.
+    internal static void AssertFooterBelowCard(string html, string footer) =>
+        Assert.Matches("</td></tr></table>\\s*<div style=\"max-width:600px[^>]*>\\s*<p[^>]*>" + Regex.Escape(Encoder.Encode(footer)), html);
+
+    // WCAG 2.x relative luminance and contrast ratio.
+    static double Luminance(string hex)
+    {
+        double Channel(int i) { var c = Convert.ToInt32(hex.Substring(1 + 2 * i, 2), 16) / 255.0; return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4); }
+        return 0.2126 * Channel(0) + 0.7152 * Channel(1) + 0.0722 * Channel(2);
+    }
+
+    static double Contrast(string fg, string bg)
+    {
+        var (a, b) = (Luminance(fg), Luminance(bg));
+        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
+    }
+
     [Fact]
     public void RendersParts()
     {
@@ -77,17 +103,27 @@ public partial class EmailChannelTests
         Assert.Equal("List-Unsubscribe=One-Click", mail.Headers["List-Unsubscribe-Post"]);
         Assert.Matches("^<[0-9a-f]{32}@localhost>$", mail.Headers["Message-ID"]);
 
-        foreach (var part in new[] { text, html })
-        {
-            Assert.Contains("Robotics", part);
-            Assert.Contains("Tue 6 Oct 2026 08:30", part); // event time in Amsterdam
-            Assert.Contains("Rooms: AL00.A1.38 → AL00.A1.20", part);
-            Assert.Contains("Status: tentative → confirmed", part);
-            Assert.Contains("Tue 6 Oct 2026 08:30–10:00 → Tue 6 Oct 2026 09:30–11:00", part); // time: before → after
-            Assert.Contains("detected at Thu 1 Oct 2026 14:00", part);
-        }
+        Assert.Contains("Rooms: AL00.A1.38 → AL00.A1.20", text);
+        Assert.Contains("Status: tentative → confirmed", text);
+        Assert.Contains("Tue 6 Oct 2026 08:30–10:00 → Tue 6 Oct 2026 09:30–11:00", text); // time: before → after
+        Assert.Contains("detected at Thu 1 Oct 2026 14:00", text);
         Assert.Single(Regex.Matches(text, "low priority"));
         Assert.Contains("Robotics (low priority)", text);
+
+        // The HTML part: heading, one calendar section, and per row a coloured label, bold name, date, old → new and detected-at.
+        Assert.Matches("<h1[^>]*>3 timetable changes – Minor robotics</h1>", html);
+        Assert.Equal(1, Count(html, "<h2"));
+        Assert.Equal(3, Count(html, "<strong"));
+        Assert.Equal(3, Count(html, "border-top:1px solid " + EmailChannel.Border));
+        Assert.Contains($"color:{EmailChannel.FieldFg};background-color:{EmailChannel.FieldBg}\">Rooms</span>", html);
+        Assert.Contains("AL00.A1.38 → AL00.A1.20</div>", html);
+        Assert.Contains($"color:{EmailChannel.Muted};background-color:{EmailChannel.Page}\">Status</span>", html); // low priority is grey
+        Assert.Contains("tentative → confirmed</div>", html);
+        Assert.Contains(">Time</span>", html);
+        Assert.DoesNotContain("Time</div>", html); // a time change has no "what" line
+        Assert.Contains("Tue 6 Oct 2026 08:30–10:00 → Tue 6 Oct 2026 09:30–11:00</div>", html);
+        Assert.Equal(1, Count(html, "(low priority)"));
+        Assert.Equal(3, Count(html, "detected at Thu 1 Oct 2026 14:00</div>"));
         Assert.DoesNotContain("<script", html);
     }
 
@@ -98,10 +134,16 @@ public partial class EmailChannelTests
         JsonObject Event(string name, JsonObject fields) => new() { ["name"] = name, ["start"] = "2026-10-06T06:30:00Z", ["end"] = "2026-10-06T08:00:00Z", ["fields"] = fields };
         var added = new ChangeItem(View(7, "added", null, null, Event("New lesson", new JsonObject { ["rooms"] = new JsonArray("AL00.A1.20", "AL00.A1.23") }), name: "New lesson"), false);
         var removed = new ChangeItem(View(8, "removed", null, Event("Old lesson", new JsonObject { ["location"] = "Online" }), null, name: "Old lesson"), false);
-        var text = Render(Changes("en", Amsterdam, 0, Group(1, "A", added, removed))).Text;
+        var (text, html, _) = Render(Changes("en", Amsterdam, 0, Group(1, "A", added, removed)));
         Assert.Contains("Added: AL00.A1.20, AL00.A1.23", text);
         Assert.Contains("Removed: Online", text);
         Assert.Contains("Tue 6 Oct 2026 08:30–10:00", text);
+
+        Assert.Contains($"color:{EmailChannel.AddedFg};background-color:{EmailChannel.AddedBg}\">Added</span>", html);
+        Assert.Contains($"color:{EmailChannel.RemovedFg};background-color:{EmailChannel.RemovedBg}\">Removed</span>", html);
+        Assert.Contains("AL00.A1.20, AL00.A1.23</div>", html); // where it is, without the label prefix
+        Assert.Contains("Online</div>", html);
+        Assert.Contains("Tue 6 Oct 2026 08:30–10:00</div>", html);
     }
 
     [Fact]
@@ -111,6 +153,10 @@ public partial class EmailChannelTests
         var (_, _, mail) = Render(Changes("en", Amsterdam, 5, Group(1, "A", items), Group(2, "B", Status, Time)));
         Assert.Equal("12 timetable changes in 2 calendars", mail.Subject);
         Assert.Equal("1 timetable change – A", Render(Changes("en", Amsterdam, 0, Group(1, "A", Room))).Mail.Subject);
+
+        // One section per calendar, in order, each with its settings link.
+        var html = Render(Changes("en", Amsterdam, 0, Group(1, "A", Room), Group(2, "B", Status))).Html;
+        Assert.Matches($"<h2[^>]*>A</h2><p[^>]*><a href=\"{Regex.Escape(Frontend)}/calendars/1/notifications\"[^>]*>[^<]*</a></p>(?s:.*)<h2[^>]*>B</h2><p[^>]*><a href=\"{Regex.Escape(Frontend)}/calendars/2/notifications\"", html);
     }
 
     [Fact]
@@ -123,6 +169,103 @@ public partial class EmailChannelTests
         Assert.DoesNotContain("<a href=\"x\"", html);
         Assert.DoesNotContain("<b>", html);
         Assert.Contains("&lt;a href=&quot;x&quot;&gt;Hi&lt;/a&gt; &amp; &lt;b&gt;", html);
+    }
+
+    // SC-005: every kind encodes every inserted value (text, URLs) in the HTML part.
+    [Fact]
+    public void ValuesAreEncodedInEveryKind()
+    {
+        const string evil = "<b>x</b> & \"q\" 'a'", encoded = "&lt;b&gt;x&lt;/b&gt; &amp; &quot;q&quot; &#x27;a&#x27;";
+        var url = "http://localhost/x?a=" + evil;
+        var messages = new[]
+        {
+            new Message(MessageKind.Confirmation, "en", Amsterdam, url, url, null, null, [], 0),
+            new Message(MessageKind.Test, "en", Amsterdam, null, null, null, url, [], 0),
+            Changes("en", Amsterdam, 0, new CalendarGroup(1, evil, url, [new ChangeItem(View(9, "changed", "name", evil, evil, name: evil), false)])),
+        };
+        foreach (var m in messages)
+        {
+            var html = Render(m).Html;
+            Assert.DoesNotContain("<b>", html);
+            Assert.Contains(encoded, html);
+        }
+    }
+
+    // FR-002, FR-004, FR-006, FR-019, FR-020, SC-003: the same shell and the same palette in every kind and language.
+    [Fact]
+    public void ShellAndPalette()
+    {
+        foreach (var language in new[] { "en", "nl" })
+            foreach (var (name, message) in EmailFixtures(language))
+            {
+                var html = Render(message).Html;
+                Assert.Contains($"<html lang=\"{language}\">", html);
+                Assert.Contains("name=\"format-detection\" content=\"telephone=no,date=no,address=no,email=no\"", html);
+                Assert.Contains("name=\"color-scheme\" content=\"light\"", html);
+                Assert.Contains("name=\"supported-color-schemes\" content=\"light\"", html);
+                Assert.Contains("max-width:600px", html);
+                Assert.Contains("<table role=\"presentation\" width=\"600\" align=\"center\">", html);
+                Assert.Contains("<h1 ", html);
+                Assert.DoesNotContain("<script", html);
+                Assert.DoesNotContain("<img", html);
+                Assert.All(Regex.Matches(html, "#[0-9a-fA-F]{6}\\b"), c => Assert.True(EmailChannel.Palette.Contains(c.Value), $"{name}.{language}: {c.Value}"));
+            }
+    }
+
+    // FR-021, SC-003.
+    [Fact]
+    public void TextColoursHaveContrast() =>
+        Assert.All(EmailChannel.TextPairs, p => Assert.True(Contrast(p.Fg, p.Bg) >= 4.5, $"{p.Fg} on {p.Bg}: {Contrast(p.Fg, p.Bg):0.00}"));
+
+    // FR-022: each calendar value is at most 200 bytes once encoded, whole characters only; the text part keeps it all.
+    [Theory]
+    [InlineData("x", "x")]
+    [InlineData("\"&<>'", "(?:&quot;|&amp;|&lt;|&gt;|&#x27;)")]
+    [InlineData("😀", "&#x1F600;")]
+    [InlineData("漢", "漢")]
+    public void LongValuesAreShortenedInHtml(string unit, string element)
+    {
+        var full = string.Concat(Enumerable.Repeat(unit, 1000 / unit.Length));
+        var added = new JsonObject { ["name"] = full, ["start"] = "2026-10-06T06:30:00Z", ["end"] = "2026-10-06T08:00:00Z", ["fields"] = new JsonObject { ["rooms"] = new JsonArray(full) } };
+        var fits = new string('f', 66);
+        var items = new[]
+        {
+            new ChangeItem(View(1, "changed", "name", full, full, name: full), false),
+            new ChangeItem(View(2, "added", null, null, added, name: full), false),
+            new ChangeItem(View(3, "changed", "name", "old", "new", name: fits), false),
+        };
+        var (text, html, _) = Render(Changes("en", Amsterdam, 0, Group(1, full, items)));
+        Assert.Contains(full, text);
+        // calendar name, then event name, old and new value, event name and where
+        var runs = Regex.Matches(html, $"(?:{element})+…");
+        Assert.Equal(6, runs.Count);
+        foreach (Match run in runs)
+        {
+            var bytes = Encoding.UTF8.GetByteCount(run.Value);
+            Assert.InRange(bytes, 190, 200);
+            Assert.StartsWith(WebUtility.HtmlDecode(run.Value[..^1]), full);
+        }
+        if (unit == "x") Assert.All(runs, r => Assert.Equal(198, r.Length)); // 197 characters and "…"
+        Assert.Contains($">{fits}</strong>", html); // a value that fits is untouched
+    }
+
+    // SC-007: the worst case stays under 100 KB.
+    [Fact]
+    public void ChangesHtmlStaysUnder100KB()
+    {
+        var mixed = string.Concat(Enumerable.Repeat("\"&<>'😀漢字", 112));
+        JsonObject Range(string day) => new() { ["start"] = $"2026-10-{day}T06:30:00Z", ["end"] = $"2026-10-{day}T08:00:00Z", ["fields"] = new JsonObject { ["rooms"] = new JsonArray(mixed), ["location"] = mixed } };
+        ChangeItem Item(int i) => (i % 5) switch
+        {
+            0 => new(View(i, "added", null, null, Range("06"), name: mixed, calendarId: i), i % 3 == 0),
+            1 => new(View(i, "removed", null, Range("06"), null, name: mixed, calendarId: i), i % 3 == 0),
+            2 => new(View(i, "changed", "time", Range("06"), Range("07"), name: mixed, calendarId: i), i % 3 == 0),
+            3 => new(View(i, "changed", "rooms", new JsonArray(mixed), new JsonArray(mixed), name: mixed, calendarId: i), i % 3 == 0),
+            _ => new(View(i, "changed", "description", mixed, mixed, name: mixed, calendarId: i), i % 3 == 0),
+        };
+        var groups = Enumerable.Range(1, Notifier.Listed).Select(i => Group(i, mixed, Item(i))).ToArray();
+        var html = Render(Changes("nl", Amsterdam, 7, groups)).Html;
+        Assert.InRange(Encoding.UTF8.GetByteCount(html), 1, 99_999);
     }
 
     [Fact]
@@ -138,6 +281,11 @@ public partial class EmailChannelTests
             Assert.Contains($"{Public}/n/decline/TOKEN", part);
             Assert.Contains("48 hours", part);
         }
+        Assert.Equal(1, Count(html, "mso-padding-alt"));
+        Assert.Contains($"<a href=\"{Public}/n/confirm/TOKEN\" style=\"display:inline-block;padding:12px 24px;line-height:20px;color:{EmailChannel.Card};font-weight:700;text-decoration:none\">{Texts.Get("en", "confirmation.confirm")}</a>", html);
+        Assert.Contains($"<a href=\"{Public}/n/decline/TOKEN\" style=\"color:{EmailChannel.LinkColor};text-decoration:underline\">", html); // a text link, not a button
+        Assert.Contains($"<p style=\"margin:0 0 16px;color:{EmailChannel.Muted}\">", html); // the expiry line
+        Assert.DoesNotContain("max-width:600px;margin:0 auto;padding:16px 4px 0", html); // no footer
         // In a confirmation, the only /n/ URLs are the confirm and decline links.
         Assert.Equal([$"{Public}/n/confirm/TOKEN", $"{Public}/n/decline/TOKEN"], Url().Matches(text).Select(x => x.Value).Distinct());
     }
@@ -205,6 +353,7 @@ public partial class EmailChannelTests
             Assert.All(Url().Matches(part), u => Assert.Matches($"^{Regex.Escape(Frontend)}/calendars/[12]/notifications$", u.Value));
         }
         Assert.Contains("/n/unsubscribe/", mail.Headers["List-Unsubscribe"]);
+        AssertFooterBelowCard(html, Texts.Get("en", "changes.footer"));
     }
 
     // SC-009, research R9.
@@ -226,15 +375,19 @@ public partial class EmailChannelTests
     {
         var (text, html, mail) = Render(Changes("nl", Amsterdam, 0, Group(1, "Minor robotics", Room, Status, Time)));
         Assert.Equal("3 roosterwijzigingen – Minor robotics", mail.Subject);
+        Assert.Contains("Lokalen: AL00.A1.38 → AL00.A1.20", text);
+        Assert.Contains("Status: tentative → confirmed", text);
+        Assert.Contains("lage prioriteit", text);
         foreach (var part in new[] { text, html })
         {
-            Assert.Contains("Lokalen: AL00.A1.38 → AL00.A1.20", part);
-            Assert.Contains("Status: tentative → confirmed", part);
             Assert.Contains("Robotics", part);
             Assert.Contains("di 6 okt 2026 08:30", part);
             Assert.Contains("gevonden op do 1 okt 2026 14:00", part);
-            Assert.Contains("lage prioriteit", part);
         }
+        Assert.Contains(">Lokalen</span>", html);
+        Assert.Contains("AL00.A1.38 → AL00.A1.20</div>", html);
+        Assert.Contains("tentative → confirmed</div>", html);
+        Assert.Contains("(lage prioriteit)", html);
         Assert.Equal("12 roosterwijzigingen in 2 roosters", Render(Changes("nl", Amsterdam, 7, Group(1, "A", Room, Room, Room), Group(2, "B", Status, Time))).Mail.Subject);
         Assert.Equal("Bevestig je InTheKnow-meldingen", Render(Confirmation("nl")).Mail.Subject);
     }
@@ -268,6 +421,8 @@ public partial class EmailChannelTests
             Assert.Equal(50, Regex.Matches(part, "Event [0-9]{2}").Count);
             Assert.Contains(more, part);
         }
+        Assert.Matches($"<td style=\"padding:12px 16px\">{more}</td>", html);
+        Assert.Contains($"bgcolor=\"{EmailChannel.Box}\"", html);
     }
 
     // FR-010, FR-023: the test message.
@@ -287,5 +442,58 @@ public partial class EmailChannelTests
             Assert.Contains($"{Frontend}/notifications", part);
         }
         Assert.Equal([$"{Frontend}/notifications"], Url().Matches(text).Select(u => u.Value));
+        Assert.Matches("<h1[^>]*>" + Regex.Escape(subject) + "</h1>", html);
+        Assert.Contains("InThe<span", html); // the wordmark
+        Assert.Contains($"<a href=\"{Frontend}/notifications\" style=\"color:{EmailChannel.LinkColor};text-decoration:underline\">", html);
+        Assert.DoesNotContain("mso-padding-alt", html); // a text link, not a button
+        Assert.DoesNotContain("max-width:600px;margin:0 auto;padding:16px 4px 0", html); // no footer
+    }
+
+    static JsonObject RangeOf(string start, string end) => new() { ["start"] = start, ["end"] = end };
+
+    // Every email shape in one language, for the snapshot test (SC-004) and the opt-in Mailpit preview.
+    internal static IEnumerable<(string Name, Message Message)> EmailFixtures(string language)
+    {
+        JsonObject Event(string name, JsonObject fields) => new() { ["name"] = name, ["start"] = "2026-10-06T06:30:00Z", ["end"] = "2026-10-06T08:00:00Z", ["fields"] = fields };
+        var added = new ChangeItem(View(7, "added", null, null, Event("New lesson", new JsonObject { ["rooms"] = new JsonArray("AL00.A1.20", "AL00.A1.23") }), name: "New lesson"), false);
+        var removed = new ChangeItem(View(8, "removed", null, Event("Old lesson", new JsonObject { ["location"] = "Online" }), null, name: "Old lesson"), false);
+        var acrossDays = new ChangeItem(View(10, "changed", "time",
+            RangeOf("2026-10-06T06:30:00Z", "2026-10-06T08:00:00Z"), RangeOf("2026-10-07T06:30:00Z", "2026-10-07T08:00:00Z"), name: "Physics"), false);
+        var lowRooms = new ChangeItem(View(11, "changed", "rooms", new JsonArray("AL00.A1.38"), new JsonArray("AL00.A1.20"), name: "Elective", calendarId: 2), true);
+        yield return ("changes", Changes(language, Amsterdam, 7,
+            Group(1, "Minor robotics", Room, Status, Time, acrossDays, added, removed), Group(2, "Electives", lowRooms)));
+        yield return ("confirmation", Confirmation(language));
+        yield return ("test", Test(language));
+        foreach (var kind in AccountEmailTests.Kinds) yield return ($"account-{kind}", AccountEmailTests.Account(kind, language));
+        yield return ("account-roleChanged-user", AccountEmailTests.Account("roleChanged", language, new Dictionary<string, string> { ["role"] = "user" }));
+        yield return ("account-invite-admin", AccountEmailTests.Account("invite", language,
+            new Dictionary<string, string> { ["admin"] = "true", ["expires"] = "Tue 6 Oct 2026 08:30" }));
+    }
+
+    static string SnapshotDir([CallerFilePath] string file = "") => Path.Combine(Path.GetDirectoryName(file)!, "EmailSnapshots");
+
+    // SC-004: the text part, subject and headers do not change with the HTML layout. Set INTHEKNOW_UPDATE_SNAPSHOTS=1 to (re)write them.
+    [Fact]
+    public void TextPartMatchesSnapshot()
+    {
+        var update = Environment.GetEnvironmentVariable("INTHEKNOW_UPDATE_SNAPSHOTS") == "1";
+        Directory.CreateDirectory(SnapshotDir());
+        var problems = new List<string>();
+        foreach (var language in new[] { "en", "nl" })
+            foreach (var (name, message) in EmailFixtures(language))
+            {
+                var (text, _, mail) = Render(message);
+                var actual = string.Join("\n", new[]
+                {
+                    "Subject: " + mail.Subject, "To: " + mail.To, "From: " + mail.From,
+                    "List-Unsubscribe: " + mail.Headers["List-Unsubscribe"], "List-Unsubscribe-Post: " + mail.Headers["List-Unsubscribe-Post"],
+                    "", text,
+                });
+                var path = Path.Combine(SnapshotDir(), $"{name}.{language}.txt");
+                if (update) File.WriteAllBytes(path, Encoding.UTF8.GetBytes(actual));
+                else if (!File.Exists(path)) problems.Add($"{path} is missing");
+                else if (!File.ReadAllBytes(path).SequenceEqual(Encoding.UTF8.GetBytes(actual))) problems.Add($"{name}.{language} differs");
+            }
+        Assert.Empty(problems);
     }
 }

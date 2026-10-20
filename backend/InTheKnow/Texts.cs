@@ -100,6 +100,7 @@ static class Texts
             ["account.invite.body.user"] = "You are invited to create an account on InTheKnow, which tells you about changes in your timetable. Open the link to choose a password. The invitation is valid until {0}.",
             ["account.invite.body.admin"] = "You are invited to create an admin account on InTheKnow. Open the link to choose a password. The admin pages open once two-step verification is on. The invitation is valid until {0}.",
             ["account.invite.action"] = "Accept the invitation",
+            ["account.linkFallback"] = "Button not working? Copy this link into your browser:",
             ["account.footer"] = "If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.",
         },
         ["nl"] = new()
@@ -194,6 +195,7 @@ static class Texts
             ["account.invite.body.user"] = "Je bent uitgenodigd om een account te maken bij InTheKnow, dat je laat weten wanneer je rooster verandert. Open de link om een wachtwoord te kiezen. De uitnodiging is geldig tot {0}.",
             ["account.invite.body.admin"] = "Je bent uitgenodigd om een beheerdersaccount te maken bij InTheKnow. Open de link om een wachtwoord te kiezen. De beheerpagina's gaan open zodra verificatie in twee stappen aanstaat. De uitnodiging is geldig tot {0}.",
             ["account.invite.action"] = "Uitnodiging accepteren",
+            ["account.linkFallback"] = "Werkt de knop niet? Kopieer deze link naar je browser:",
             ["account.footer"] = "Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.",
         },
     };

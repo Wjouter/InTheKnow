@@ -16,7 +16,7 @@ sealed record TypeStatus(string Type, bool Configured, DateTimeOffset? LastAttem
 sealed class Notifier(NpgsqlDataSource db, IEnumerable<IChannelType> types, Presets presets, Channels channels, Accounts accounts,
                       Settings settings, TimeProvider time, ILogger<Notifier> log) : BackgroundService
 {
-    const int Listed = 50;
+    internal const int Listed = 50;
     static readonly TimeSpan IdleSleep = TimeSpan.FromSeconds(1), ExpiryEvery = TimeSpan.FromMinutes(1), CleanupEvery = TimeSpan.FromMinutes(10);
     static readonly TimeSpan ConfirmationValidity = TimeSpan.FromHours(48), MaxBackoff = TimeSpan.FromHours(1);
     // Account emails that are sent even while the account is disabled (FR-033c).

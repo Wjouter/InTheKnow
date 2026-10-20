@@ -1,0 +1,10 @@
+Subject: Het e-mailadres van je InTheKnow-account wordt gewijzigd
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Iemand heeft gevraagd het e-mailadres van je InTheKnow-account te wijzigen. Het verandert pas als het nieuwe adres is bevestigd.
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

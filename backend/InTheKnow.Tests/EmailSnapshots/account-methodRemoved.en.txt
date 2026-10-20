@@ -1,0 +1,10 @@
+Subject: A sign-in method was removed from your InTheKnow account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+The sign-in method "password" was removed from your InTheKnow account, and the devices signed in with it were signed out.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

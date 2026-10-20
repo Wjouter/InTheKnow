@@ -1,0 +1,10 @@
+Subject: InTheKnow-testmelding
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: <http://localhost:5000/n/unsubscribe/UNSUB>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+
+Dit is een testmelding van InTheKnow. Er staan geen wijzigingen in.
+
+Meldingsinstellingen: http://localhost:5173/notifications
+

@@ -1,0 +1,10 @@
+Subject: Your InTheKnow account was deleted
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Your InTheKnow account and everything in it were deleted. This is the last email about it.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

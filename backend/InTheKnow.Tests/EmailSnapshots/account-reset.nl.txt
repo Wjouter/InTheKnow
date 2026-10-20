@@ -1,0 +1,13 @@
+Subject: Stel je InTheKnow-wachtwoord opnieuw in
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+Iemand heeft gevraagd het wachtwoord van je InTheKnow-account opnieuw in te stellen. Open de link om een nieuw wachtwoord te kiezen. De link is 1 uur geldig. Je wachtwoord blijft hetzelfde tot je een nieuw kiest.
+
+Kies een nieuw wachtwoord:
+http://localhost:5173/account/x?token=TOKEN
+
+Verwachtte je deze e-mail niet, dan kun je hem negeren; is er iets in je account veranderd dat je niet zelf deed, stel dan je wachtwoord opnieuw in of beantwoord deze e-mail om de beheerder te bereiken.
+

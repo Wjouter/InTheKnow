@@ -1,0 +1,10 @@
+Subject: An admin turned off two-step verification for your InTheKnow account
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: 
+List-Unsubscribe-Post: 
+
+An admin removed two-step verification from your InTheKnow account, and all your devices were signed out. Sign in again and turn it back on.
+
+If you did not expect this email, you can ignore it; if something changed in your account that you did not do, reset your password or reply to this email to reach the operator.
+

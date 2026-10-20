@@ -1,0 +1,46 @@
+Subject: 14 roosterwijzigingen in 2 roosters
+To: student@example.nl
+From: "InTheKnow" <intheknow@localhost>
+List-Unsubscribe: <http://localhost:5000/n/unsubscribe/UNSUB>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+
+Minor robotics
+Meldingsinstellingen voor dit rooster: http://localhost:5173/calendars/1/notifications
+
+- Robotics
+  di 6 okt 2026 08:30–10:00
+  Lokalen: AL00.A1.38 → AL00.A1.20
+  gevonden op do 1 okt 2026 14:00
+- Robotics (lage prioriteit)
+  di 6 okt 2026 08:30–10:00
+  Status: tentative → confirmed
+  gevonden op do 1 okt 2026 14:00
+- Robotics
+  di 6 okt 2026 08:30–10:00 → di 6 okt 2026 09:30–11:00
+  Tijd
+  gevonden op do 1 okt 2026 14:00
+- Physics
+  di 6 okt 2026 08:30–10:00 → wo 7 okt 2026 08:30–10:00
+  Tijd
+  gevonden op do 1 okt 2026 14:00
+- New lesson
+  di 6 okt 2026 08:30–10:00
+  Toegevoegd: AL00.A1.20, AL00.A1.23
+  gevonden op do 1 okt 2026 14:00
+- Old lesson
+  di 6 okt 2026 08:30–10:00
+  Verwijderd: Online
+  gevonden op do 1 okt 2026 14:00
+
+Electives
+Meldingsinstellingen voor dit rooster: http://localhost:5173/calendars/2/notifications
+
+- Elective (lage prioriteit)
+  di 6 okt 2026 08:30–10:00
+  Lokalen: AL00.A1.38 → AL00.A1.20
+  gevonden op do 1 okt 2026 14:00
+
+en nog 7 wijzigingen
+
+Je krijgt deze e-mail omdat dit adres is bevestigd voor roostermeldingen van InTheKnow. Gebruik de afmeldoptie van je mailprogramma om deze meldingen naar dit adres te stoppen.
+
