@@ -22,7 +22,7 @@
 		<p class="notice success" role="status">{t.reset.done}</p>
 		<div><Button href="/sign-in">{t.nav.signIn}</Button></div>
 	</AuthPanel>
-{:else if !data.hasToken || r?.reason === 'token_invalid'}
+{:else if !data.usable || r?.reason === 'token_invalid'}
 	<AuthPanel title={t.reset.title}>
 		<p class="notice error" role="alert">{t.reasons.token_invalid}</p>
 		<p><a href="/account/forgot-password">{t.reset.newLink}</a></p>

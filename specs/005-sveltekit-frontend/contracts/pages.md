@@ -83,6 +83,7 @@ second factor gets the "locked" page with a way forward (US8-1). Both come from 
 | `POST /api/auth/sign-in` | `/sign-in` | ✓ |
 | `POST /api/auth/sign-in/code` | `/sign-in/code` | ✓ (code and recovery code) |
 | `POST /api/auth/password-reset` | `/account/forgot-password` | ✓ |
+| `POST /api/auth/password-reset/check` | `/account/reset` (load) | ✓ |
 | `POST /api/auth/password-reset/complete` | `/account/reset` | ✓ |
 | `POST /api/auth/email-change/confirm` | `/account/email` | ✓ |
 | `POST /api/auth/invite/accept` | `/account/invite` | ✓ |

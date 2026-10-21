@@ -150,6 +150,11 @@ fully signed in. A used recovery code queues `recoveryCodeUsed` with the number 
 `{ "email": "…", "botCheck": "…?" }` → `202` always. A link is sent only if the address has a not-disabled account
 under its cap of 3 per 24 h.
 
+### `POST /api/auth/password-reset/check` 🚦 (009)
+
+`{ "token": "…" }` → `204` when the link can still be used, `400 token_invalid` otherwise. Side-effect free; see
+[009 contract](../../009-reset-link-precheck/contracts/reset-check.md).
+
 ### `POST /api/auth/password-reset/complete` 🚦 (FR-009, FR-010, US3-2 to US3-5)
 
 `{ "token": "…", "password": "…" }` → `204`. The password is replaced or added, an unconfirmed account is confirmed,

@@ -317,4 +317,58 @@ public class SignInTests
         Assert.Equal(1, await d.Db.ScalarAsync("SELECT count(*) FROM account_message WHERE kind = 'methodAdded' AND account_id = $1", keyOnly.AccountId));
         await d.H.SignInViaAsync("password", keyOnly.Email, "chosen-password-34");
     }
+
+    // --- 009: the reset link is checked before a password is typed -------------------------------------------------
+
+    static Task<HttpResponseMessage> CheckAsync(DeliveryHost d, string? token) =>
+        SignUpTests.PostAsync(d, "/api/auth/password-reset/check", new { token });
+
+    // 009 US1, FR-002, FR-007
+    [Fact]
+    public async Task ResetCheckRefusesDeadLinks()
+    {
+        await using var d = await SignUpTests.HostAsync();
+        var used = await ResetTokenAsync(d, d.S1.Email);
+        await Expect(await CompleteAsync(d, used, "new-password-4567"), HttpStatusCode.NoContent);
+        await Expect(await CheckAsync(d, used), HttpStatusCode.BadRequest, "token_invalid");
+
+        var replaced = await ResetTokenAsync(d, d.S1.Email);
+        var current = await ResetTokenAsync(d, d.S1.Email);
+        await Expect(await CheckAsync(d, current), HttpStatusCode.NoContent);
+
+        await SignUpTests.SignUpAsync(d, "pending@example.nl");
+        await d.NotifyAsync(2);
+        var confirmation = SignUpTests.TokenOf(SignUpTests.Mails(d, "confirm").Last(m => m.Target == "pending@example.nl").Message);
+
+        var disabled = await ResetTokenAsync(d, d.S2.Email);
+        await d.Db.ExecAsync("UPDATE account SET disabled_at = $2 WHERE id = $1", d.S2.AccountId, d.Now);
+
+        foreach (var dead in new[] { "nonsense", "", confirmation, disabled })
+            await Expect(await CheckAsync(d, dead), HttpStatusCode.BadRequest, "token_invalid");
+        await Expect(await SignUpTests.PostAsync(d, "/api/auth/password-reset/check", new { }), HttpStatusCode.BadRequest, "token_invalid");
+
+        d.H.Time.Advance(TimeSpan.FromHours(1) + TimeSpan.FromSeconds(1));
+        await Expect(await CheckAsync(d, current), HttpStatusCode.BadRequest, "token_invalid");
+        Assert.NotEqual(replaced, current);
+    }
+
+    // 009 US2, FR-005, SC-002, SC-004
+    [Fact]
+    public async Task ResetCheckChangesNothing()
+    {
+        await using var d = await SignUpTests.HostAsync();
+        var a = d.S1;
+        var token = await ResetTokenAsync(d, a.Email);
+        async Task<string> SnapshotAsync() => string.Join("|",
+            (await d.Db.RowsAsync("SELECT id, used_at, token_expires_at FROM account_message WHERE account_id = $1 ORDER BY id", a.AccountId)).Select(r => string.Join(",", r)),
+            await d.Db.ScalarAsync("SELECT count(*) FROM session WHERE account_id = $1", a.AccountId),
+            await d.Db.ScalarAsync("SELECT count(*) FROM security_event WHERE account_id = $1", a.AccountId),
+            SignUpTests.Mails(d, "reset").Count);
+        var before = await SnapshotAsync();
+        for (var i = 0; i < 3; i++) await Expect(await CheckAsync(d, token), HttpStatusCode.NoContent);
+        Assert.Equal(before, await SnapshotAsync());
+
+        await Expect(await CompleteAsync(d, token, "new-password-4567"), HttpStatusCode.NoContent);
+        await d.H.SignInViaAsync("password", a.Email, "new-password-4567");
+    }
 }
