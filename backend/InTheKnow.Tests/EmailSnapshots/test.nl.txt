@@ -8,3 +8,7 @@ Dit is een testmelding van InTheKnow. Er staan geen wijzigingen in.
 
 Meldingsinstellingen: http://localhost:5173/notifications
 
+Je krijgt deze e-mail omdat dit adres is bevestigd voor roostermeldingen van InTheKnow. Gebruik de link hieronder of de afmeldoptie van je mailprogramma om deze meldingen naar dit adres te stoppen.
+
+Afmelden: http://localhost:5000/n/unsubscribe/UNSUB
+

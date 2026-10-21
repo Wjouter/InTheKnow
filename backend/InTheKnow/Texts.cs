@@ -24,7 +24,7 @@ static class Texts
             ["changes.lowPriority"] = "low priority",
             ["changes.detectedAt"] = "detected at {0}",
             ["changes.more"] = "and {0} more changes",
-            ["changes.footer"] = "You receive this email because this address was confirmed for InTheKnow timetable notifications. Use your mail client's unsubscribe option to stop these notifications to this address.",
+            ["changes.footer"] = "You receive this email because this address was confirmed for InTheKnow timetable notifications. To stop these notifications to this address, use the link below or your mail client's unsubscribe option.",
 
             ["test.body"] = "This is a test notification from InTheKnow. It contains no changes.",
             ["test.settings"] = "Notification settings",
@@ -120,7 +120,7 @@ static class Texts
             ["changes.lowPriority"] = "lage prioriteit",
             ["changes.detectedAt"] = "gevonden op {0}",
             ["changes.more"] = "en nog {0} wijzigingen",
-            ["changes.footer"] = "Je krijgt deze e-mail omdat dit adres is bevestigd voor roostermeldingen van InTheKnow. Gebruik de afmeldoptie van je mailprogramma om deze meldingen naar dit adres te stoppen.",
+            ["changes.footer"] = "Je krijgt deze e-mail omdat dit adres is bevestigd voor roostermeldingen van InTheKnow. Gebruik de link hieronder of de afmeldoptie van je mailprogramma om deze meldingen naar dit adres te stoppen.",
 
             ["test.body"] = "Dit is een testmelding van InTheKnow. Er staan geen wijzigingen in.",
             ["test.settings"] = "Meldingsinstellingen",

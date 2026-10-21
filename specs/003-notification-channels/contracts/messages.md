@@ -39,9 +39,10 @@ HTML-encoded (FR-020).
     - a "low priority" marker when `LowPriority` is true (FR-013);
     - "detected at" and the detection time.
 - **Beyond 50**: when `NotListed > 0`, a closing line says "and N more changes" / "en nog N wijzigingen" (FR-015).
-- **Footer**: why the recipient gets this, and that the mail client's unsubscribe option stops these notifications to this
-  address.
-- **Links**: none that change anything. The settings links lead to the frontend, which requires login (SC-003).
+- **Footer**: why the recipient gets this, and that the link below or the mail client's unsubscribe option stops these
+  notifications to this address; then the line `{page.unsubscribe.title}: {UnsubscribeUrl}` (008).
+- **Links**: none that change anything, except the footer unsubscribe link, which opens the one-button unsubscribe page
+  for this channel (008). The settings links lead to the frontend, which requires login (SC-003).
 
 Change kinds shown (translated): added, removed, name, time, status, location, description, activity type, rooms,
 teachers, groups, and `details.<label>` (shown as its label). Values for status and activity type are recorded
@@ -52,6 +53,7 @@ calendar text and are shown as recorded.
 - **Subject**: "InTheKnow test notification" / "InTheKnow-testmelding".
 - **Body**: states that this is a test and contains no changes, then gives a link to the notification settings
   (`SettingsUrl`, FR-010).
+- **Footer**: the same as Changes, with the unsubscribe link (008).
 - It has the unsubscribe headers.
 
 ## Public pages (`/n/…`)

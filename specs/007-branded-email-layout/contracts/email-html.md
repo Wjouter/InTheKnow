@@ -34,9 +34,9 @@ inserted value is HTML-encoded. The plain-text part, subject, headers and recipi
 
 | Kind | Body |
 |---|---|
-| Changes | per calendar: `<h2>` name, settings text link; change rows separated by 1px #e3e3e3; if `NotListed > 0`, "and N more changes" in a #f7f7f7 box. Footer: `changes.footer`. |
+| Changes | per calendar: `<h2>` name, settings text link; change rows separated by 1px #e3e3e3; if `NotListed > 0`, "and N more changes" in a #f7f7f7 box. Footer: `changes.footer`, then a Muted (#5a5a5a) underlined link `page.unsubscribe.title` → `UnsubscribeUrl` (008). |
 | Confirmation | intro paragraph; **button** `confirmation.confirm` → `ConfirmUrl`; text link `confirmation.decline` → `DeclineUrl`; `confirmation.expiry` in muted text. No footer. |
-| Test | `test.body`; text link `test.settings` → `SettingsUrl`. No footer. |
+| Test | `test.body`; text link `test.settings` → `SettingsUrl`. Footer: as Changes, with the unsubscribe link (008). |
 | Account | body paragraph; if `Link`: **button** `account.{kind}.action`, then a muted line `account.linkFallback` + the full link. Footer: `account.footer`. |
 
 ## Change row
@@ -54,7 +54,8 @@ calendar names, are at most 200 bytes once encoded, the "…" included when shor
 
 ## Guarantees (checked by tests)
 
-- Text part, subject and headers byte-for-byte equal to the pre-feature snapshots (SC-004).
+- Text part, subject and headers byte-for-byte equal to the pre-feature snapshots (SC-004), except the Changes and Test
+  footer, which 008 changed (its snapshots were regenerated once).
 - Every inserted value encoded (SC-005), for every kind.
 - Every colour in the HTML is in the palette; every text pair ≥ 4.5:1 except the wordmark (SC-003).
 - HTML of a changes email with `Notifier.Listed` long Dutch changes, one calendar each, with values that grow when
