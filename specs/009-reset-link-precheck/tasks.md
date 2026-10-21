@@ -129,7 +129,7 @@ No new code: T002/T003 are read-only and T001 keeps the submit re-check (FR-006)
 - [X] T013 Run the quickstart automated commands: `dotnet test backend/InTheKnow.Tests --filter
   "FullyQualifiedName~SignInTests|FullyQualifiedName~ApiTests|FullyQualifiedName~LogHygieneTests"` and
   `cd frontend && npm test && npm run check`; all green.
-- [ ] T014 Walk `specs/009-reset-link-precheck/quickstart.md` manual steps 1–5 on the dev stack with Mailpit.
+- [X] T014 Walk `specs/009-reset-link-precheck/quickstart.md` manual steps 1–5 on the dev stack with Mailpit.
 
 ---
 
