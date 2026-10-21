@@ -204,6 +204,26 @@ sealed class Accounts(NpgsqlDataSource db, IPasswordHasher<Account> hasher, Thro
         await tx.CommitAsync(ct);
     }
 
+    // The one rule for "this reset link can still be used", shared by the check and the submit (009 FR-002).
+    static async Task<(long MessageId, long AccountId, string Email, string Language, bool Confirmed)?> FindResetAsync(
+        NpgsqlConnection conn, string? token, DateTimeOffset now, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand("""
+            SELECT m.id, a.id, a.email, a.language, a.confirmed_at IS NOT NULL
+            FROM account_message m JOIN account a ON a.id = m.account_id
+            WHERE m.token_hash = $1 AND m.kind = 'reset' AND m.used_at IS NULL AND m.token_expires_at > $2 AND a.disabled_at IS NULL
+            """, conn) { Parameters = { new() { Value = SignIn.Hash(token ?? "") }, new() { Value = now } } };
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        return await r.ReadAsync(ct) ? (r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), r.GetBoolean(4)) : null;
+    }
+
+    // 009: a pure read, so a link scanner or a page open never uses the link up.
+    public async Task<bool> ResetUsableAsync(string? token, CancellationToken ct)
+    {
+        await using var conn = await db.OpenConnectionAsync(ct);
+        return await FindResetAsync(conn, token, time.GetUtcNow(), ct) is not null;
+    }
+
     // FR-009, FR-010: a new password (added when there was none), every session ends, the throttle is cleared, and an
     // unconfirmed account is confirmed. 2FA is untouched.
     public async Task<string?> CompleteResetAsync(string? token, string? password, HttpContext http)
@@ -211,19 +231,7 @@ sealed class Accounts(NpgsqlDataSource db, IPasswordHasher<Account> hasher, Thro
         var ct = http.RequestAborted;
         var now = time.GetUtcNow();
         await using var conn = await db.OpenConnectionAsync(ct);
-        long messageId, accountId;
-        string email, language;
-        bool confirmed;
-        await using (var cmd = new NpgsqlCommand("""
-            SELECT m.id, a.id, a.email, a.language, a.confirmed_at IS NOT NULL
-            FROM account_message m JOIN account a ON a.id = m.account_id
-            WHERE m.token_hash = $1 AND m.kind = 'reset' AND m.used_at IS NULL AND m.token_expires_at > $2 AND a.disabled_at IS NULL
-            """, conn) { Parameters = { new() { Value = SignIn.Hash(token ?? "") }, new() { Value = now } } })
-        await using (var r = await cmd.ExecuteReaderAsync(ct))
-        {
-            if (!await r.ReadAsync(ct)) return "token_invalid";
-            (messageId, accountId, email, language, confirmed) = (r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), r.GetBoolean(4));
-        }
+        if (await FindResetAsync(conn, token, now, ct) is not var (messageId, accountId, email, language, confirmed)) return "token_invalid";
         if (Passwords.Check(password, email) is { } rule) return rule;
 
         await using var tx = await conn.BeginTransactionAsync(ct);

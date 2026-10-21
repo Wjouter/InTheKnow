@@ -84,6 +84,11 @@ static class AccountApi
             await accounts.CompleteResetAsync(body?.Token, body?.Password, http) is { } error ? Refuse(error) : Results.NoContent())
             .AllowAnonymous().RequireRateLimiting("public");
 
+        // 009: side-effect free, so the reset page can show a dead link before a password is typed.
+        auth.MapPost("/password-reset/check", async (TokenPasswordRequest? body, HttpContext http, Accounts accounts) =>
+            await accounts.ResetUsableAsync(body?.Token, http.RequestAborted) ? Results.NoContent() : Refuse("token_invalid"))
+            .AllowAnonymous().RequireRateLimiting("public");
+
         // The code step of a sign-in with 2FA on: only for an awaiting session (research R6).
         auth.MapPost("/sign-in/code", (ClaimsPrincipal user, CodeRequest? body, HttpContext http, SignIn signIn) =>
             user.HasClaim(c => c.Type == Claims.Awaiting) ? signIn.CodeAsync(user.SessionId(), user.AccountId(), body?.Code, http)

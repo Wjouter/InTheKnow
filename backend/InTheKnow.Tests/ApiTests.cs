@@ -158,7 +158,7 @@ public class ApiTests
     internal static readonly HashSet<string> PublicRoutes =
     [
         "/api/auth/bot-check", "/api/auth/sign-up", "/api/auth/confirmation", "/api/auth/confirm", "/api/auth/sign-in",
-        "/api/auth/password-reset", "/api/auth/password-reset/complete", "/api/auth/email-change/confirm", "/api/auth/invite/accept",
+        "/api/auth/password-reset", "/api/auth/password-reset/check", "/api/auth/password-reset/complete", "/api/auth/email-change/confirm", "/api/auth/invite/accept",
     ];
 
     // A route pattern with its parameters filled with 1.
