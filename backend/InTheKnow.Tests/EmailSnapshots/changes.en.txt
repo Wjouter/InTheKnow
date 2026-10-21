@@ -42,5 +42,7 @@ Notification settings for this calendar: http://localhost:5173/calendars/2/notif
 
 and 7 more changes
 
-You receive this email because this address was confirmed for InTheKnow timetable notifications. Use your mail client's unsubscribe option to stop these notifications to this address.
+You receive this email because this address was confirmed for InTheKnow timetable notifications. To stop these notifications to this address, use the link below or your mail client's unsubscribe option.
+
+Unsubscribe: http://localhost:5000/n/unsubscribe/UNSUB
 

@@ -8,3 +8,7 @@ This is a test notification from InTheKnow. It contains no changes.
 
 Notification settings: http://localhost:5173/notifications
 
+You receive this email because this address was confirmed for InTheKnow timetable notifications. To stop these notifications to this address, use the link below or your mail client's unsubscribe option.
+
+Unsubscribe: http://localhost:5000/n/unsubscribe/UNSUB
+

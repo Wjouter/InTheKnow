@@ -1,5 +1,6 @@
 # Claude Code: personal settings stay local, shared settings/skills get committed
 .claude/settings.local.json
+.claude/launch.json
 
 # Secrets / env
 .env

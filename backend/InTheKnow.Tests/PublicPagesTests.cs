@@ -107,7 +107,7 @@ public class PublicPagesTests
         }
     }
 
-    // US2-4, FR-006, FR-010: links in emails change nothing until the button is used.
+    // US2-4, FR-006, FR-010, SC-003 (008), FR-003 (008): links in emails, the footer unsubscribe link too, change nothing until the button is used.
     [Fact]
     public async Task DeclineAndUnsubscribePages()
     {

@@ -180,7 +180,7 @@ public partial class EmailChannelTests
         var messages = new[]
         {
             new Message(MessageKind.Confirmation, "en", Amsterdam, url, url, null, null, [], 0),
-            new Message(MessageKind.Test, "en", Amsterdam, null, null, null, url, [], 0),
+            new Message(MessageKind.Test, "en", Amsterdam, null, null, url, url, [], 0),
             Changes("en", Amsterdam, 0, new CalendarGroup(1, evil, url, [new ChangeItem(View(9, "changed", "name", evil, evil, name: evil), false)])),
         };
         foreach (var m in messages)
@@ -340,20 +340,39 @@ public partial class EmailChannelTests
         Assert.Equal(new SendResult(SendStatus.TypeUnavailable, "unreachable"), await closed.SendAsync("ok@example.nl", Test(), Ct));
     }
 
-    // US2-1, FR-009, SC-003: per-calendar settings links; the only /n/ URL is the List-Unsubscribe header.
+    // US2-1, FR-009, SC-003 (as amended by 008): per-calendar settings links; the only /n/ URL in either part is exactly UnsubscribeUrl.
     [Fact]
     public void SettingsLinksAndNoActionLinks()
     {
         var (text, html, mail) = Render(Changes("en", Amsterdam, 0, Group(1, "X", Room), Group(2, "Y", Status)));
+        Assert.Contains(Texts.Get("en", "changes.footer"), text);
+        Assert.Contains(Encoder.Encode(Texts.Get("en", "changes.footer")), html);
         foreach (var part in new[] { text, html })
         {
             Assert.Contains($"{Frontend}/calendars/1/notifications", part);
             Assert.Contains($"{Frontend}/calendars/2/notifications", part);
-            Assert.Contains("unsubscribe option to stop these notifications", part); // the footer
-            Assert.All(Url().Matches(part), u => Assert.Matches($"^{Regex.Escape(Frontend)}/calendars/[12]/notifications$", u.Value));
+            Assert.Contains($"{Public}/n/unsubscribe/UNSUB", part); // the footer link
+            Assert.All(Url().Matches(part), u => Assert.Matches($"^({Regex.Escape(Frontend)}/calendars/[12]/notifications|{Regex.Escape(Public)}/n/unsubscribe/UNSUB)$", u.Value));
+            Assert.DoesNotContain("/n/confirm", part);
+            Assert.DoesNotContain("/n/decline", part);
         }
         Assert.Contains("/n/unsubscribe/", mail.Headers["List-Unsubscribe"]);
         AssertFooterBelowCard(html, Texts.Get("en", "changes.footer"));
+    }
+
+    // 008 FR-001, FR-002, FR-004: the footer link, below the footer sentence, goes where List-Unsubscribe goes.
+    [Theory]
+    [InlineData(false, "en")]
+    [InlineData(false, "nl")]
+    [InlineData(true, "en")]
+    [InlineData(true, "nl")]
+    public void FooterLinkMatchesListUnsubscribe(bool test, string language)
+    {
+        var (text, html, mail) = Render(test ? Test(language) : Changes(language, Amsterdam, 0, Group(1, "X", Room)));
+        var url = mail.Headers["List-Unsubscribe"]!.Trim('<', '>');
+        var (footer, label) = (Texts.Get(language, "changes.footer"), Texts.Get(language, "page.unsubscribe.title"));
+        Assert.Contains($"{footer}\n\n{label}: {url}\n\n", text);
+        Assert.Contains($"{Encoder.Encode(footer)}</p><p style=\"margin:0 0 12px\"><a href=\"{Encoder.Encode(url)}\" style=\"color:{EmailChannel.Muted};text-decoration:underline\">{Encoder.Encode(label)}</a></p>", html);
     }
 
     // SC-009, research R9.
@@ -441,12 +460,12 @@ public partial class EmailChannelTests
             Assert.Contains(Texts.Get(language, "test.body"), part);
             Assert.Contains($"{Frontend}/notifications", part);
         }
-        Assert.Equal([$"{Frontend}/notifications"], Url().Matches(text).Select(u => u.Value));
+        Assert.Equal([$"{Frontend}/notifications", $"{Public}/n/unsubscribe/UNSUB"], Url().Matches(text).Select(u => u.Value));
         Assert.Matches("<h1[^>]*>" + Regex.Escape(subject) + "</h1>", html);
         Assert.Contains("InThe<span", html); // the wordmark
         Assert.Contains($"<a href=\"{Frontend}/notifications\" style=\"color:{EmailChannel.LinkColor};text-decoration:underline\">", html);
         Assert.DoesNotContain("mso-padding-alt", html); // a text link, not a button
-        Assert.DoesNotContain("max-width:600px;margin:0 auto;padding:16px 4px 0", html); // no footer
+        AssertFooterBelowCard(html, Texts.Get(language, "changes.footer"));
     }
 
     static JsonObject RangeOf(string start, string end) => new() { ["start"] = start, ["end"] = end };

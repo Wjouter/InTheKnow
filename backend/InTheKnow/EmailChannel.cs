@@ -85,10 +85,13 @@ sealed class EmailChannel(Settings settings) : IChannelType
                 foreach (var g in m.Calendars) r.Calendar(g);
                 if (m.NotListed > 0) r.Box(Texts.Format(m.Language, "changes.more", m.NotListed));
                 r.Footer(r.T("changes.footer"));
+                r.FooterLink(r.T("page.unsubscribe.title"), m.UnsubscribeUrl!);
                 break;
             case MessageKind.Test:
                 r.Paragraph(r.T("test.body"));
                 r.Link(r.T("test.settings"), m.SettingsUrl!);
+                r.Footer(r.T("changes.footer"));
+                r.FooterLink(r.T("page.unsubscribe.title"), m.UnsubscribeUrl!);
                 break;
             case MessageKind.Account:
                 r.Paragraph(Texts.Format(m.Language, AccountBody(m), AccountValue(m)));
@@ -215,6 +218,13 @@ sealed class EmailChannel(Settings settings) : IChannelType
         {
             text.Append(s).Append("\n\n");
             footer.Append("<p style=\"margin:0 0 12px\">").Append(E(s)).Append("</p>");
+        }
+
+        // Muted, not LinkColor: (Muted, Page) is a checked TextPairs pair (specs/008 research R4).
+        public void FooterLink(string label, string url)
+        {
+            text.Append(label).Append(": ").Append(url).Append("\n\n");
+            footer.Append($"<p style=\"margin:0 0 12px\"><a href=\"{E(url)}\" style=\"color:{Muted};text-decoration:underline\">{E(label)}</a></p>");
         }
 
         // A note in a grey box.
