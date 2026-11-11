@@ -206,6 +206,29 @@ public class CheckerTests
         Assert.True(await h.Db.ScalarAsync("SELECT count(*) FROM event_snapshot WHERE calendar_id = $1", id) > before);
     }
 
+    // Google Calendar's shape: X-WR-TIMEZONE, all-day VALUE=DATE, UTC times, and a moved occurrence as a RECURRENCE-ID override.
+    [Fact]
+    public async Task GoogleFeedTimeMovesAreRecordedAndFannedOut()
+    {
+        var (h, id, url) = await BaselineAsync("google.ics", "calendar.google.com");
+        await using var _h = h;
+        Assert.Equal(6, await h.Db.ScalarAsync("SELECT count(*) FROM event_snapshot WHERE calendar_id = $1", id));
+        var channel = await ChannelAsync(h.Db, h.S1);
+
+        h.Http.Map[url] = "google-edited.ics";
+        await NextIntervalAsync(h);
+        Assert.Equal(
+        [
+            ("allday@google.com", "changed", "time"),
+            ("single@google.com", "changed", "time"),
+            ("weekly@google.com|2026-11-09T08:00:00Z", "changed", "time"),
+        ], Sorted(await h.ChangesAsync(id)));
+        var single = await h.Db.RowsAsync("SELECT old_value::text, new_value::text FROM detected_change WHERE event_key = 'single@google.com'");
+        Assert.Equal([["""{"end": "2026-11-12T16:30:00Z", "start": "2026-11-12T16:00:00Z"}""",
+                       """{"end": "2026-11-12T17:30:00Z", "start": "2026-11-12T17:00:00Z"}"""]], single);
+        Assert.Equal([[channel, 3L]], await h.Db.RowsAsync("SELECT channel_id, count(*) FROM delivery WHERE status = 'pending' GROUP BY channel_id"));
+    }
+
     [Fact]
     public async Task UnchangedFeedWritesNoSnapshotRows()
     {
