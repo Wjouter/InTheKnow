@@ -260,6 +260,7 @@ export const en = {
 		lastKnown: 'Last known details',
 		moreDetails: 'More details',
 		fewerDetails: 'Fewer details',
+		andMore: (items: string, n: number) => `${items} and ${n} more`,
 		removed: 'Removed',
 		removedAt: (when: string) => `Removed ${when}`,
 		gone: 'No longer in the timetable',

@@ -86,22 +86,33 @@ export function entries(items: Change[], t: Dict, fmt: Formatter): HistoryEntry[
 		.toSorted((a, b) => Math.max(...b.ids) - Math.max(...a.ids));
 }
 
+// A list longer than this plus one shows its first items and "and N more" (never "and 1 more").
+const SUMMARY_ITEMS = 3;
+
 /** The lesson as a calendar event (FR-007, FR-008, contracts/pages.md § Current details). */
 export function current(data: HistoryData, fallbackName: string, t: Dict, fmt: Formatter): CurrentDetails {
 	const e = data.current.event ?? {};
 	const f = e.fields ?? {};
 	const labels = t.history.labels;
-	const location = nonEmpty(f.location) ? text(f.location, t) : nonEmpty(f.rooms) ? list(f.rooms).join(', ') : null;
+	// Holidays list every room and class: the summary keeps the first few, More details has them all.
+	const short = (v: unknown) => {
+		const items = list(v);
+		return items.length > SUMMARY_ITEMS + 1 ? t.history.andMore(items.slice(0, SUMMARY_ITEMS).join(', '), items.length - SUMMARY_ITEMS) : items.join(', ');
+	};
+	const isShort = (v: unknown) => list(v).length > SUMMARY_ITEMS + 1;
+	const location = nonEmpty(f.location) ? text(f.location, t) : nonEmpty(f.rooms) ? short(f.rooms) : null;
 	const when = e.start && e.end ? (fmt.date(e.start) === fmt.date(e.end) ? `${fmt.time(e.start)}–${fmt.time(e.end)}` : fmt.range(e.start, e.end)) : null;
 	const people = [
-		nonEmpty(f.teachers) ? list(f.teachers).join(', ') : null,
-		nonEmpty(f.groups) ? list(f.groups).join(', ') : null,
+		nonEmpty(f.teachers) ? short(f.teachers) : null,
+		nonEmpty(f.groups) ? short(f.groups) : null,
 		nonEmpty(f.type) ? typeWord(f.type, t) : null
 	].filter((x): x is string => x !== null);
 	const more: { label: string; value: string }[] = [];
 	if (nonEmpty(e.status)) more.push({ label: labels.status, value: statusWord(e.status, t) });
 	if (nonEmpty(f.description)) more.push({ label: labels.description, value: text(f.description, t) });
 	if (nonEmpty(f.rooms) && list(f.rooms).join(', ') !== location) more.push({ label: labels.rooms, value: list(f.rooms).join(', ') });
+	if (nonEmpty(f.teachers) && isShort(f.teachers)) more.push({ label: labels.teachers, value: list(f.teachers).join(', ') });
+	if (nonEmpty(f.groups) && isShort(f.groups)) more.push({ label: labels.groups, value: list(f.groups).join(', ') });
 	const details = f.details && typeof f.details === 'object' ? (f.details as Record<string, unknown>) : {};
 	for (const [label, value] of Object.entries(details)) if (nonEmpty(value)) more.push({ label, value: joined(value, t) });
 	more.push({ label: labels.calendar, value: data.calendarName });

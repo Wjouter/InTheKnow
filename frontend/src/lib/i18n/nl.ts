@@ -261,6 +261,7 @@ export const nl: Dict = {
 		lastKnown: 'Laatst bekende gegevens',
 		moreDetails: 'Meer details',
 		fewerDetails: 'Minder details',
+		andMore: (items: string, n: number) => `${items} en nog ${n}`,
 		removed: 'Verwijderd',
 		removedAt: (when: string) => `Verwijderd ${when}`,
 		gone: 'Niet meer in het rooster',

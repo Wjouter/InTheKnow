@@ -126,6 +126,18 @@ describe('build', () => {
 		expect([h.historyStart, h.retention, h.calendarName]).toEqual(['Mon 2 Mar', '1 year', 'Class 3B']);
 	});
 
+	it('shortens long lists in the summary and moves the full lists to More details', () => {
+		const rooms = ['R1', 'R2', 'R3', 'R4', 'R5'];
+		const groups = Array.from({ length: 20 }, (_, i) => `G${i + 1}`);
+		const h = build(data({ current: { state: 'present', event: { ...event, fields: { rooms, teachers: ['A', 'B', 'C', 'D'], groups } }, removedAt: null } }), t, fmt);
+		// Four items stay whole: "and 1 more" would save nothing.
+		expect([h.current.location, h.current.people]).toEqual(['R1, R2, R3 and 2 more', ['A, B, C, D', 'G1, G2, G3 and 17 more']]);
+		expect(h.current.more.slice(1, 3)).toEqual([
+			{ label: 'Rooms', value: rooms.join(', ') },
+			{ label: 'Groups', value: groups.join(', ') }
+		]);
+	});
+
 	it('gives the removal time only for a removed lesson, and falls back to the entry name without an event', () => {
 		const removed = build(data({ current: { state: 'removed', event, removedAt: '2026-11-12T11:00:00Z' } }), t, fmt);
 		expect(removed.current.removedAt?.text).toBe('1 hour ago');
