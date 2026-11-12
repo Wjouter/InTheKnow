@@ -257,6 +257,16 @@ public class SignInTests
         Assert.Equal(3, await d.Db.ScalarAsync("SELECT count(*) FROM account_message WHERE kind = 'reset'"));
     }
 
+    // Passwords take any character: only the length is checked (Passwords.cs).
+    [Fact]
+    public async Task AnyCharacterInAPassword()
+    {
+        await using var d = await SignUpTests.HostAsync();
+        const string password = "Zwölf café 🍕 Ωmega 漢字 \"'<&>";
+        await Expect(await CompleteAsync(d, await ResetTokenAsync(d, d.S1.Email), password), HttpStatusCode.NoContent);
+        await Expect(await PasswordSignInAsync(d.H, d.S1.Email, password, "198.51.100.1"), HttpStatusCode.OK);
+    }
+
     // US3-2, US3-3, SC-009.
     [Fact]
     public async Task CompleteReset()

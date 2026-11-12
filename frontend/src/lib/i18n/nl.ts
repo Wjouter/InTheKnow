@@ -125,6 +125,7 @@ export const nl: Dict = {
 		email: 'E-mailadres',
 		password: 'Wachtwoord',
 		newPassword: 'Nieuw wachtwoord',
+		showPassword: 'Wachtwoord tonen',
 		language: 'Taal',
 		rulesTitle: 'Je wachtwoord moet:',
 		ruleLength: '12 tot 128 tekens lang zijn',
