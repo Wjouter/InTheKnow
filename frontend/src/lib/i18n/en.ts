@@ -124,6 +124,7 @@ export const en = {
 		password: 'Password',
 		newPassword: 'New password',
 		language: 'Language',
+		showPassword: 'Show password',
 		rulesTitle: 'Your password needs:',
 		ruleLength: '12 to 128 characters',
 		ruleCommon: 'not to be a common password',

@@ -1,6 +1,10 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { HTMLInputAttributes } from 'svelte/elements';
+	import { page } from '$app/state';
+	import Eye from '@lucide/svelte/icons/eye';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import { dicts } from '$lib/i18n';
 
 	// A labelled input, or a custom control through `children` (which receives the ids to wire up).
 	type Props = Omit<HTMLInputAttributes, 'children'> & {
@@ -13,6 +17,8 @@
 	};
 	let { label, id, hint, error, value = $bindable(), children, ...rest }: Props = $props();
 
+	const t = $derived(dicts[page.data.lang]);
+	let shown = $state(false);
 	const describedby = $derived([hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(' ') || undefined);
 </script>
 
@@ -20,6 +26,13 @@
 	<label for={id}>{label}</label>
 	{#if children}
 		{@render children({ id, describedby, invalid: Boolean(error) })}
+	{:else if rest.type === 'password'}
+		<div class="reveal">
+			<input {id} bind:value aria-describedby={describedby} aria-invalid={error ? 'true' : undefined} {...rest} type={shown ? 'text' : 'password'} />
+			<button type="button" aria-label={t.auth.showPassword} aria-pressed={shown} aria-controls={id} onclick={() => (shown = !shown)}>
+				{#if shown}<EyeOff size={20} aria-hidden="true" />{:else}<Eye size={20} aria-hidden="true" />{/if}
+			</button>
+		</div>
 	{:else}
 		<input {id} bind:value aria-describedby={describedby} aria-invalid={error ? 'true' : undefined} {...rest} />
 	{/if}
@@ -66,6 +79,28 @@
 	}
 	.field :global(input:disabled) {
 		background: var(--grey-100);
+	}
+	.reveal {
+		position: relative;
+	}
+	/* Outweighs the general input rule above, which sets padding on both sides. */
+	.field .reveal :global(input:not([type='checkbox'])) {
+		padding-right: 48px;
+	}
+	.reveal button {
+		position: absolute;
+		inset: 0 0 0 auto;
+		width: 48px;
+		display: grid;
+		place-items: center;
+		color: var(--text-muted);
+		background: none;
+		border: 0;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+	}
+	.reveal button:hover {
+		color: var(--text-strong);
 	}
 	.hint {
 		font: var(--type-small);
