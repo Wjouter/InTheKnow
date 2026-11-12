@@ -27,6 +27,7 @@ public class OwnershipTests
         ["GET /api/me/calendars"] = (null, null),
         ["DELETE /api/me/calendars/{calendarId:long}"] = (null, null),
         ["GET /api/me/changes"] = (null, null),
+        ["GET /api/me/changes/{id:long}/history"] = (null, "change"),
         ["GET /api/me/calendars/{calendarId:long}/filter"] = (null, null),
         ["PUT /api/me/calendars/{calendarId:long}/filter"] = ("""{"rules":[]}""", null),
         ["PUT /api/me/calendars/{calendarId:long}/filter/preset"] = ("""{"presetId":1}""", null),
@@ -111,6 +112,10 @@ public class OwnershipTests
         var channel = JsonNode.Parse((await CallAsync(a.Client, "POST", "/api/me/channels", """{"type":"test","target":"a@example.nl"}""")).Item2)!["id"]!.GetValue<long>();
         var ids = new Dictionary<string, long> { ["preset"] = preset, ["session"] = a.SessionId };
         ids["method"] = await h.Db.ScalarAsync("SELECT id FROM sign_in_method WHERE account_id = $1", a.AccountId);
+        ids["change"] = await h.Db.ScalarAsync("""
+            INSERT INTO detected_change (calendar_id, event_key, kind, field, old_value, new_value, event_name, event_starts_at, detected_at)
+            VALUES ($1, 'k', 'changed', 'name', '"a"', '"b"', 'Lesson', now(), now()) RETURNING id
+            """, calendar);
 
         // US2-1: A's rows carry A's id.
         foreach (var table in new[] { "calendar_link", "subscription_filter", "channel", "subscription_setting" })

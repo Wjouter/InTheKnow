@@ -26,9 +26,12 @@ declare global {
 			lang: Lang;
 			me: Me | null;
 		}
-		// A notice for the next page, handed over by an action that redirects there (a removal).
+		// A notice for the next page, handed over by an action that redirects there (a removal). `history` is the card
+		// over the feed (010 research R8): the data of /changes/{id}; `historyAll` the toggle set inside a history.
 		interface PageState {
 			notice?: string;
+			history?: { history: import('$lib/history').HistoryPage; openedId: number; all: boolean | null };
+			historyAll?: boolean;
 		}
 		interface Error {
 			message: string;

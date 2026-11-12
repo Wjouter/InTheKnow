@@ -186,7 +186,8 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
         {
             var canonical = settings.CanonicalFeaturesFor(claim.Host);
             var changeCount = 0;
-            if (fence.BaselineFeatures != canonical)
+            var rebaseline = fence.BaselineFeatures != canonical;
+            if (rebaseline)
             {
                 // Row 3: a baseline records no changes.
                 await ExecAsync(conn, tx, "DELETE FROM event_snapshot WHERE calendar_id = $1", ct, claim.Id);
@@ -202,10 +203,11 @@ sealed class Checker(NpgsqlDataSource db, Fetcher fetcher, HostBudget budget, Se
             await ExecAsync(conn, tx, """
                 UPDATE calendar SET status = 'ok', consecutive_failures = 0, failing_since = NULL, last_ok = true, last_error = NULL,
                     last_checked_at = $2, last_link_id = $3, last_event_count = $4, last_change_count = $5, snapshot_hash = $6,
-                    horizon_end = $7, baseline_features = $8, next_check_at = $9, lease_id = NULL, feed_name = $10
+                    horizon_end = $7, baseline_features = $8, next_check_at = $9, lease_id = NULL, feed_name = $10,
+                    baseline_at = CASE WHEN $11 THEN $2 ELSE baseline_at END
                 WHERE id = $1
                 """, ct, claim.Id, claim.StartedAt, l.Id, states.Count, changeCount, hash!, horizon, canonical, claim.StartedAt + O.CheckInterval,
-                FeedParser.CleanName(parsed!.FeedName));
+                FeedParser.CleanName(parsed!.FeedName), rebaseline);
             await ExecAsync(conn, tx, "UPDATE calendar_link SET flagged_at = NULL, last_used_at = $1 WHERE id = $2", ct, claim.StartedAt, l.Id);
         }
         await tx.CommitAsync(ct);

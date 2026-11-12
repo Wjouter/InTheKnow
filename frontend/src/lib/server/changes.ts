@@ -2,6 +2,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { checkFailureMessage } from '$lib/codes';
 import type { Dict } from '$lib/i18n';
 import { api, must } from './api';
+import type { Found } from '$lib/history';
 import { formatter, type Formatter } from './format';
 
 // Change sentences, grouping and tones (research R11). Built on the server; components only print the strings.
@@ -38,7 +39,10 @@ export type Icon = 'plus-circle' | 'x-circle' | 'map-pin' | 'clock' | 'check-cir
 export type ChangeGroup = {
 	key: string;
 	eventName: string;
-	when: string;
+	/** When InTheKnow found the change (010 FR-001). */
+	found: Found;
+	/** The history of the event: /changes/{id}, with ?all=1 when the feed shows hidden changes (010 research R9). */
+	href: string;
 	calendarName: string | null;
 	tone: Tone;
 	/** The icon of the change that gave the group its tone. */
@@ -46,14 +50,14 @@ export type ChangeGroup = {
 	items: { sentence: string; outcome: Outcome; icon: Icon }[];
 };
 
-const text = (v: unknown, t: Dict) => (v === null || v === undefined || v === '' ? t.changes.none : String(v));
-const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
-const span = (v: unknown) => (v && typeof v === 'object' ? (v as { start?: string; end?: string }) : {});
+export const text = (v: unknown, t: Dict) => (v === null || v === undefined || v === '' ? t.changes.none : String(v));
+export const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
+export const span = (v: unknown) => (v && typeof v === 'object' ? (v as { start?: string; end?: string }) : {});
 
-function statusWord(v: unknown, t: Dict): string {
+export function statusWord(v: unknown, t: Dict): string {
 	return v === 'confirmed' || v === 'tentative' || v === 'cancelled' ? t.changes.status[v] : text(v, t);
 }
-function typeWord(v: unknown, t: Dict): string {
+export function typeWord(v: unknown, t: Dict): string {
 	return v === 'lesson' || v === 'test' || v === 'holiday' || v === 'appointment' ? t.changes.types[v] : text(v, t);
 }
 
@@ -126,9 +130,9 @@ export function icon(c: Change): Icon {
 const severity: Tone[] = ['cancelled', 'moved', 'new', 'changed'];
 
 /** Consecutive changes of one event in one check form one group (001 detected-change "Grouping"). */
-export function group(items: Change[], calendars: Calendar[], t: Dict, fmt: Formatter): ChangeGroup[] {
+export function group(items: Change[], calendars: Calendar[], t: Dict, fmt: Formatter, showHidden = false): ChangeGroup[] {
 	const names = new Map(calendars.map((c) => [c.calendarId, c.name]));
-	const groups: (Omit<ChangeGroup, 'tone' | 'icon'> & { tones: Tone[] })[] = [];
+	const groups: (Omit<ChangeGroup, 'tone' | 'icon' | 'href'> & { tones: Tone[]; ids: { id: number; outcome: Outcome }[] })[] = [];
 	let last = '';
 	for (const c of items) {
 		const key = `${c.calendarId} ${c.eventKey} ${c.detectedAt}`;
@@ -136,20 +140,25 @@ export function group(items: Change[], calendars: Calendar[], t: Dict, fmt: Form
 			groups.push({
 				key: `${key} ${c.id}`,
 				eventName: c.eventName,
-				when: fmt.dateTime(c.eventStartsAt),
+				found: fmt.found(c.detectedAt),
 				calendarName: calendars.length > 1 ? (names.get(c.calendarId) ?? null) : null,
 				tones: [],
+				ids: [],
 				items: []
 			});
 			last = key;
 		}
 		const g = groups[groups.length - 1];
 		g.tones.push(tone(c));
+		g.ids.push({ id: c.id, outcome: c.outcome });
 		g.items.push({ sentence: describe(c, t, fmt), outcome: c.outcome, icon: icon(c) });
 	}
-	return groups.map(({ tones, ...g }) => {
+	return groups.map(({ tones, ids, ...g }) => {
 		const t = severity.find((s) => tones.includes(s)) ?? 'changed';
-		return { ...g, tone: t, icon: g.items[tones.indexOf(t)].icon };
+		// A row the student sees, so a mixed group never forces "show all" (research R9).
+		const opened = (ids.find((i) => i.outcome !== 'hidden') ?? ids[0]).id;
+		const href = `/changes/${opened}${showHidden ? '?all=1' : ''}`;
+		return { ...g, href, tone: t, icon: g.items[tones.indexOf(t)].icon };
 	});
 }
 
@@ -198,5 +207,5 @@ export async function loadFeed(event: RequestEvent, opts: { before?: number; sho
 	const page = must(event, changes);
 	const cals = must(event, calendars);
 	const fmt = formatter(lang, tz);
-	return { groups: group(page.items, cals, t, fmt), next: page.next, calendars: cals.map((c) => calendarView(c, t, fmt)) };
+	return { groups: group(page.items, cals, t, fmt, opts.showHidden), next: page.next, calendars: cals.map((c) => calendarView(c, t, fmt)) };
 }

@@ -39,19 +39,19 @@ phase and may start in parallel with it.
 
 **CRITICAL**: no US2 or US3 task can start before this phase is complete.
 
-- [ ] T001 Create `backend/InTheKnow/Migrations/006_event_history.sql` (the next number after `005_frontend.sql`) with
+- [X] T001 Create `backend/InTheKnow/Migrations/006_event_history.sql` (the next number after `005_frontend.sql`) with
   exactly the two statements of data-model.md: `CREATE INDEX ON detected_change (calendar_id, event_key, id);` and
   `ALTER TABLE calendar ADD COLUMN baseline_at timestamptz NULL;`, each with the one-line "010:" comment from
   data-model.md. Migrations run in a transaction, so no `CONCURRENTLY` (research R3). `baseline_at` is nullable: "NULL
   for calendars baselined before this migration: the start is unknown".
-- [ ] T002 In `backend/InTheKnow/Subscriptions.cs`, extend the add-link `INSERT INTO calendar (…, baseline_features, …)`
+- [X] T002 In `backend/InTheKnow/Subscriptions.cs`, extend the add-link `INSERT INTO calendar (…, baseline_features, …)`
   (line ~59) to also write `baseline_at` = that insert's `now` (data-model.md "Writes to `baseline_at`", research R4).
   Depends on T001.
-- [ ] T003 In `backend/InTheKnow/Checker.cs`, in the success `UPDATE calendar … baseline_features = $8 …` (line ~205),
+- [X] T003 In `backend/InTheKnow/Checker.cs`, in the success `UPDATE calendar … baseline_features = $8 …` (line ~205),
   set `baseline_at = claim.StartedAt` **only** on the row 3 path (`fence.BaselineFeatures != canonical`, line ~189).
   A normal check MUST leave `baseline_at` unchanged. Depends on T001. Not parallel with T002 only if the same helper is
   shared; otherwise [P].
-- [ ] T004 Create `backend/InTheKnow/History.cs` (research R2: a new file, not a block in `Api.cs`) with
+- [X] T004 Create `backend/InTheKnow/History.cs` (research R2: a new file, not a block in `Api.cs`) with
   `GET /api/me/changes/{id:long}/history`, mapped in `backend/InTheKnow/Api.cs` next to `me.MapGet("/changes", …)`
   (line ~78). Behaviour, in order (contracts/api.md "Behaviour"):
   1. `SELECT calendar_id, event_key FROM detected_change WHERE id = $1`; no row → `Problem(404, "not_found")`.
@@ -71,7 +71,7 @@ phase and may start in parallel with it.
   6. `historyStartsAt` = `max(baseline_at, now − O.ChangeRetention)`, or `null` when `baseline_at` is null (research
      R4). `retentionDays = (int)O.ChangeRetention.TotalDays` (research R11). `changeId` echoes the requested id.
   Read-only: no write, no `SecurityLog`. Depends on T001.
-- [ ] T005 [P] Create `backend/InTheKnow.Tests/HistoryTests.cs` (real PostgreSQL via `TestDb`, patterns from
+- [X] T005 [P] Create `backend/InTheKnow.Tests/HistoryTests.cs` (real PostgreSQL via `TestDb`, patterns from
   `ApiTests.cs`) covering the "Backend tests" list of contracts/api.md:
   - 404 parity: an unknown id, a deleted change, and a change in a timetable the caller does not follow return
     identical status and body; after the caller removes their last link, the same change gives 404.
@@ -103,29 +103,29 @@ date and time after 24 h), with the full value on the element (US1-1 to US1-4).
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] In `frontend/src/lib/server/format.test.ts`, add cases for `fmt.found(iso)` and
+- [X] T006 [P] [US1] In `frontend/src/lib/server/format.test.ts`, add cases for `fmt.found(iso)` and
   `fmt.fullDateTime(iso)` in en and nl: 59 s → seconds, 59 min → minutes, 23 h 59 min → "23 hours ago", exactly 24 h →
   `fmt.dateTime` form, a date in another year includes the year, and the text never contains "yesterday", "today",
   "gisteren" or "vandaag" (FR-002, research R1, R12). `fullDateTime` always includes the year.
-- [ ] T007 [P] [US1] In `frontend/src/lib/server/changes.test.ts`, update the existing `group()` expectations: the
+- [X] T007 [P] [US1] In `frontend/src/lib/server/changes.test.ts`, update the existing `group()` expectations: the
   group's `when` is now `found(detectedAt).text`, and the group exposes `found.exact` and `detectedAt` (iso) for the
   `<time>` element. The corner time no longer equals `fmt.dateTime(eventStartsAt)` (FR-001).
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] In `frontend/src/lib/server/format.ts`, add to `formatter` (using the existing `now`): `fullDateTime(iso)`
+- [X] T008 [US1] In `frontend/src/lib/server/format.ts`, add to `formatter` (using the existing `now`): `fullDateTime(iso)`
   (date with the year always, plus time) and `found(iso)` returning `{ text, exact }` per research R1: `now − iso`
   under 60 s → `Intl.RelativeTimeFormat(locale, { numeric: 'always' })` in seconds; under 60 min → whole minutes
   (floor); under 24 h → whole hours (floor); 24 h or more → `dateTime(iso)`. `exact` = `fullDateTime(iso)`. Never
   `numeric: 'auto'` (it yields "yesterday"). Depends on T006.
-- [ ] T009 [US1] In `frontend/src/lib/server/changes.ts`, change `ChangeGroup.when: string` to carry the found time:
+- [X] T009 [US1] In `frontend/src/lib/server/changes.ts`, change `ChangeGroup.when: string` to carry the found time:
   replace `when` with `found: { text: string; exact: string; iso: string }` built from the group's first row
   `detectedAt` via `fmt.found` in `group()` (line ~129); drop the `fmt.dateTime(eventStartsAt)` corner value. The
   sentences from `describe()` stay unchanged (they keep the lesson's own time). Depends on T008, T007.
-- [ ] T010 [US1] In `frontend/src/lib/components/ChangeGroup.svelte`, print
+- [X] T010 [US1] In `frontend/src/lib/components/ChangeGroup.svelte`, print
   `<time class="when" datetime={group.found.iso} title={group.found.exact}>{group.found.text}</time>` in the corner in
   place of the old `when` text (FR-001 to FR-003, contracts/pages.md "Corner time"). Depends on T009.
-- [ ] T011 [US1] Run `cd frontend && npm test && npm run check`; fix any other test that read the old `when` (for
+- [X] T011 [US1] Run `cd frontend && npm test && npm run check`; fix any other test that read the old `when` (for
   example feed page or `fake.ts` fixtures under `frontend/src`). Depends on T010.
 
 **Checkpoint**: US1 works and is demoable on its own: the feed shows found times.
@@ -143,7 +143,7 @@ the current details and all its changes with times and before/after values; relo
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] Create `frontend/src/lib/server/history.test.ts` for the entry builder (research R6): rows with the
+- [X] T012 [P] [US2] Create `frontend/src/lib/server/history.test.ts` for the entry builder (research R6): rows with the
   same `detectedAt` become one entry in id order; `kind` is `added` if any added row, else `removed`, else `changed`;
   `outcome` is the mildest row outcome; a same-day time change gives one **Time** row with hours only and a `note`
   "Same day: {date}"; a moved date gives dates in both values (year only when not the current year); `rooms`,
@@ -151,14 +151,14 @@ the current details and all its changes with times and before/after values; relo
   translated words; `name`, `description`, `details.X` are `wrap: true` and `details.X` keeps label `X`; added and
   removed entries show start–end from `new_value`/`old_value` with `addedAt`/`removed` summaries. (The history-start
   rule is tested once, in `historyView`, T014a.)
-- [ ] T013 [P] [US2] Create `frontend/src/routes/changes/[id]/page.server.test.ts` (or alongside the load as the repo's
+- [X] T013 [P] [US2] Create `frontend/src/routes/changes/[id]/page.server.test.ts` (or alongside the load as the repo's
   pattern in `frontend/src/lib/server/actions.test.ts` suggests) for id and `all` parsing: `{id}` must match
   `^[1-9]\d{0,17}$` otherwise a 404; `all` accepts only `0` or `1`, anything else counts as absent (contracts/pages.md
   "Addresses"); an API 404 surfaces as the standard not-found error, identical for every cause (FR-016).
-- [ ] T014 [P] [US2] In `frontend/src/lib/server/changes.test.ts`, add `group().href` cases (research R9): `/changes/{id}`
+- [X] T014 [P] [US2] In `frontend/src/lib/server/changes.test.ts`, add `group().href` cases (research R9): `/changes/{id}`
   of the first non-hidden row, the first row when all are hidden, never `?all=1` for `/`, and `?all=1` when the feed
   has `showHidden=1`.
-- [ ] T014a [P] [US2] Create `frontend/src/lib/history.test.ts` for the US2 part of `historyView` (research R7, first
+- [X] T014a [P] [US2] Create `frontend/src/lib/history.test.ts` for the US2 part of `historyView` (research R7, first
   table row): opened not hidden + `all` absent or `0` → hidden rows dropped, entries with no rows left are left out, a
   mixed entry loses only its hidden rows, `hiddenCount` counts the dropped rows, toggle off; the cap counts **after**
   that filter (`shown` ≤ cap of the filtered entries, `more` = filtered − shown, FR-009a); `openedBeyondCap`; and
@@ -168,7 +168,7 @@ the current details and all its changes with times and before/after values; relo
 
 ### Implementation for User Story 2
 
-- [ ] T015 [P] [US2] Add the `history.*` texts (and `changes.found*` if any text key is needed; units come from `Intl`)
+- [X] T015 [P] [US2] Add the `history.*` texts (and `changes.found*` if any text key is needed; units come from `Intl`)
   to `frontend/src/lib/i18n/en.ts` and `frontend/src/lib/i18n/nl.ts` (FR-018), listed in contracts/pages.md "New
   texts": title and back link; open as page; current ("Now in the timetable", "Last known details", "More details" /
   "Fewer details", removed with time, no longer in the timetable); detail labels (time, status, location, rooms,
@@ -178,15 +178,15 @@ the current details and all its changes with times and before/after values; relo
   "the change you opened is further back"; and the retention note `history.retention(period)` = "Changes older than
   {period} are not kept." / "Wijzigingen ouder dan {period} worden niet bewaard." The existing parity test in
   `frontend/src/lib/i18n/index.test.ts` enforces both languages (SC-006).
-- [ ] T016 [US2] In `frontend/src/lib/server/format.ts`, add `retention(days)` (research R11): whole multiples of 365 →
+- [X] T016 [US2] In `frontend/src/lib/server/format.ts`, add `retention(days)` (research R11): whole multiples of 365 →
   "{n} year(s)" via `Intl`, otherwise `Intl.NumberFormat` days ("90 days"); add its case to
   `frontend/src/lib/server/format.test.ts`.
-- [ ] T017 [US2] In `frontend/src/lib/server/changes.ts`, add `href: string` to `ChangeGroup` and build it in `group()`:
+- [X] T017 [US2] In `frontend/src/lib/server/changes.ts`, add `href: string` to `ChangeGroup` and build it in `group()`:
   `/changes/{id}` from the first row of the group whose outcome is not `hidden` (the first row when all are hidden),
   plus `?all=1` when the feed URL has `showHidden=1` (research R9, contracts/pages.md "Feed changes"). Keep the
   `Change.id` field. `group()` needs the `showHidden` flag as a parameter, passed by `loadFeed` (line ~189) for both
   `/` and `/changes`. Depends on T014, T009.
-- [ ] T018 [US2] Create `frontend/src/lib/server/history.ts`: types `HistoryData` (the API body) and `HistoryEntry`
+- [X] T018 [US2] Create `frontend/src/lib/server/history.ts`: types `HistoryData` (the API body) and `HistoryEntry`
   (data-model.md "History entry": `key`, `ids`, `kind`, `found {text, exact, iso}`, `name`, `outcome`, `summary`,
   `rows {label, before, after, note, wrap, outcome}[]`), and `loadHistory(event, id)` that calls
   `GET /api/me/changes/{id}/history` through `api`/`must` in `frontend/src/lib/server/api.ts`, groups rows per
@@ -194,7 +194,7 @@ the current details and all its changes with times and before/after values; relo
   `changes.ts` (export the small helpers it needs, e.g. `text`, `statusWord`, `typeWord`), formats the current details,
   calendar name, `historyStartsAt` and `retention(retentionDays)`, and returns everything the components print.
   Depends on T012, T016, T015.
-- [ ] T019 [P] [US2] Create `frontend/src/lib/history.ts` (client-safe, outside `$lib/server`, research R7) with the pure
+- [X] T019 [P] [US2] Create `frontend/src/lib/history.ts` (client-safe, outside `$lib/server`, research R7) with the pure
   `historyView(entries, { all, openedId, cap })` returning `showAll`, `toggle`, `shown`, `more`, `hiddenCount`,
   `openedHidden`, `allHidden`, `openedBeyondCap`, `startsBeforeHistory` per data-model.md "History view". For this
   story implement the `all` absent or `0` path for an opened change that is not hidden: drop hidden rows, leave out
@@ -202,12 +202,12 @@ the current details and all its changes with times and before/after values; relo
   filtered.slice(0, cap)`, `more = filtered.length − shown.length`, `openedBeyondCap`; FR-009a counts after the
   filter); and `startsBeforeHistory` over all kept entries. T029 adds `all=1`, the toggle state and the FR-014b rows.
   Export the entry types from here so `server/history.ts` imports them. Depends on T014a.
-- [ ] T020 [US2] Create `frontend/src/routes/changes/[id]/+page.server.ts`: validate `id` against `^[1-9]\d{0,17}$`
+- [X] T020 [US2] Create `frontend/src/routes/changes/[id]/+page.server.ts`: validate `id` against `^[1-9]\d{0,17}$`
   (else `error(404)`), parse `all` (`'1'`→true, `'0'`→false, otherwise null), call `loadHistory`, and return
   `{ history, openedId, all }`. A non-200 API result is rethrown as the standard error so `+error.svelte` renders the
   same "not found" text for every cause; an expired session redirects to sign-in with `next` set to this address like
   the other student pages (use `frontend/src/lib/next.ts`). Depends on T018, T013.
-- [ ] T021 [US2] Create `frontend/src/lib/components/History.svelte`, the shared content (contracts/pages.md "Shared
+- [X] T021 [US2] Create `frontend/src/lib/components/History.svelte`, the shared content (contracts/pages.md "Shared
   content"), taking `{ history, openedId, all, cap }`:
   1. Current details as a calendar event: ~52 px date tile (brand-coloured month strip, day number, short weekday,
      visually hidden full date), soft-tinted event block (name; start–end · location; teachers · groups · type; empty
@@ -232,10 +232,10 @@ the current details and all its changes with times and before/after values; relo
   7. Retention note, always last (FR-012).
   All colours from existing tokens, no sideways scroll at 360 px (FR-019). All text via `dicts[lang]`.
   Depends on T019, T018, T015.
-- [ ] T022 [US2] Create `frontend/src/routes/changes/[id]/+page.svelte`: `PageIntro` (lesson name with the timetable name
+- [X] T022 [US2] Create `frontend/src/routes/changes/[id]/+page.svelte`: `PageIntro` (lesson name with the timetable name
   under it), a "Back to changes" link to `/changes`, then `<History>` with no cap; after load, scroll the opened entry
   into view (FR-006). Depends on T021, T020.
-- [ ] T023 [US2] Create `frontend/src/lib/components/HistoryCard.svelte`: a native modal `<dialog>` frame around
+- [X] T023 [US2] Create `frontend/src/lib/components/HistoryCard.svelte`: a native modal `<dialog>` frame around
   `<History>` with an `aria-labelledby` heading (the lesson name), an "Open as page" `<a href>` to the card's own URL
   (full load, FR-005c) and a close button (`aria-label` = existing "Close" text). Wide: centred, max about 720 px wide,
   max 90 vh, scrolls inside. Below 600 px: `width: 100%; height: 100%; max-height: none`. Close wiring (research R8):
@@ -243,20 +243,20 @@ the current details and all its changes with times and before/after values; relo
   `history.back()`; an `$effect` calls `el.close()` when `page.state.history` clears; `onclose` calls `history.back()`
   only while `page.state.history` is still set, so no double back. `showModal()` keeps focus inside (FR-005a). Do not
   reuse `Dialog.svelte`. Depends on T021.
-- [ ] T024 [US2] In `frontend/src/lib/components/ChangeGroup.svelte`, make the notice `<a class="change …"
+- [X] T024 [US2] In `frontend/src/lib/components/ChangeGroup.svelte`, make the notice `<a class="change …"
   href={group.href}>` so it is focusable and opens with Enter, heading and sentences inside it (FR-004,
   contracts/pages.md); keep existing visual styling and focus ring. Depends on T017, T010.
-- [ ] T024a [US2] In `frontend/src/lib/history.ts`, export a pure `opensCard(e: { button: number; ctrlKey: boolean;
+- [X] T024a [US2] In `frontend/src/lib/history.ts`, export a pure `opensCard(e: { button: number; ctrlKey: boolean;
   metaKey: boolean; shiftKey: boolean; altKey: boolean; defaultPrevented: boolean }): boolean` that is true only for a
   primary-button click with no modifier key and not `defaultPrevented`. In `frontend/src/lib/history.test.ts`, add one
   case per condition: plain click → true; Ctrl, Meta, Shift, Alt, middle button, `defaultPrevented` → false (FR-005b,
   constitution "non-trivial logic has an automated check"). Depends on T019 (same files).
-- [ ] T025 [US2] In `frontend/src/lib/components/Feed.svelte`, add the card host (research R8): an `onclick` on the feed
+- [X] T025 [US2] In `frontend/src/lib/components/Feed.svelte`, add the card host (research R8): an `onclick` on the feed
   that leaves the browser alone unless `opensCard(event)` (T024a); otherwise `preventDefault()`, remember the clicked link, `const r = await preloadData(href)` and,
   when `r.type === 'loaded' && r.status === 200`, `pushState(href, { history: r.data })`, else `goto(href)`. Render
   `<HistoryCard>` while `page.state.history` is set; on close return focus to the remembered link. Declare
   `App.PageState` (`history?: …`) in `frontend/src/app.d.ts`. Depends on T023, T024, T024a.
-- [ ] T026 [US2] Run `cd frontend && npm test && npm run check`; make the new tests T012–T014a and T024a pass and keep
+- [X] T026 [US2] Run `cd frontend && npm test && npm run check`; make the new tests T012–T014a and T024a pass and keep
   `no-raw-html` and the i18n parity test green. Depends on T025, T022.
 
 **Checkpoint**: US2 works on its own with default filters: card and page show current details and every change.
@@ -273,32 +273,32 @@ its history: only the visible one shows; toggle shows both, the hidden one badge
 
 ### Tests for User Story 3
 
-- [ ] T027 [P] [US3] In `frontend/src/lib/history.test.ts` (created in T014a), add the remaining rows of the research
+- [X] T027 [P] [US3] In `frontend/src/lib/history.test.ts` (created in T014a), add the remaining rows of the research
   R7 table: opened not hidden + `all=1` (all shown, toggle on); opened hidden + some visible + `all` absent/`1` (all
   shown, toggle on, no message); opened hidden + some visible + `all=0` (filtered, `openedHidden` true); every entry
   hidden (all shown, `toggle: false`, `allHidden` true); and the cap with the toggle on (hidden entries count toward
   it).
-- [ ] T028 [P] [US3] In `frontend/src/lib/server/history.test.ts`, add outcome cases: low-priority and hidden rows keep
+- [X] T028 [P] [US3] In `frontend/src/lib/server/history.test.ts`, add outcome cases: low-priority and hidden rows keep
   their own outcome inside a mixed entry, and the entry `outcome` is the mildest row outcome (hidden only when every row
   is hidden).
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] In `frontend/src/lib/history.ts`, complete `historyView` with the remaining R7 rows: three-state `all`
+- [X] T029 [US3] In `frontend/src/lib/history.ts`, complete `historyView` with the remaining R7 rows: three-state `all`
   (null / true / false) including `all=1`, `openedId` lookup of the entry containing it, `showAll`, `toggle`,
   `openedHidden`, `allHidden` (FR-014, FR-014a, FR-014b). Per-row hiding and `hiddenCount` already exist from T019.
   Depends on T027, T019.
-- [ ] T030 [US3] In `frontend/src/lib/components/History.svelte`, add to the heading row a compact "Show all" checkbox
+- [X] T030 [US3] In `frontend/src/lib/components/History.svelte`, add to the heading row a compact "Show all" checkbox
   (about 18 px box, whole label ≥44 px target) with one short muted line beside it when it applies: "N hidden by your
   filters", "The change you opened is hidden by your filters", or, when every entry is hidden, only "All changes of this
   lesson are hidden by your filters" with no checkbox. Render hidden rows with a "Hidden" badge and dashed border/grey
   bar, low-priority with a grey bar and "Low priority" badge (reuse `Badge.svelte`, FR-021). Switching the checkbox
   calls shallow `replaceState` from `$app/navigation` with `?all=1`/`?all=0` and updates `page.state`, with no request,
   no new history step and no change to the feed's `showHidden` (FR-014a, research R7). Depends on T029, T021.
-- [ ] T031 [US3] Wire `all` through both forms: in `HistoryCard.svelte` and `routes/changes/[id]/+page.svelte` read the
+- [X] T031 [US3] Wire `all` through both forms: in `HistoryCard.svelte` and `routes/changes/[id]/+page.svelte` read the
   effective `all` from the URL (`page.state` in the card, `page.url`/load data on the page) and pass it to `<History>`;
   "Open as page" in the card keeps the current query (`?all=…`). Depends on T030, T023, T022.
-- [ ] T032 [US3] Run `cd frontend && npm test && npm run check`. Depends on T031, T028.
+- [X] T032 [US3] Run `cd frontend && npm test && npm run check`. Depends on T031, T028.
 
 **Checkpoint**: all three stories work independently and together.
 
@@ -306,14 +306,14 @@ its history: only the visible one shows; toggle shows both, the hidden one badge
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T033 Run the full suites once, because the feed's corner time changed for every existing feed test:
+- [X] T033 Run the full suites once, because the feed's corner time changed for every existing feed test:
   `dotnet test backend/InTheKnow.Tests` and `cd frontend && npm test && npm run check`.
 - [ ] T034 Run the manual walkthrough of `specs/010-event-change-history/quickstart.md` steps 1–20 on the dev stack
   (card open/close via back, Esc, button and backdrop; forward reopens; focus return; Ctrl-click and middle-click;
   reload; Dutch and 360 px; 25-check lesson; 100-row lesson with API and page load times recorded (SC-003); access
   parity; `EXPLAIN ANALYZE` uses the new index), and record the
   results as walkthrough notes at the end of `quickstart.md`, as earlier specs did.
-- [ ] T035 Check the diff for committed deployment details before any push (constitution Principle II): `git diff
+- [X] T035 Check the diff for committed deployment details before any push (constitution Principle II): `git diff
   origin/main | grep -nE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'` and confirm tests and docs use `localhost`/placeholders only.
 
 ---

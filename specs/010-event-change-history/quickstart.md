@@ -117,3 +117,40 @@ Then remove a second lesson ("lesson B") in one check and put it back in the nex
     `EXPLAIN ANALYZE` on the row query uses the `(calendar_id, event_key, id)` index.
 
 Record the results as walkthrough notes here, as earlier specs did.
+
+## Walkthrough notes (2026-11-12)
+
+Run on the local dev stack (`api` and `web-bun` from `.claude/launch.json`; the host's Node was broken, so `npm test`,
+`npm run check` and `npm run build` ran in a `node:24-bookworm-slim` container). Migration 006 applied to the dev
+database on API start.
+
+**Data.** Seeded with direct `INSERT`s, not real checks: two test students, one timetable with a custom filter that
+hides description changes, lesson A (location 50 h ago, time 3 h ago, description 20 min ago), lesson B (removed 2 h
+ago, back 1 h ago), lesson C (25 room changes), and later lesson D (removed 5 min ago, no snapshot). The seed was
+removed afterwards. The real-check path is covered by `HistoryTests.HistoryStartsAt` (add-link, a normal check and a
+features re-baseline through the checker).
+
+| Step | Result |
+|---|---|
+| 1–2 | Pass. Corners read "1 hour ago", "3 hours ago"; older rows an exact date. The title has the year ("Thu 12 Nov 2026 15:41") and `datetime` the ISO value. The sentence keeps the lesson time. |
+| 3 | Boundaries covered by `format.test.ts` (59 s, 59 min, 23 h 59 min, 24 h, last year), not re-run by hand. |
+| 4 | Pass. Card over the feed, date tile, block, More details (status, description, `Lecturer`, timetable), "Time 13:30–15:00 → 09:00–10:30" with "Same day: Wed 18 Nov", opened entry marked. |
+| 5 | Pass for Esc, close button, backdrop and Back: one step back each, feed scroll unchanged, focus on the clicked change. |
+| 6 | Pass. Forward reopens the card. |
+| 7 | Not clicked. The link's `href` follows `historyHref` (unit-tested) and the page itself loads (step 9). |
+| 8 | Ctrl-click: the app does not prevent it (checked with a synthetic event). Middle-click not tried. |
+| 9 | Pass. Loading `/changes/{id}` gives the full page, scrolled to the opened entry. |
+| 10 | Pass. Removal and re-appearance are separate entries, no Removed badge. Lesson D (removed newest): dimmed block, struck name, Removed badge, "Removed 5 minutes ago". |
+| 11 | Pass. "…before its recorded history starts (Mon 9 Nov)" from `baseline_at`. |
+| 12 | Pass. |
+| 13 | Pass. Description change left out, "1 change hidden by your filters"; Show all shows it badged Hidden, URL `?all=1`, `history.length` unchanged. |
+| 14 | Pass (in Dutch). From the feed with hidden changes shown: `?all=1`, toggle on, entry marked; off gives `?all=0` and "De wijziging die je opende is verborgen door je filters"; closing keeps `/changes?showHidden=1`. |
+| 15 | Not re-run by hand; `all` parsing is covered by `page.server.test.ts`. |
+| 16 | Not run by hand; covered by `history.test.ts` (every entry hidden: no toggle, the all-hidden message). |
+| 17 | Pass. A non-follower gets byte-identical 404 pages for a real id and `999999999`; API parity is in `HistoryTests`. |
+| 18 | Pass at 360 px in Dutch: the card fills the screen, no sideways scroll, time values move whole. |
+| 19 | Pass. 20 entries, "5 older changes not shown" and "The change you opened is further back", both linking to `/changes/{oldest}`. |
+| 20 | Partly. Dev timings: API 7 ms, full page 27 ms (not whole-school data). `EXPLAIN ANALYZE` with 100 000 extra rows on one calendar (rolled back): Index Only Scan on `detected_change_calendar_id_event_key_id_idx`, 0.08 ms. On the tiny dev data the planner picks `(calendar_id, id)`, which is cheaper there. |
+
+Found and fixed during the walkthrough: a `.wrap` class in `History.svelte` collided with the global `.wrap`
+container (large padding in free-text rows), and entries older than 24 hours printed their date twice.
