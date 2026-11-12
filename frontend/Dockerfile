@@ -5,6 +5,8 @@ WORKDIR /src
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# Shown in the footer; set by the release workflow, "dev" for any other build.
+ARG INTHEKNOW_VERSION=dev
 RUN npm run build
 RUN mkdir /prod && cp package.json package-lock.json /prod/ && npm ci --omit=dev --ignore-scripts --prefix /prod
 

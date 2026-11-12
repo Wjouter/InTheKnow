@@ -1,6 +1,9 @@
 import type { Dict, Lang } from '$lib/i18n';
 
 declare global {
+	/** The release version (vite.config.ts), "dev" outside a release build. */
+	const __VERSION__: string;
+
 	type Me = {
 		email: string;
 		role: 'user' | 'admin';
