@@ -1,12 +1,18 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Field from '$lib/components/Field.svelte';
+	import Toast from '$lib/components/Toast.svelte';
+	import { submitter } from '$lib/enhance.svelte';
 	import { dicts } from '$lib/i18n';
+	import { refusal } from '$lib/refusal';
 
-	let { data } = $props();
+	let { data, form } = $props();
 	const t = $derived(dicts[data.lang]);
 	const w = $derived(t.admin.calendars);
+	const s = submitter();
+	const r = $derived(refusal(form));
 	const nextHref = $derived(
 		`?${new URLSearchParams({ ...(data.status ? { status: data.status } : {}), ...(data.overdue ? { overdue: 'true' } : {}), after: String(data.next) })}`
 	);
@@ -15,6 +21,7 @@
 <svelte:head><title>{w.tab} · InTheKnow</title></svelte:head>
 
 <div class="stack">
+	{#if r}<p class="notice error" role="alert">{r.message}</p>{/if}
 	<form method="GET" class="row filters">
 		<Field label={w.status} id="status">
 			{#snippet children({ id })}
@@ -43,6 +50,10 @@
 						· {c.lastChecked ? `${t.calendars.lastChecked} ${c.lastChecked}` : t.calendars.states.notChecked}
 						· {t.calendars.nextCheck} {c.nextCheck}
 					</p>
+					<form method="POST" action="?/check" use:enhance={s.enhance}>
+						<input type="hidden" name="calendarId" value={String(c.id)} />
+						<Button size="sm" variant="secondary" disabled={s.pending}>{w.checkNow}</Button>
+					</form>
 				</li>
 			{/each}
 		</ul>
@@ -51,6 +62,8 @@
 	{/if}
 	{#if data.next}<div><Button href={nextHref} variant="secondary">{t.admin.nextPage}</Button></div>{/if}
 </div>
+
+<Toast message={form && 'done' in form ? w.checking : null} />
 
 <style>
 	.filters {

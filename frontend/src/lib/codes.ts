@@ -89,7 +89,9 @@ export const reasons = [
 	// 005 additions
 	'invalid_order',
 	'invalid_cursor',
-	'invalid_home_page'
+	'invalid_home_page',
+	// admin check now
+	'check_running'
 ] as const;
 export type Reason = (typeof reasons)[number];
 

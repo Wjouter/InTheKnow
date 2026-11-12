@@ -287,6 +287,34 @@ public class ApiTests
         Assert.DoesNotContain("https://", (await op.JsonAsync("/api/admin/calendars")).ToJsonString());
     }
 
+    // Admin "check now": pulls next_check_at forward to now, unless a live lease says a check is running.
+    [Fact]
+    public async Task CheckNow()
+    {
+        await using var h = await ApiHost.CreateAsync();
+        var op = await h.SignInAsync(admin: true, secondFactor: true);
+        var s1 = await TestHost.AccountAsync(h.Db.DataSource);
+        var now = h.Time.GetUtcNow();
+        var later = (await h.Db.SeedCalendarAsync("a.example", ["https://a.example/1"], s1, now.AddHours(1))).CalendarId;
+        var overdue = (await h.Db.SeedCalendarAsync("b.example", ["https://b.example/1"], s1, now.AddMinutes(-5))).CalendarId;
+        var running = (await h.Db.SeedCalendarAsync("c.example", ["https://c.example/1"], s1, now.AddMinutes(4))).CalendarId;
+        await h.Db.ExecAsync("UPDATE calendar SET lease_id = gen_random_uuid() WHERE id = $1", running);
+        Task<HttpResponseMessage> Check(long id) => op.Client.PostAsync($"/api/admin/calendars/{id}/check", null, Ct);
+        async Task<DateTimeOffset> NextCheck(long id) => new((DateTime)(await h.Db.RowsAsync("SELECT next_check_at FROM calendar WHERE id = $1", id)).Single()[0]!);
+
+        Assert.Equal(HttpStatusCode.Accepted, (await Check(later)).StatusCode);
+        Assert.Equal(now, await NextCheck(later));
+        Assert.Equal(HttpStatusCode.Accepted, (await Check(overdue)).StatusCode);
+        Assert.Equal(now.AddMinutes(-5), await NextCheck(overdue)); // keeps its place in the queue
+        var r = await Check(running);
+        Assert.Equal((HttpStatusCode.Conflict, "check_running"), (r.StatusCode, await ReasonAsync(r)));
+        Assert.Equal(now.AddMinutes(4), await NextCheck(running));
+        h.Time.Advance(TimeSpan.FromMinutes(5)); // the lease ran out: a crashed check no longer blocks
+        Assert.Equal(HttpStatusCode.Accepted, (await Check(running)).StatusCode);
+        var missing = await Check(long.MaxValue);
+        Assert.Equal((HttpStatusCode.NotFound, "not_found"), (missing.StatusCode, await ReasonAsync(missing)));
+    }
+
     // Quickstart §4: 5,000 calendars on one domain, a baseline pass and an unchanged pass, then API reads.
     // Logs timings rather than asserting them. Never runs in the normal gate.
     [Fact(Explicit = true)]

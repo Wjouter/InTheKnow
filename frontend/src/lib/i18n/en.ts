@@ -54,6 +54,7 @@ export const en = {
 		host_budget_exhausted: 'The calendar server is busy.',
 		invalid_limit: 'Something went wrong. Try again.',
 		invalid_status: 'This can’t be done in the current state. Reload the page.',
+		check_running: 'A check of this calendar is running right now. Try again in a few minutes.',
 		invalid_include_hidden: 'Something went wrong. Try again.',
 		invalid_name: 'The name must be 1 to 100 characters.',
 		invalid_rules: 'The rules aren’t valid.',
@@ -663,7 +664,9 @@ export const en = {
 			filter: 'Show',
 			none: 'No calendars.',
 			counts: (subscribers: number, valid: number, total: number) =>
-				`${subscribers} ${subscribers === 1 ? 'account' : 'accounts'}, ${valid} of ${total} links working`
+				`${subscribers} ${subscribers === 1 ? 'account' : 'accounts'}, ${valid} of ${total} links working`,
+			checkNow: 'Check now',
+			checking: 'The check starts within a few seconds. Reload the page to see the result.'
 		},
 		email: {
 			tab: 'Email',
