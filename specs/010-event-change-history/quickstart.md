@@ -133,24 +133,24 @@ features re-baseline through the checker).
 | Step | Result |
 |---|---|
 | 1–2 | Pass. Corners read "1 hour ago", "3 hours ago"; older rows an exact date. The title has the year ("Thu 12 Nov 2026 15:41") and `datetime` the ISO value. The sentence keeps the lesson time. |
-| 3 | Boundaries covered by `format.test.ts` (59 s, 59 min, 23 h 59 min, 24 h, last year), not re-run by hand. |
+| 3 | Pass (2026-11-12, real check data). Change 120 set to 23 h ago reads "23 hours ago"; at 25 h it shows "Wed 11 Nov 20:17" once. The real time was restored. The other boundaries are in `format.test.ts`. |
 | 4 | Pass. Card over the feed, date tile, block, More details (status, description, `Lecturer`, timetable), "Time 13:30–15:00 → 09:00–10:30" with "Same day: Wed 18 Nov", opened entry marked. |
 | 5 | Pass for Esc, close button, backdrop and Back: one step back each, feed scroll unchanged, focus on the clicked change. |
 | 6 | Pass. Forward reopens the card. |
-| 7 | Not clicked. The link's `href` follows `historyHref` (unit-tested) and the page itself loads (step 9). |
-| 8 | Ctrl-click: the app does not prevent it (checked with a synthetic event). Middle-click not tried. |
+| 7 | Pass (2026-11-12, real check data). From the card of change 120, Open as page loads `/changes/120` as the full page with the same entry; the card is gone. |
+| 8 | Pass. Ctrl-click and middle-click open the full page in a new tab and leave the feed as it was (checked by hand in Firefox). |
 | 9 | Pass. Loading `/changes/{id}` gives the full page, scrolled to the opened entry. |
 | 10 | Pass. Removal and re-appearance are separate entries, no Removed badge. Lesson D (removed newest): dimmed block, struck name, Removed badge, "Removed 5 minutes ago". |
 | 11 | Pass. "…before its recorded history starts (Mon 9 Nov)" from `baseline_at`. |
 | 12 | Pass. |
 | 13 | Pass. Description change left out, "1 change hidden by your filters"; Show all shows it badged Hidden, URL `?all=1`, `history.length` unchanged. |
 | 14 | Pass (in Dutch). From the feed with hidden changes shown: `?all=1`, toggle on, entry marked; off gives `?all=0` and "De wijziging die je opende is verborgen door je filters"; closing keeps `/changes?showHidden=1`. |
-| 15 | Not re-run by hand; `all` parsing is covered by `page.server.test.ts`. |
-| 16 | Not run by hand; covered by `history.test.ts` (every entry hidden: no toggle, the all-hidden message). |
+| 15 | Pass (real check data). Reloading change 120 keeps the toggle on with `?all=1` and off with `?all=0`. Change 158 (opened change hidden, lesson mixed), server-rendered: no `all` and `?all=1` give 5 entries, toggle on; `?all=0` gives 1 entry, toggle off, "The change you opened is hidden by your filters". |
+| 16 | Pass (real check data). The Pasen holiday (change 166), where every change is hidden by the student's filters, opened from the feed with hidden changes shown: no toggle, both entries badged Hidden, "All changes of this lesson are hidden by your filters". |
 | 17 | Pass. A non-follower gets byte-identical 404 pages for a real id and `999999999`; API parity is in `HistoryTests`. |
 | 18 | Pass at 360 px in Dutch: the card fills the screen, no sideways scroll, time values move whole. |
 | 19 | Pass. 20 entries, "5 older changes not shown" and "The change you opened is further back", both linking to `/changes/{oldest}`. |
-| 20 | Partly. Dev timings: API 7 ms, full page 27 ms (not whole-school data). `EXPLAIN ANALYZE` with 100 000 extra rows on one calendar (rolled back): Index Only Scan on `detected_change_calendar_id_event_key_id_idx`, 0.08 ms. On the tiny dev data the planner picks `(calendar_id, id)`, which is cheaper there. |
+| 20 | Pass on dev data, not whole-school size. One real lesson grown to 101 rows (99 copies, removed afterwards): the card shows 20 entries and "80 older changes not shown" (one row hidden by filters); the full page renders in 44–67 ms; `EXPLAIN ANALYZE` uses `detected_change_calendar_id_event_key_id_idx`, 0.19 ms. Earlier, with 100 000 extra rows on one calendar (rolled back), the same index: 0.08 ms. |
 
 Found and fixed during the walkthrough: a `.wrap` class in `History.svelte` collided with the global `.wrap`
 container (large padding in free-text rows), and entries older than 24 hours printed their date twice.

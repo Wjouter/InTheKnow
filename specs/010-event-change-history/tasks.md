@@ -308,7 +308,7 @@ its history: only the visible one shows; toggle shows both, the hidden one badge
 
 - [X] T033 Run the full suites once, because the feed's corner time changed for every existing feed test:
   `dotnet test backend/InTheKnow.Tests` and `cd frontend && npm test && npm run check`.
-- [ ] T034 Run the manual walkthrough of `specs/010-event-change-history/quickstart.md` steps 1–20 on the dev stack
+- [X] T034 Run the manual walkthrough of `specs/010-event-change-history/quickstart.md` steps 1–20 on the dev stack
   (card open/close via back, Esc, button and backdrop; forward reopens; focus return; Ctrl-click and middle-click;
   reload; Dutch and 360 px; 25-check lesson; 100-row lesson with API and page load times recorded (SC-003); access
   parity; `EXPLAIN ANALYZE` uses the new index), and record the
