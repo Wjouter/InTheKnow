@@ -218,7 +218,8 @@ marked as hidden.
   change on the same day shows the times without repeating the date. Short values (times, rooms, statuses) MUST NOT
   break in the middle; when before and after do not fit side by side, the after value moves to the next line as a
   whole.
-- **FR-011**: When the lesson has no "new" entry, the page MUST say that the lesson was already in the timetable
+- **FR-011**: When the oldest kept entry of the lesson is not a "new" entry (judged over all kept entries, whatever
+  the filters hide), the page MUST say that the lesson was already in the timetable
   before its recorded history starts, and MUST NOT present the oldest listed change as the moment the lesson first
   appeared.
 - **FR-012**: Every history list MUST end with one short note that changes older than the retention period are not
@@ -246,15 +247,16 @@ marked as hidden.
 
 **Access and privacy**
 
-- **FR-016**: Only a signed-in student who currently follows the lesson's timetable MAY see its history. Anyone else
-  MUST get the same "not found" response as for a change that does not exist.
+- **FR-016**: Only a signed-in student who currently follows the lesson's timetable MAY see its history. Any other
+  signed-in student MUST get the same "not found" response as for a change that does not exist. A visitor who is not
+  signed in is sent to sign-in for every id, so the redirect does not reveal whether a change exists.
 - **FR-017**: The history view MUST show only what InTheKnow already stores about the lesson and its changes; this
   feature MUST NOT start storing new personal data.
 
 **Presentation**
 
 - **FR-018**: All new texts MUST be available in English and Dutch and follow the student's language choice.
-- **FR-019**: The feed change and the history view MUST work at phone width without sideways scrolling of the page, and MUST work in light and dark theme.
+- **FR-019**: The feed change and the history view MUST work at phone width without sideways scrolling of the page. The app has a light theme only; a dark theme is out of scope.
 - **FR-020**: The history view MUST follow the existing design system; the reference screenshots in issue 23 set
   the layout (kind badge with the found time, lesson name, the changed details with before and after), not the
   colours. The before/after table in those screenshots is replaced by the one-line list of FR-010, which stays

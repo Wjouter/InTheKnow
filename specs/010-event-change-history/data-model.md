@@ -85,7 +85,7 @@ Inputs: entries, `all: boolean | null` from the URL, `openedId`, `cap: number | 
 | `openedHidden` | the opened entry is hidden and currently left out (FR-014b message) |
 | `allHidden` | every entry is hidden (FR-014b message) |
 | `openedBeyondCap` | the opened entry is cut by the card cap (edge case) |
-| `startsBeforeHistory` | the oldest kept entry is not `added` (FR-011 message, research R4) |
+| `startsBeforeHistory` | the oldest kept entry is not `added`, judged over all kept entries before the toggle filter (FR-011 message, research R4) |
 
 ### Subscriber filters
 

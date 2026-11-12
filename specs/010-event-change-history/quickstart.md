@@ -102,7 +102,7 @@ Then remove a second lesson ("lesson B") in one check and put it back in the nex
 **Presentation**
 
 18. Repeat steps 4 and 13 in Dutch, at 360 px width (the card fills the screen, no sideways scroll, and no time
-    value breaks in the middle), and in dark theme (FR-018, FR-019).
+    value breaks in the middle) (FR-018, FR-019).
 19. Seed one lesson with 25 checks and open the card. It shows 20 entries and "5 older changes not shown" with a
     link to the page. Opened from the oldest change, the card says that change is further back, and the page
     scrolls to it (FR-009a). Seeding with direct `INSERT`s into `detected_change` is fine here, because only display
@@ -112,6 +112,8 @@ Then remove a second lesson ("lesson B") in one check and put it back in the nex
 
 20. With a lesson of 100 rows in a database seeded to whole-school size, time
     `GET /api/me/changes/{id}/history` (for example with `curl -w '%{time_total}'` and the session cookie). Expect
-    well under 1 s. Check that `EXPLAIN` uses the `(calendar_id, event_key, id)` index.
+    well under 1 s. Then open that lesson's full page in the browser and read the load time from the network tab:
+    it must be ready in under 1 s, and the card shows 20 entries and "80 older changes not shown". Check that
+    `EXPLAIN ANALYZE` on the row query uses the `(calendar_id, event_key, id)` index.
 
 Record the results as walkthrough notes here, as earlier specs did.

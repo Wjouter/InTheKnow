@@ -334,7 +334,7 @@ kept." / "Wijzigingen ouder dan {period} worden niet bewaard."
   - `all` and id parsing in `+page.server.ts`, where anything that is not `^[1-9]\d{0,17}$` gives a 404.
   - The existing i18n key-parity test covers the new texts (SC-006).
 - **Manual** (in quickstart): card open and close through back, Esc, the button and the backdrop; forward reopens
-  it; focus return; Ctrl-click and middle-click; reload; phone width; dark theme.
+  it; focus return; Ctrl-click and middle-click; reload; phone width.
 
 **Alternatives**: adding Playwright for the interaction checks was rejected under Principle I. It is a new
 dependency with a browser download and CI setup, for checks that a short manual pass covers. It can be reconsidered

@@ -128,7 +128,7 @@ From top to bottom:
 5. **More** (card only): see Cap.
 6. **Retention note** (FR-012), always last: "Changes older than {period} are not kept."
 
-All colours come from the existing tokens, in both themes. Badges always carry text, so meaning never depends on
+All colours come from the existing tokens. Badges always carry text, so meaning never depends on
 colour alone. At 360 px the page has no sideways scroll (FR-019).
 
 ## New texts (en and nl, FR-018)

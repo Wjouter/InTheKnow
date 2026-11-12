@@ -62,7 +62,7 @@ calendar.
 - The 404 response for "not found" and for "not allowed" must be identical (FR-016, SC-005).
 - The URL holds only the change id, which the feed already exposes, plus `all=0|1` (FR-005d).
 - No new personal data (FR-017).
-- Both themes must work, at phone width (FR-019).
+- It must work at phone width (FR-019). The app has a light theme only.
 
 **Scale/Scope**:
 
@@ -84,7 +84,7 @@ calendar.
 | II. Output encoded by default | PASS. Svelte escapes everything, and lesson details print as text. The existing `no-raw-html` test keeps covering this. |
 | II. Authorization via established mechanisms | PASS. The route sits behind the existing session fallback policy, and access uses the existing subscription lookup. The 404 is the same for every reason. |
 | Tech: GPL-compatible, lockfiles, constraints in DB | PASS. No package is added. The index and the column are plain DDL. |
-| Workflow: non-trivial logic has an automated check | PASS. Backend: access and 404 parity, rows and outcomes, current details and their fallbacks, `baseline_at` set on both baseline paths. Frontend: found-time boundaries, grouping, toggle and FR-014b states, the 20 cap with "further back", the before/after rows, URL parsing, i18n parity. |
+| Workflow: non-trivial logic has an automated check | PASS. Backend: access and 404 parity, rows and outcomes, current details and their fallbacks, `baseline_at` set on both baseline paths. Frontend: found-time boundaries, grouping, toggle and FR-014b states, the 20 cap with "further back", the before/after rows, URL parsing, the card-or-navigate click rule (`opensCard`), i18n parity. The card's close wiring (back, Esc, backdrop, focus return) stays a manual quickstart check, because there is no browser test runner (research R12). |
 
 Post-design re-check: PASS. The design added nothing beyond the items listed above. The contracts keep every
 decision in the existing API and page patterns.
