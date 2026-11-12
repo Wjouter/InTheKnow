@@ -696,6 +696,18 @@ export const nl: Dict = {
 		preferences: 'Voorkeuren',
 		notifications: 'Meldingen'
 	},
+	about: {
+		link: 'Over',
+		title: 'Over InTheKnow',
+		intro: 'Vrije en open-source software.',
+		version: (v: string) => `Versie ${v}`,
+		licenseTitle: 'Licentie',
+		license: 'InTheKnow valt onder de GNU General Public License, versie 3. Je mag het onder die licentie gebruiken, bestuderen, delen en aanpassen.',
+		source: 'Broncode',
+		licenseText: 'Licentietekst',
+		creditsTitle: 'Gemaakt met',
+		credits: 'InTheKnow gebruikt deze open-sourceprojecten. Dank aan iedereen die ze maakt.'
+	},
 	errors: {
 		generic: 'Er ging iets mis.',
 		genericBody: 'Probeer het opnieuw, of ga terug naar de startpagina.',

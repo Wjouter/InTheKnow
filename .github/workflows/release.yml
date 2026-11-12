@@ -35,6 +35,7 @@ jobs:
           for svc in api:backend web:frontend; do
             docker buildx build --platform linux/amd64,linux/arm64 -f "${svc#*:}/Dockerfile" \
               --label org.opencontainers.image.source=https://github.com/Wjouter/InTheKnow \
+              --build-arg INTHEKNOW_VERSION="$VERSION" \
               -t "$IMAGE-${svc%%:*}:$VERSION" --push .
           done
       - name: Render the stack definition

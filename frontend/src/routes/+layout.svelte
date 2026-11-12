@@ -18,6 +18,7 @@
 	// Svelte sets document.title from <svelte:head> only when the value changes, and pages set their own. So this reruns
 	// only when the unavailable view comes or goes, not on every navigation.
 	const unavailable = $derived(Boolean(data.unavailable));
+	const release = __VERSION__ === 'dev' ? '' : `/releases/tag/v${__VERSION__}`;
 
 	// A notice handed over by a redirecting action (enhance.svelte.ts). Taken once and cleared from the history entry,
 	// so Back doesn't show it again; a new object each time, so the same text twice shows twice.
@@ -43,6 +44,11 @@
 	{:else}
 		{@render children()}
 	{/if}
+	<footer>
+		<a href="https://github.com/Wjouter/InTheKnow{release}">InTheKnow {__VERSION__}</a>
+		<span aria-hidden="true">·</span>
+		<a href="/about">{t.about.link}</a>
+	</footer>
 </main>
 {#if data.me}<PhoneNav />{/if}
 {#key notice}<Toast message={notice?.text} />{/key}
@@ -53,6 +59,18 @@
 	}
 	h1 {
 		font: var(--type-h3);
+	}
+	footer {
+		display: flex;
+		justify-content: center;
+		gap: var(--space-2);
+		padding: var(--space-4);
+		border-top: 1px solid var(--border-subtle);
+		font: var(--type-small);
+		color: var(--text-muted);
+	}
+	footer a {
+		color: inherit;
 	}
 	@media (min-width: 768px) {
 		main.with-phone-nav {

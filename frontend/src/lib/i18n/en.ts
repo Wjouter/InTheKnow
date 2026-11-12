@@ -692,6 +692,18 @@ export const en = {
 		preferences: 'Preferences',
 		notifications: 'Notifications'
 	},
+	about: {
+		link: 'About',
+		title: 'About InTheKnow',
+		intro: 'Free and open-source software.',
+		version: (v: string) => `Version ${v}`,
+		licenseTitle: 'License',
+		license: 'InTheKnow is licensed under the GNU General Public License, version 3. You may use, study, share and change it under that license.',
+		source: 'Source code',
+		licenseText: 'License text',
+		creditsTitle: 'Built with',
+		credits: 'InTheKnow uses these open-source projects. Thanks to everyone who makes them.'
+	},
 	errors: {
 		generic: 'Something went wrong.',
 		genericBody: 'Try again, or go back to the home page.',
