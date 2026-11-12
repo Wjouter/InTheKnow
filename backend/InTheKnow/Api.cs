@@ -146,6 +146,25 @@ static class Api
             }
             return Page(items, take);
         });
+
+        // Check now: makes the calendar due, so the dispatcher runs a normal check within a second (host budget permitting).
+        // A calendar whose lease is still live is mid-check; pulling it forward would let a second worker claim it.
+        Admin(app).MapPost("/calendars/{id:long}/check", async (long id, NpgsqlDataSource db, TimeProvider time, CancellationToken ct) =>
+        {
+            await using var cmd = db.CreateCommand("""
+                UPDATE calendar SET next_check_at = CASE WHEN lease_id IS NULL OR next_check_at <= $2 THEN least(next_check_at, $2) ELSE next_check_at END
+                WHERE id = $1
+                RETURNING lease_id IS NULL OR next_check_at <= $2
+                """);
+            cmd.Parameters.Add(new() { Value = id });
+            cmd.Parameters.Add(new() { Value = time.GetUtcNow() });
+            return await cmd.ExecuteScalarAsync(ct) switch
+            {
+                null => Problem(404, "not_found"),
+                false => Problem(409, "check_running"),
+                _ => Results.StatusCode(202),
+            };
+        });
     }
 
     internal static IResult Problem(int status, string reason, Dictionary<string, object?>? extra = null) =>

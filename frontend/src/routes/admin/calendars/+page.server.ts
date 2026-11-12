@@ -1,5 +1,5 @@
 import { api, must } from '$lib/server/api';
-import { after } from '$lib/server/admin';
+import { after, itemAction } from '$lib/server/admin';
 import { checkFailureMessage } from '$lib/codes';
 import { formatter } from '$lib/server/format';
 
@@ -47,4 +47,8 @@ export const load = async (event) => {
 			totalLinks: c.totalLinks
 		}))
 	};
+};
+
+export const actions = {
+	check: itemAction('calendarId', 'POST', (id) => `/api/admin/calendars/${id}/check`, 'checking')
 };

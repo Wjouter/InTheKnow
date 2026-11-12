@@ -54,6 +54,7 @@ export const nl: Dict = {
 		host_budget_exhausted: 'De agendaserver is druk.',
 		invalid_limit: 'Er ging iets mis. Probeer het opnieuw.',
 		invalid_status: 'Dit kan niet in de huidige status. Laad de pagina opnieuw.',
+		check_running: 'Deze agenda wordt nu al gecontroleerd. Probeer het over een paar minuten opnieuw.',
 		invalid_include_hidden: 'Er ging iets mis. Probeer het opnieuw.',
 		invalid_name: 'De naam moet 1 tot 100 tekens lang zijn.',
 		invalid_rules: 'De regels zijn niet geldig.',
@@ -666,7 +667,9 @@ export const nl: Dict = {
 			filter: 'Tonen',
 			none: 'Geen agenda’s.',
 			counts: (subscribers: number, valid: number, total: number) =>
-				`${subscribers} ${subscribers === 1 ? 'account' : 'accounts'}, ${valid} van ${total} links werken`
+				`${subscribers} ${subscribers === 1 ? 'account' : 'accounts'}, ${valid} van ${total} links werken`,
+			checkNow: 'Nu controleren',
+			checking: 'De controle start binnen een paar seconden. Laad de pagina opnieuw voor het resultaat.'
 		},
 		email: {
 			tab: 'E-mail',
