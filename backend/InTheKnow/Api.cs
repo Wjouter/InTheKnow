@@ -101,30 +101,18 @@ static class Api
                 await using var r = await cmd.ExecuteReaderAsync(ct);
                 for (read = 0; items.Count <= take && await r.ReadAsync(ct); read++)
                 {
-                    var (startsAt, detectedAt) = (r.GetDateTime(8), r.GetDateTime(9));
                     var c = ChangeView.Read(r);
                     from = c.Id;
                     var (filter, active) = filters[c.CalendarId];
                     var outcome = FilterEngine.Outcome(filter.Rules, c, active);
                     if (outcome == Outcome.Hidden && includeHidden != "true") continue;
-                    items.Add((c.Id, new
-                    {
-                        id = c.Id,
-                        calendarId = c.CalendarId,
-                        eventKey = c.EventKey,
-                        kind = c.Kind,
-                        field = c.Field,
-                        oldValue = c.OldValue,
-                        newValue = c.NewValue,
-                        eventName = c.EventName,
-                        eventStartsAt = startsAt,
-                        detectedAt,
-                        outcome = FilterEngine.Name(outcome),
-                    }));
+                    items.Add((c.Id, History.Item(c, outcome)));
                 }
             }
             return Page(items, take);
         });
+
+        me.MapHistory();
 
         Admin(app).MapGet("/calendars", async (string? status, bool? overdue, long? after, int? limit, NpgsqlDataSource db, TimeProvider time, CancellationToken ct) =>
         {

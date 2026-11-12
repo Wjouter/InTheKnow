@@ -92,7 +92,25 @@ describe('group', () => {
 		];
 		const groups = group(items, [cal(12, 'Rooster')], t, fmt);
 		expect(groups.map((g) => g.items.length)).toEqual([3, 1]);
-		expect(groups[0].when).toBe('Thu 1 Oct 08:30');
+		// 010 FR-001: the corner shows when the change was found, not the event's start.
+		expect(groups[0].found).toEqual(fmt.found('2026-09-24T19:30:02Z'));
+		expect(groups[0].found.text).not.toBe(fmt.dateTime(items[0].eventStartsAt));
+		expect(groups[0].found.text).toBe('Thu 24 Sept 21:30');
+		expect(groups[0].found.iso).toBe('2026-09-24T19:30:02Z');
+		expect(groups[0].found.exact).toBe('Thu 24 Sept 2026 21:30');
+	});
+
+	// 010 research R9.
+	it('links to the first row the student sees', () => {
+		const cals = [cal(12, 'R')];
+		const [a, b] = [change('changed', 'name', 'a', 'b', { outcome: 'hidden' }), change('changed', 'type', 'a', 'b')];
+		expect(group([a, b], cals, t, fmt)[0].href).toBe(`/changes/${b.id}`);
+		const [c, d] = [change('changed', 'name', 'a', 'b', { outcome: 'hidden' }), change('changed', 'type', 'a', 'b', { outcome: 'hidden' })];
+		expect(group([c, d], cals, t, fmt)[0].href).toBe(`/changes/${c.id}`);
+		const [e] = [change('changed', 'name', 'a', 'b', { outcome: 'lowPriority' })];
+		expect(group([e], cals, t, fmt)[0].href).toBe(`/changes/${e.id}`);
+		expect(group([e], cals, t, fmt, false)[0].href).not.toContain('all=');
+		expect(group([c, d], cals, t, fmt, true)[0].href).toBe(`/changes/${c.id}?all=1`);
 	});
 
 	it('takes the most severe tone and keeps outcomes per item', () => {

@@ -10,8 +10,9 @@
 	import { dicts } from '$lib/i18n';
 	import type { ChangeGroup } from '$lib/server/changes';
 
-	// The design's ChangeNotice, for a group of changes to one event (research R11, R18). Not clickable, no unread dot.
-	let { group }: { group: ChangeGroup } = $props();
+	// The design's ChangeNotice, for a group of changes to one event (research R11, R18). A link to the event's history
+	// (010 FR-004); the corner shows when the change was found (FR-001). No unread dot.
+	let { group, onopen }: { group: ChangeGroup; onopen?: (e: MouseEvent) => void } = $props();
 	const t = $derived(dicts[page.data.lang]);
 	const icons = {
 		'plus-circle': CirclePlus,
@@ -25,12 +26,12 @@
 	const quiet = $derived(group.items.every((i) => i.outcome !== 'normal'));
 </script>
 
-<article class="change {group.tone}" class:quiet class:hidden={group.items.every((i) => i.outcome === 'hidden')}>
+<a class="change {group.tone}" href={group.href} onclick={onopen} class:quiet class:hidden={group.items.every((i) => i.outcome === 'hidden')}>
 	<span class="icon" aria-hidden="true"><GroupIcon size={20} /></span>
 	<div class="body">
 		<div class="head">
 			<h3>{group.eventName}</h3>
-			<span class="when">{group.when}</span>
+			<time class="when" datetime={group.found.iso} title={group.found.exact}>{group.found.text}</time>
 		</div>
 		{#if group.calendarName}<span class="calendar">{group.calendarName}</span>{/if}
 		<ul>
@@ -43,15 +44,24 @@
 			{/each}
 		</ul>
 	</div>
-</article>
+</a>
 
 <style>
 	.change {
 		display: flex;
+		color: inherit;
+		text-decoration: none;
 		gap: 14px;
 		padding: var(--space-4);
 		background: var(--surface-card);
 		border-bottom: 1px solid var(--border-subtle);
+	}
+	.change:hover {
+		background: var(--surface-subtle);
+	}
+	.change:focus-visible {
+		position: relative;
+		z-index: 1;
 	}
 	.icon {
 		width: 40px;
