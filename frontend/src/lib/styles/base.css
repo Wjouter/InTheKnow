@@ -3,7 +3,7 @@ html,body{margin:0}
 body{font:var(--type-body);color:var(--text-body);background:var(--surface-page);-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4{font-family:var(--font-display);color:var(--text-strong);margin:0}
 a{color:var(--text-link);text-decoration:underline;text-underline-offset:2px}
-a:hover{color:var(--brand-press)}
+a:hover{color:var(--text-link-hover)}
 /* The design's translucent box-shadow ring is about 1.8:1 and vanishes in forced-colours mode. The readme itself says
    "2px magenta" for focus, so this is an outline (4.56:1, kept in forced colours). */
 :focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
@@ -29,3 +29,16 @@ p{margin:0}
 .choice{display:flex;align-items:center;gap:var(--space-3);min-height:var(--hit-min);color:var(--text-strong)}
 .choice input{width:22px;height:22px;accent-color:var(--brand);margin:0}
 .select{appearance:none;width:100%;min-height:48px;padding:0 var(--space-3);font:var(--type-body);color:var(--text-strong);background:var(--white);border:var(--border-w) solid var(--grey-500);border-radius:var(--radius-md)}
+
+/* The visitor theme toggle (011 research R6): the moon shows in light, the sun in dark, with the same two selectors as
+   the dark tokens. `:root` lifts the hiding rule above a component's own class. */
+.theme-light-only,.theme-dark-only{display:inline-flex;align-items:center;justify-content:center}
+:root .theme-dark-only{display:none}
+@media screen and (prefers-color-scheme: dark){
+:root:not([data-theme='light']) .theme-light-only{display:none}
+:root:not([data-theme='light']) .theme-dark-only{display:inline-flex}
+}
+@media screen{
+:root[data-theme='dark'] .theme-light-only{display:none}
+:root[data-theme='dark'] .theme-dark-only{display:inline-flex}
+}

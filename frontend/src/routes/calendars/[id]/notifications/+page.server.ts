@@ -2,7 +2,7 @@ import { api, must } from '$lib/server/api';
 import { field, refuse } from '$lib/server/actions';
 import { calendarId } from '$lib/server/calendar';
 
-type Settings = { notify: boolean; label: string | null; name: string };
+export type Settings = { notify: boolean; label: string | null; name: string };
 
 // Opening this page changes nothing (FR-014): emails link here, and only the Save button acts.
 export const load = async (event) =>

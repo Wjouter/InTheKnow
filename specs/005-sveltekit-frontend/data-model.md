@@ -15,6 +15,7 @@ It has:
 | `itk_pending` | Browser session (before the second step) | The awaiting-code token | `HttpOnly; Secure¹; SameSite=Lax; Path=/sign-in; Max-Age=600` | Sign-in with `secondFactorRequired: true` | A successful code step, sign-out, expiry (10 min) | US6-3: the code step needs the half-signed-in session. It is kept apart from `itk_session`, so the gate never treats it as signed in. |
 | `itk_invite` | (none; a token carrier) | A shareable invite token | `HttpOnly; Secure¹; SameSite=Lax; Path=/account/sign-up; Max-Age=3600` | `GET /account/sign-up?invite=…` (then `303` to the clean address) | A successful sign-up, or expiry | Keeps the token out of the address bar before a bot check script loads (research R15) |
 | `itk_lang` | Language choice | `en` or `nl` | `Secure¹; SameSite=Lax; Path=/; Max-Age=31536000` | The visitor's language switch | Never (it is overwritten on the next switch) | US9-1: remembers a visitor's switch. It is not personal data. Signed-in users follow their account instead. |
+| `itk_theme` | Theme choice (011) | `light` or `dark` | `Secure; SameSite=Lax; Path=/; Max-Age=31536000` | `POST /theme`, Preferences Save | When "Same as this device" is chosen | 011 FR-014: remembers the choice on this device. It is not personal data and identifies nobody. Never sent to the API. |
 
 ¹ SvelteKit leaves out `Secure` only on plain `http://localhost` during development.
 

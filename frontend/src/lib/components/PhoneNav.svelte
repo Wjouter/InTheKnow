@@ -61,7 +61,7 @@
 		text-align: center;
 	}
 	a[aria-current='page'] {
-		color: var(--brand);
+		color: var(--brand-on-page);
 		font-weight: var(--fw-bold);
 	}
 	@media (min-width: 768px) {

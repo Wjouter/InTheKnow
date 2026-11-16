@@ -9,7 +9,8 @@
 	import PhoneNav from '$lib/components/PhoneNav.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Toast from '$lib/components/Toast.svelte';
-	import { replaceState } from '$app/navigation';
+	import { invalidateAll, replaceState } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { dicts } from '$lib/i18n';
 
@@ -19,6 +20,17 @@
 	// only when the unavailable view comes or goes, not on every navigation.
 	const unavailable = $derived(Boolean(data.unavailable));
 	const release = __VERSION__ === 'dev' ? '' : `/releases/tag/v${__VERSION__}`;
+
+	// The chosen theme (011 research R5): <html data-theme> follows the page data, which another tab's change reloads.
+	$effect(() => {
+		document.documentElement.dataset.theme = data.theme ?? '';
+	});
+	onMount(() => {
+		if (typeof BroadcastChannel === 'undefined') return;
+		const channel = new BroadcastChannel('itk_theme');
+		channel.onmessage = () => invalidateAll();
+		return () => channel.close();
+	});
 
 	// A notice handed over by a redirecting action (enhance.svelte.ts). Taken once and cleared from the history entry,
 	// so Back doesn't show it again; a new object each time, so the same text twice shows twice.

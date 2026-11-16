@@ -41,14 +41,15 @@
 		align-items: center;
 		padding: 14px var(--space-4);
 		background: var(--surface-dark);
-		color: var(--white);
+		color: var(--text-inverse);
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-3);
 		max-width: 420px;
 		font: 700 var(--fs-16) / 1.3 var(--font-body);
 	}
 	.toast :global(svg) {
-		color: var(--green-100);
+		/* Fixed light green: --green-100 is a deep tint in dark (011 research R7). */
+		color: #e3f4ea;
 		flex: none;
 	}
 	@media (min-width: 768px) {

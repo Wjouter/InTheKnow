@@ -83,7 +83,8 @@
 		width: 22px;
 		height: 22px;
 		border-radius: 50%;
-		background: var(--white);
+		/* White on both tracks, in both themes (011 FR-009). */
+		background: var(--text-inverse);
 		box-shadow: var(--shadow-1);
 		transition: transform var(--dur-base) var(--ease-standard);
 	}

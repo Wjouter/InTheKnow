@@ -727,5 +727,14 @@ export const nl: Dict = {
 		tryAgain: 'Opnieuw proberen',
 		notFoundTitle: 'Pagina niet gevonden',
 		notFound: 'Deze pagina bestaat niet, of is er niet meer.'
+	},
+	theme: {
+		label: 'Thema',
+		hint: 'Alleen op dit apparaat opgeslagen.',
+		device: 'Zelfde als dit apparaat',
+		light: 'Licht',
+		dark: 'Donker',
+		toDark: 'Naar donker thema',
+		toLight: 'Naar licht thema'
 	}
 };

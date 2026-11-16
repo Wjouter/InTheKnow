@@ -3,7 +3,7 @@ import { after, itemAction } from '$lib/server/admin';
 import { checkFailureMessage } from '$lib/codes';
 import { formatter } from '$lib/server/format';
 
-type AdminCalendar = {
+export type AdminCalendar = {
 	calendarId: number;
 	status: 'ok' | 'failing';
 	lastCheckedAt: string | null;

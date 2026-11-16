@@ -6,6 +6,7 @@
 	import { submitter } from '$lib/enhance.svelte';
 	import { dicts } from '$lib/i18n';
 	import { fieldError, formError, refusal } from '$lib/refusal';
+	import { setTheme } from '$lib/theme';
 
 	let { data, form } = $props();
 	const t = $derived(dicts[data.lang]);
@@ -43,6 +44,17 @@
 		<label class="choice"><input type="radio" name="homePage" value="changes" checked={homePage === 'changes'} />{t.preferences.homeChanges}</label>
 		<label class="choice"><input type="radio" name="homePage" value="combined" checked={homePage === 'combined'} />{t.preferences.homeCombined}</label>
 		{#if fieldError(form, 'invalid_home_page')}<span class="form-error">{fieldError(form, 'invalid_home_page')}</span>{/if}
+	</fieldset>
+	<!-- Applied at once with script; Save stores it without (011 FR-021). From the root layout data, so another tab's
+	     change shows here too. -->
+	<fieldset class="stack" aria-describedby="theme-hint">
+		<legend>{t.theme.label}</legend>
+		<p id="theme-hint" class="muted">{t.theme.hint}</p>
+		{#each ['device', 'light', 'dark'] as const as value (value)}
+			<label class="choice"
+				><input type="radio" name="theme" {value} checked={(data.theme ?? 'device') === value} onchange={() => setTheme(value)} />{t.theme[value]}</label
+			>
+		{/each}
 	</fieldset>
 	<div><Button disabled={s.pending}>{t.save}</Button></div>
 </form>

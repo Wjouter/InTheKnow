@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => ({
 	define: { __VERSION__: JSON.stringify(loadEnv(mode, '.', 'INTHEKNOW_').INTHEKNOW_VERSION || 'dev') },
 	test: {
 		environment: 'node',
-		include: ['src/**/*.test.ts']
+		include: ['src/**/*.test.ts'],
+		// theme.test.ts reads the token file as text (?raw), which Vitest empties unless CSS is processed.
+		css: { include: [/tokens\.css/] }
 	}
 }));

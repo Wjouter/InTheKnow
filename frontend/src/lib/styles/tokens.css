@@ -4,6 +4,7 @@
 
 /* tokens/colors.css */
 :root{
+color-scheme:light;
 /* Brand — Inholland magenta */
 --magenta-50:#fdeef6;--magenta-100:#fbd5e9;--magenta-200:#f6a9d1;--magenta-300:#ec51a7;--magenta-500:#e20e80;--magenta-600:#c70b70;--magenta-700:#a8095f;--magenta-800:#7d0747;--magenta-900:#4f052d;
 /* Warm secondary (from Inholland palette) */
@@ -30,6 +31,8 @@
 /* Local additions (research R18): the 4.5:1 text shades for badges and notices on the soft status backgrounds.
    --amber-500 on --amber-100 is 3.54:1 and --green-500 on --green-100 is 3.84:1. */
 :root{--amber-700:#8a5200;--green-700:#17693a;}
+/* Local aliases for dark mode (011 contracts/theme.md), with today's values in light. */
+:root{--text-link-hover:var(--brand-press);--brand-on-page:var(--brand);--surface-dark-hover:var(--grey-700);--text-brand-on-section:var(--text-brand);}
 
 /* tokens/typography.css */
 :root{
@@ -84,3 +87,63 @@
 --border-w:1px; /* @kind spacing */
 --border-w-strong:2px; /* @kind spacing */
 }
+
+/* Dark theme (011): the design's .dark block (design canvas ds/intheknow/app.css), twice with the same declarations
+   (theme.test.ts checks that). First when the device asks for dark and "Light" is not chosen, then when "Dark" is
+   chosen. Screen only, so print stays light (research R1). */
+@media screen and (prefers-color-scheme: dark) { :root:not([data-theme='light']) {
+color-scheme:dark;
+/* Neutrals, inverted: --white is the raised surface (header, cards, inputs), --grey-900 the strongest ink */
+--white:#1c1c1a;--grey-50:#242422;--grey-100:#2c2c2a;--grey-200:#343431;--grey-300:#474743;--grey-400:#6b6b66;--grey-500:#85857f;--grey-600:#a6a6a0;--grey-700:#d4d4cf;--grey-900:#f5f5f2;
+/* Soft tints become deep tints; status and text shades become light enough for 4.5:1 on them */
+--magenta-50:#3a0f27;--magenta-100:#521536;
+--red-500:#ff8d9b;--red-100:#3a1519;
+--amber-500:#f5b651;--amber-700:#f5b651;--amber-100:#33240a;
+--green-500:#6fd39a;--green-700:#6fd39a;--green-100:#11301e;
+--blue-500:#8ab8f0;--blue-100:#14263d;
+/* Semantic aliases */
+--brand-soft:var(--magenta-50);
+--text-strong:var(--grey-900);--text-body:var(--grey-700);--text-muted:var(--grey-600);--text-inverse:#ffffff;--text-brand:var(--magenta-300);--text-link:var(--magenta-300);
+--surface-page:#141413;--surface-subtle:var(--grey-50);--surface-section:var(--grey-100);--surface-card:var(--white);--surface-dark:#3a3a37;
+--border-subtle:var(--grey-200);--border-default:var(--grey-300);--border-strong:var(--grey-600);--border-focus:var(--magenta-300);
+--status-cancelled:var(--red-500);--status-cancelled-soft:var(--red-100);
+--status-moved:var(--amber-500);--status-moved-soft:var(--amber-100);
+--status-new:var(--green-500);--status-new-soft:var(--green-100);
+--status-info:var(--blue-500);--status-info-soft:var(--blue-100);
+/* Local aliases (011 research R7) */
+--text-link-hover:var(--magenta-200);--brand-on-page:var(--magenta-300);--surface-dark-hover:#474743;--text-brand-on-section:var(--magenta-200);
+/* Effects: shadows barely read on dark, so they are heavier; the scrim is darker */
+--shadow-1:0 1px 2px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.3);
+--shadow-2:0 4px 12px rgba(0,0,0,.45);
+--shadow-3:0 12px 32px rgba(0,0,0,.6);
+--focus-ring:0 0 0 3px rgba(236,81,167,.45);
+--overlay-scrim:rgba(0,0,0,.7);
+} }
+@media screen { :root[data-theme='dark'] {
+color-scheme:dark;
+/* Neutrals, inverted: --white is the raised surface (header, cards, inputs), --grey-900 the strongest ink */
+--white:#1c1c1a;--grey-50:#242422;--grey-100:#2c2c2a;--grey-200:#343431;--grey-300:#474743;--grey-400:#6b6b66;--grey-500:#85857f;--grey-600:#a6a6a0;--grey-700:#d4d4cf;--grey-900:#f5f5f2;
+/* Soft tints become deep tints; status and text shades become light enough for 4.5:1 on them */
+--magenta-50:#3a0f27;--magenta-100:#521536;
+--red-500:#ff8d9b;--red-100:#3a1519;
+--amber-500:#f5b651;--amber-700:#f5b651;--amber-100:#33240a;
+--green-500:#6fd39a;--green-700:#6fd39a;--green-100:#11301e;
+--blue-500:#8ab8f0;--blue-100:#14263d;
+/* Semantic aliases */
+--brand-soft:var(--magenta-50);
+--text-strong:var(--grey-900);--text-body:var(--grey-700);--text-muted:var(--grey-600);--text-inverse:#ffffff;--text-brand:var(--magenta-300);--text-link:var(--magenta-300);
+--surface-page:#141413;--surface-subtle:var(--grey-50);--surface-section:var(--grey-100);--surface-card:var(--white);--surface-dark:#3a3a37;
+--border-subtle:var(--grey-200);--border-default:var(--grey-300);--border-strong:var(--grey-600);--border-focus:var(--magenta-300);
+--status-cancelled:var(--red-500);--status-cancelled-soft:var(--red-100);
+--status-moved:var(--amber-500);--status-moved-soft:var(--amber-100);
+--status-new:var(--green-500);--status-new-soft:var(--green-100);
+--status-info:var(--blue-500);--status-info-soft:var(--blue-100);
+/* Local aliases (011 research R7) */
+--text-link-hover:var(--magenta-200);--brand-on-page:var(--magenta-300);--surface-dark-hover:#474743;--text-brand-on-section:var(--magenta-200);
+/* Effects: shadows barely read on dark, so they are heavier; the scrim is darker */
+--shadow-1:0 1px 2px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.3);
+--shadow-2:0 4px 12px rgba(0,0,0,.45);
+--shadow-3:0 12px 32px rgba(0,0,0,.6);
+--focus-ring:0 0 0 3px rgba(236,81,167,.45);
+--overlay-scrim:rgba(0,0,0,.7);
+} }

@@ -3,8 +3,8 @@ import { field, refuse } from '$lib/server/actions';
 import { channelFailureMessage } from '$lib/codes';
 import { formatter } from '$lib/server/format';
 
-type Status = 'awaitingConfirmation' | 'active' | 'paused' | 'unsubscribed' | 'failing';
-type Channel = {
+export type Status = 'awaitingConfirmation' | 'active' | 'paused' | 'unsubscribed' | 'failing';
+export type Channel = {
 	id: number;
 	type: string;
 	target: string;

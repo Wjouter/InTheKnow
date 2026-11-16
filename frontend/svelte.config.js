@@ -25,6 +25,14 @@ export default {
 		},
 		// Kit's Origin check would refuse our own form posts: no-referrer makes browsers send `Origin: null`.
 		// hooks.server.ts checks Sec-Fetch-Site instead (research R4). `checkOrigin: false` is deprecated for this.
-		csrf: { trustedOrigins: ['*'] }
+		csrf: { trustedOrigins: ['*'] },
+		// The browser tests' fixtures use the app's types, so they are checked with it (011 T002).
+		typescript: {
+			config: (c) => {
+				c.include.push('../e2e/**/*.ts');
+				// Plain Node code, and the project has no Node types.
+				c.exclude.push('../e2e/api-stub.ts');
+			}
+		}
 	}
 };

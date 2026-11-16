@@ -256,7 +256,7 @@ marked as hidden.
 **Presentation**
 
 - **FR-018**: All new texts MUST be available in English and Dutch and follow the student's language choice.
-- **FR-019**: The feed change and the history view MUST work at phone width without sideways scrolling of the page. The app has a light theme only; a dark theme is out of scope.
+- **FR-019**: The feed change and the history view MUST work at phone width without sideways scrolling of the page.
 - **FR-020**: The history view MUST follow the existing design system; the reference screenshots in issue 23 set
   the layout (kind badge with the found time, lesson name, the changed details with before and after), not the
   colours. The before/after table in those screenshots is replaced by the one-line list of FR-010, which stays

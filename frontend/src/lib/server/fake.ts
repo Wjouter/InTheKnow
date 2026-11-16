@@ -44,7 +44,7 @@ export function fakeEvent(o: {
 			},
 			serialize: () => ''
 		},
-		locals: { token: null, me: null, tz: 'UTC', lang: 'en', t: dicts.en, unavailable: false, ...o.locals }
+		locals: { token: null, me: null, tz: 'UTC', lang: 'en', t: dicts.en, theme: null, unavailable: false, ...o.locals }
 	};
 	return { event: event as unknown as RequestEvent, set, deleted, jar };
 }
