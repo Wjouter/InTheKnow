@@ -7,5 +7,5 @@ export const load: LayoutServerLoad = ({ locals, url }) => {
 	// Read the path first, always: that makes this load rerun on every navigation, so the header follows a session
 	// that ended meanwhile (a `&&` that skipped it would leave the signed-in nav on the sign-in page).
 	const publicPath = isPublic(url.pathname);
-	return { lang: locals.lang, me: locals.me, unavailable: locals.unavailable && !publicPath };
+	return { lang: locals.lang, theme: locals.theme, me: locals.me, unavailable: locals.unavailable && !publicPath };
 };

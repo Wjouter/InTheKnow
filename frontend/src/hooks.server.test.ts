@@ -14,8 +14,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+const TEMPLATE = '<html lang="%lang%" data-theme="%theme%"><meta name="color-scheme" content="%scheme%" />';
 const resolve = vi.fn(async (_event: unknown, opts?: ResolveOptions) => {
-	const html = (await opts?.transformPageChunk?.({ html: '<html lang="%lang%">', done: true })) ?? '';
+	const html = (await opts?.transformPageChunk?.({ html: TEMPLATE, done: true })) ?? '';
 	return new Response(html, { status: 200 });
 });
 
@@ -57,7 +58,7 @@ describe('gate', () => {
 		}
 	});
 
-	it.each(['/', '/sign-in', '/sign-in/code', '/account/reset', '/language', '/_app/x.js'])('lets %s through', async (url) => {
+	it.each(['/', '/sign-in', '/sign-in/code', '/account/reset', '/language', '/theme', '/_app/x.js'])('lets %s through', async (url) => {
 		expect((await run({ url }).response).status).toBe(200);
 	});
 
@@ -115,12 +116,34 @@ describe('log', () => {
 describe('language', () => {
 	it('follows Accept-Language for visitors', async () => {
 		const res = await run({ url: '/', headers: { 'accept-language': 'nl' } }).response;
-		expect(await res.text()).toBe('<html lang="nl">');
+		expect(await res.text()).toContain('<html lang="nl"');
 	});
 
 	it('follows the account for signed-in users', async () => {
 		signedIn('en');
 		const res = await run({ url: '/', cookies: { itk_session: 'T' }, headers: { 'accept-language': 'nl' } }).response;
-		expect(await res.text()).toBe('<html lang="en">');
+		expect(await res.text()).toContain('<html lang="en"');
+	});
+});
+
+describe('theme', () => {
+	it.each([
+		['dark', 'dark', 'dark'],
+		['light', 'light', 'light']
+	])('itk_theme=%s gives data-theme=%s and color-scheme %s', async (cookie, theme, scheme) => {
+		const f = run({ url: '/', cookies: { itk_theme: cookie } });
+		const html = await (await f.response).text();
+		expect(html).toContain(`data-theme="${theme}"`);
+		expect(html).toContain(`<meta name="color-scheme" content="${scheme}" />`);
+		expect(f.event.locals.theme).toBe(theme);
+	});
+
+	it.each([undefined, 'purple'])('itk_theme=%s follows the device', async (cookie) => {
+		const f = run({ url: '/', cookies: cookie ? { itk_theme: cookie } : {} });
+		const html = await (await f.response).text();
+		expect(html).toContain('data-theme=""');
+		expect(html).toContain('<meta name="color-scheme" content="light dark" />');
+		expect(html).not.toContain('purple');
+		expect(f.event.locals.theme).toBeNull();
 	});
 });

@@ -1,6 +1,6 @@
 <script module lang="ts">
 	type Widget = {
-		render(el: HTMLElement, opts: { sitekey: string }): string | number;
+		render(el: HTMLElement, opts: { sitekey: string; theme?: string }): string | number;
 		reset(id?: string | number): void;
 		remove?(id: string | number): void;
 	};
@@ -66,7 +66,8 @@
 			.then((w) => {
 				if (gone || !container) return;
 				widget = w;
-				id = w.render(container, { sitekey: siteKey });
+				// The theme the page shows, chosen or from the device (011 research R9).
+				id = w.render(container, { sitekey: siteKey, theme: getComputedStyle(document.documentElement).colorScheme });
 			})
 			.catch(() => (failed = true));
 		return () => {

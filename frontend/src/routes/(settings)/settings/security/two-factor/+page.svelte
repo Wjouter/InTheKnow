@@ -87,8 +87,9 @@
 		gap: var(--space-3);
 	}
 	img {
-		background: var(--white);
-		padding: var(--space-2);
+		/* A fixed white tile with a quiet zone of over four modules, so phones can scan it in dark too (011 FR-010). */
+		background: #ffffff;
+		padding: var(--space-6);
 		box-shadow: inset 0 0 0 1px var(--border-subtle);
 		max-width: 100%;
 		height: auto;

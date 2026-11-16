@@ -98,8 +98,8 @@
 		border-color: var(--surface-dark);
 	}
 	.dark:hover:not(:disabled) {
-		background: var(--grey-700);
-		border-color: var(--grey-700);
+		background: var(--surface-dark-hover);
+		border-color: var(--surface-dark-hover);
 		color: var(--text-inverse);
 	}
 	.ghost {

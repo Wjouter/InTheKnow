@@ -723,5 +723,14 @@ export const en = {
 		tryAgain: 'Try again',
 		notFoundTitle: 'Page not found',
 		notFound: 'This page doesn’t exist, or it’s no longer there.'
+	},
+	theme: {
+		label: 'Theme',
+		hint: 'Saved on this device only.',
+		device: 'Same as this device',
+		light: 'Light',
+		dark: 'Dark',
+		toDark: 'Switch to dark theme',
+		toLight: 'Switch to light theme'
 	}
 };

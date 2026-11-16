@@ -6,5 +6,6 @@ export const isPublic = (path: string) =>
 	path === '/account' ||
 	path.startsWith('/account/') ||
 	path === '/language' ||
+	path === '/theme' ||
 	path === '/about' ||
 	path.startsWith('/_app/');

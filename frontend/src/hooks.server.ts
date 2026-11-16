@@ -3,6 +3,7 @@ import { api } from '$lib/server/api';
 import { dicts, pickLang } from '$lib/i18n';
 import { isPublic } from '$lib/paths';
 import { returnPath } from '$lib/next';
+import { pickTheme } from '$lib/theme';
 
 // research R3 to R6, R9, R16, R17.
 
@@ -67,6 +68,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	locals.lang = locals.me?.language ?? pickLang(cookies.get('itk_lang'), request.headers.get('accept-language'));
 	locals.t = dicts[locals.lang];
+	locals.theme = pickTheme(cookies.get('itk_theme'));
 
 	// The sign-in gate (R6). It is here, not in a layout, because layout loads don't run for form actions.
 	if (!locals.unavailable && !locals.me && !isPublic(url.pathname)) {
@@ -80,7 +82,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	const response = await resolve(event, {
-		transformPageChunk: ({ html }) => html.replace('%lang%', locals.lang)
+		// The theme is in the first byte, so the first paint is right (011 research R3).
+		transformPageChunk: ({ html }) =>
+			html
+				.replace('%lang%', locals.lang)
+				.replace('%theme%', locals.theme ?? '')
+				.replace('%scheme%', locals.theme ?? 'light dark')
 	});
 	return finish(response);
 };

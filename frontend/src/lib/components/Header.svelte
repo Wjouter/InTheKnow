@@ -1,7 +1,10 @@
 <script lang="ts">
 	import LogOut from '@lucide/svelte/icons/log-out';
+	import Moon from '@lucide/svelte/icons/moon';
+	import Sun from '@lucide/svelte/icons/sun';
 	import { page } from '$app/state';
 	import { dicts } from '$lib/i18n';
+	import { setTheme } from '$lib/theme';
 	import { navItems } from './nav';
 
 	const t = $derived(dicts[page.data.lang]);
@@ -11,7 +14,7 @@
 	const other = $derived(page.data.lang === 'en' ? { lang: 'nl', label: 'Nederlands' } : { lang: 'en', label: 'English' });
 </script>
 
-<header>
+<header class:visitor={!me}>
 	<div class="inner">
 		<a class="wordmark" href="/" aria-label={t.wordmarkLabel}>InThe<span>Know</span></a>
 		{#if me}
@@ -27,6 +30,19 @@
 			</form>
 		{:else}
 			<div class="end">
+				<!-- Without script this posts and comes back in the new theme; with script it changes at once (FR-021). -->
+				<form
+					method="POST"
+					action="/theme"
+					onsubmit={(e) => {
+						e.preventDefault();
+						setTheme((e.submitter as HTMLButtonElement).value as 'light' | 'dark');
+					}}
+				>
+					<input type="hidden" name="next" value={here} />
+					<button type="submit" name="theme" value="dark" class="toggle theme-light-only" aria-label={t.theme.toDark}><Moon size={20} aria-hidden="true" /></button>
+					<button type="submit" name="theme" value="light" class="toggle theme-dark-only" aria-label={t.theme.toLight}><Sun size={20} aria-hidden="true" /></button>
+				</form>
 				<form method="POST" action="/language">
 					<input type="hidden" name="lang" value={other.lang} />
 					<input type="hidden" name="next" value={here} />
@@ -127,6 +143,45 @@
 	}
 	.signup {
 		color: var(--text-brand);
+	}
+	/* No display here: base.css shows the one that applies. */
+	.toggle {
+		width: var(--hit-min);
+		height: var(--hit-min);
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: var(--text-strong);
+		cursor: pointer;
+		border-radius: var(--radius-md);
+	}
+	.toggle:hover {
+		background: var(--brand-soft);
+		color: var(--text-brand);
+	}
+	/* The visitor header holds five controls since the theme toggle (011 T038): tighter at phone width so they fit in
+	   390px. The signed-in header is not touched. */
+	@media (max-width: 767px) {
+		.visitor .inner {
+			gap: var(--space-2);
+		}
+		.visitor .plain {
+			padding: 0 6px;
+		}
+	}
+	@media (max-width: 419px) {
+		.visitor .inner {
+			padding: 0 var(--space-3);
+		}
+		.visitor .wordmark {
+			font-size: 21px;
+		}
+		.visitor .end {
+			gap: 2px;
+		}
+		.visitor .plain {
+			padding: 0 var(--space-1);
+		}
 	}
 	@media (min-width: 768px) {
 		.inner {

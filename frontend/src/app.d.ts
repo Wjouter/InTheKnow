@@ -1,4 +1,5 @@
 import type { Dict, Lang } from '$lib/i18n';
+import type { Theme } from '$lib/theme';
 
 declare global {
 	/** The release version (vite.config.ts), "dev" outside a release build. */
@@ -22,12 +23,15 @@ declare global {
 			tz: string;
 			lang: Lang;
 			t: Dict;
+			/** The theme chosen on this device, or null for "same as this device" (011). */
+			theme: Theme | null;
 			unavailable: boolean;
 		}
 		// From the root layout. Dictionaries hold functions, so pages look them up as dicts[page.data.lang].
 		interface PageData {
 			lang: Lang;
 			me: Me | null;
+			theme: Theme | null;
 		}
 		// A notice for the next page, handed over by an action that redirects there (a removal). `history` is the card
 		// over the feed (010 research R8): the data of /changes/{id}; `historyAll` the toggle set inside a history.

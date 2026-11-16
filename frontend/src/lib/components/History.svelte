@@ -333,6 +333,7 @@
 	.entry.removed::before {
 		background: var(--status-cancelled);
 	}
+	/* Decoration: the entry's badge says "low priority" or "hidden" in words, so this stripe needs no 3:1 (011 R7). */
 	.entry.low::before,
 	.entry.hidden::before {
 		background: var(--grey-400);
@@ -356,6 +357,10 @@
 	}
 	.entry.opened.removed::before {
 		background: var(--status-cancelled);
+	}
+	/* On grey-100, magenta-300 is 4.19:1 in dark (011 T029). */
+	.entry.opened.removed .opened-label {
+		color: var(--text-brand-on-section);
 	}
 	.entry-head {
 		display: flex;
