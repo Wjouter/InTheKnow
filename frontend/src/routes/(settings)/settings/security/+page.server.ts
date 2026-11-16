@@ -3,8 +3,8 @@ import { api, clearSession, must, signedIn } from '$lib/server/api';
 import { field, raw, reauthenticate, refuse } from '$lib/server/actions';
 import { formatter } from '$lib/server/format';
 
-type Session = { id: number; device: string; createdAt: string; lastUsedAt: string; current: boolean };
-type Method = { id: number; type: string; createdAt: string; lastUsedAt: string | null };
+export type Session = { id: number; device: string; createdAt: string; lastUsedAt: string; current: boolean };
+export type Method = { id: number; type: string; createdAt: string; lastUsedAt: string | null };
 
 const id = (v: string) => (/^[1-9]\d{0,17}$/.test(v) ? v : null);
 

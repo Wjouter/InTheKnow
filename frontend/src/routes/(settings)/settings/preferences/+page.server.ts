@@ -1,7 +1,7 @@
 import { api, must, signedIn } from '$lib/server/api';
 import { field, refuse } from '$lib/server/actions';
 
-type Settings = { language: 'en' | 'nl'; timeZone: string | null; effectiveTimeZone: string };
+export type Settings = { language: 'en' | 'nl'; timeZone: string | null; effectiveTimeZone: string };
 
 export const load = async (event) => {
 	const settings = must(event, await api<Settings>(event, 'GET', '/api/me/notification-settings'));

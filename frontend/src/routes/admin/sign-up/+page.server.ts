@@ -3,8 +3,8 @@ import { field, formValues, refuse } from '$lib/server/actions';
 import { itemAction } from '$lib/server/admin';
 import { formatter } from '$lib/server/format';
 
-type Settings = { open: boolean; allowedDomains: string[] };
-type Invite = {
+export type Settings = { open: boolean; allowedDomains: string[] };
+export type Invite = {
 	id: number;
 	kind: 'named' | 'shareable';
 	email: string | null;

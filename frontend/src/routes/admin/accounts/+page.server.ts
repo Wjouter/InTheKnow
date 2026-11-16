@@ -4,7 +4,7 @@ import { field } from '$lib/server/actions';
 import { after, itemAction } from '$lib/server/admin';
 import { formatter } from '$lib/server/format';
 
-type Account = { id: number; email: string; role: 'user' | 'admin'; confirmed: boolean; disabled: boolean; twoFactor: boolean; createdAt: string };
+export type Account = { id: number; email: string; role: 'user' | 'admin'; confirmed: boolean; disabled: boolean; twoFactor: boolean; createdAt: string };
 
 export const load = async (event) => {
 	const { lang, tz } = event.locals;

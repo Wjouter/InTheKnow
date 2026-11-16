@@ -5,7 +5,7 @@ import { calendarId } from '$lib/server/calendar';
 import { editorRules, parseRules, ruleSentence, type Rule } from '$lib/server/rules';
 import type { Refusal } from '$lib/refusal';
 
-type Filter = {
+export type Filter = {
 	source: { type: 'preset'; presetId: number; name: string; scope: string } | { type: 'custom' };
 	rules: Rule[];
 	inactiveRules: number[];
