@@ -31,3 +31,7 @@ mytimetable example links.md
 
 # Real MyTimetables feeds (contain real names)
 backend/InTheKnow.Tests/Fixtures/private/
+
+# Claude Code install files that land in the repo root
+/applications/
+/claude/
